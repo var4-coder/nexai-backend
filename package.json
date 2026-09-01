@@ -12,7 +12,7 @@
     "dev:all": "tsx watch src/server.ts & tsx watch src/jobs/worker.ts",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
-    "postinstall": "playwright install --with-deps chromium"
+    "postinstall":"postinstall": "playwright install chromium"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
