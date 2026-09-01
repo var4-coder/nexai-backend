@@ -248,7 +248,7 @@ export async function loginWithGoogle(params: {
 
 export async function requestPasswordReset(email: string): Promise<void> {
   const user = await User.findOne({ email: email.toLowerCase().trim() }).select(
-    '+passwordReset.lastSentAt'
+    '+passwordReset.lastSentAt +passwordHash'
   );
   // Réponse toujours générique côté route : on ne révèle jamais si l'email
   // existe, ni si le compte est Google-only (pas de mot de passe).
@@ -287,7 +287,7 @@ export async function resetPassword(params: {
   }
 
   const reset = user.passwordReset;
-  if (!reset || reset.expiresAt.getTime() < Date.now()) {
+  if (!reset || !reset.expiresAt || reset.expiresAt.getTime() < Date.now()) {
     throw new AppError('Code invalide ou expiré. Redemandez un code.', 400);
   }
 
