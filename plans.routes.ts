@@ -57,4 +57,4 @@ plansRouter.post('/acheter', requireAuth, async (req: Request, res: Response, ne
   } catch (err) {
     next(err);
   }
-});
+});  
