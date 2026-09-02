@@ -1,329 +1,170 @@
-import type { HydratedDocument } from 'mongoose';
-import { OAuth2Client } from 'google-auth-library';
-import { User, IUser } from '@/models/User';
-import { AppError } from '@/middleware/errorHandler';
+import crypto from 'crypto';
 import { env } from '@/config/env';
-import { hashIp, generateVerificationCode, hashValue, compareValue } from '@/utils/crypto';
-import { signAuthToken } from '@/utils/jwt';
-import { sendVerificationCodeEmail, sendPasswordResetCodeEmail } from './brevo.service';
+import { PaiementChariow } from '@/models/PaiementChariow';
+import { Site } from '@/models/Site';
+import { AppError } from '@/middleware/errorHandler';
 
-// Règles freemium/essai — voir Partie A.7.1 / A.11 de la Source de Vérité
-const MAX_ACCOUNTS_PER_IP = 3;
-const TRIAL_DURATION_DAYS = 7;
-const CODE_TTL_MINUTES = 15;
-const CODE_RESEND_COOLDOWN_SECONDS = 60;
-const MAX_CODE_ATTEMPTS = 5;
+/**
+ * Webhook Chariow signé + enregistrement dans paiements_chariow_nexai.
+ * Flux : Compte NexAI (Chariow) → webhook → table → délai 3 jours → admin reverse mobile money.
+ * Architecture §7.6 + Partie D.9 à D.11.
+ */
 
-const googleClient = env.GOOGLE_CLIENT_ID ? new OAuth2Client(env.GOOGLE_CLIENT_ID) : null;
-
-export interface SafeUser {
-  id: string;
-  email: string;
-  role: IUser['role'];
-  plan: IUser['plan'];
-  trialEndsAt?: Date;
-  creditsBalance: number;
-  domainsUsed?: number;
-  emailVerifiedAt?: Date;
-  createdAt: Date;
-}
-
-type UserDoc = HydratedDocument<IUser>;
-
-function toSafeUser(user: UserDoc): SafeUser {
-  return {
-    id: user._id.toString(),
-    email: user.email,
-    role: user.role,
-    plan: user.plan,
-    trialEndsAt: user.trialEndsAt,
-    creditsBalance: user.creditsBalance,
-    domainsUsed: user.domainsUsed ?? 0,
-    emailVerifiedAt: user.emailVerifiedAt,
-    createdAt: user.createdAt,
-  };
-}
-
-function issueToken(user: UserDoc): string {
-  return signAuthToken({ userId: user._id.toString(), role: user.role, email: user.email });
-}
-
-function newTrialEndsAt(): Date {
-  return new Date(Date.now() + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
-}
-
-async function assertIpNotOverLimit(ip: string | undefined): Promise<string | undefined> {
-  if (!ip) return undefined;
-  const ipHash = hashIp(ip);
-  const count = await User.countDocuments({ ipHash });
-  if (count >= MAX_ACCOUNTS_PER_IP) {
-    throw new AppError('Limite de comptes atteinte pour cette connexion (essai gratuit).', 429);
+export function verifyChariowSignature(rawBody: string, signatureHeader: string | undefined): boolean {
+  if (!env.CHARIOW_WEBHOOK_SECRET) {
+    // En dev sans secret on accepte (log warning)
+    if (env.NODE_ENV !== 'production') {
+      console.warn('[chariow] CHARIOW_WEBHOOK_SECRET absent — signature non vérifiée (dev only)');
+      return true;
+    }
+    return false;
   }
-  return ipHash;
+  if (!signatureHeader) return false;
+  const expected = crypto
+    .createHmac('sha256', env.CHARIOW_WEBHOOK_SECRET)
+    .update(rawBody)
+    .digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));
+  } catch {
+    return false;
+  }
 }
 
-async function issueVerificationCode(user: UserDoc): Promise<void> {
-  const code = generateVerificationCode();
-  const codeHash = await hashValue(code);
-
-  user.emailVerification = {
-    codeHash,
-    expiresAt: new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000),
-    attempts: 0,
-    lastSentAt: new Date(),
-  };
-  await user.save();
-
-  await sendVerificationCodeEmail(user.email, code);
+export interface ChariowWebhookPayload {
+  reference: string;
+  montant: number;
+  statut: string;
+  site_id?: string;
+  metadata?: Record<string, unknown>;
 }
 
-export async function registerUser(params: {
-  email: string;
-  password: string;
-  ip?: string;
-}): Promise<SafeUser> {
-  const email = params.email.toLowerCase().trim();
+export class ChariowService {
+  /**
+   * Crée un lien de paiement dynamique sur Chariow pour l'achat de crédits (10 à 200)
+   */
+  public static async createPaymentLink(params: {
+    amount: number;
+    currency: string;
+    description: string;
+    customerEmail: string;
+    metadata: {
+      transactionId: string;
+      userId: string;
+      type: string;
+      quantity?: string;
+      [key: string]: string | undefined;
+    };
+  }) {
+    try {
+      const res = await fetch('https://api.chariow.com/v1/payments', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.CHARIOW_API_KEY || ''}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: params.amount,
+          currency: params.currency,
+          description: params.description,
+          customer_email: params.customerEmail,
+          metadata: params.metadata,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { payment_link?: string; url?: string };
+      if (!res.ok) {
+        console.error('Erreur Chariow:', data);
+        throw new AppError('Impossible de générer le lien de paiement Chariow.', 502);
+      }
+      return data.payment_link || data.url;
+    } catch (error: unknown) {
+      if (error instanceof AppError) throw error;
+      console.error('Erreur lors de la création du lien Chariow:', error);
+      throw new AppError('Impossible de générer le lien de paiement Chariow.', 502);
+    }
+  }
+}
 
-  const existing = await User.findOne({ email });
+/**
+ * Traite un webhook Chariow valide.
+ * Commission totale NexAI (15% Chariow + 10% marge NexAI = 25%).
+ */
+export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
+  const meta = payload.metadata || {};
+  const metaType = String(meta.type || '');
+
+  // Achat de crédits plateforme (pas lié à un site client)
+  if (metaType === 'credit_purchase') {
+    const transactionId = String(meta.transactionId || '');
+    const quantity = meta.quantity ? parseInt(String(meta.quantity), 10) : undefined;
+    if (transactionId) {
+      const { CreditsService } = await import('@/services/credits.service');
+      await CreditsService.fulfillCreditPurchase(transactionId, quantity);
+    }
+    // Enregistrement minimal sans siteId — on réutilise reference pour l'idempotence via note
+    return {
+      _id: transactionId || payload.reference,
+      type: 'credit_purchase',
+      referenceChariow: payload.reference,
+    } as unknown as InstanceType<typeof PaiementChariow>;
+  }
+
+  // Changement d'abonnement (pas lié à un site client)
+  if (metaType === 'plan_purchase') {
+    const transactionId = String(meta.transactionId || '');
+    const targetPlan = meta.targetPlan as
+      | 'starter'
+      | 'createur'
+      | 'agence'
+      | 'pro_max'
+      | undefined;
+    if (transactionId) {
+      const { CreditsService } = await import('@/services/credits.service');
+      await CreditsService.fulfillPlanPurchase(transactionId, targetPlan);
+    }
+    return {
+      _id: transactionId || payload.reference,
+      type: 'plan_purchase',
+      referenceChariow: payload.reference,
+    } as unknown as InstanceType<typeof PaiementChariow>;
+  }
+
+  const existing = await PaiementChariow.findOne({ referenceChariow: payload.reference });
   if (existing) {
-    throw new AppError('Un compte existe déjà avec cet email.', 409);
+    return existing;
   }
 
-  const ipHash = await assertIpNotOverLimit(params.ip);
-  const passwordHash = await hashValue(params.password);
+  if (!payload.site_id) {
+    throw new AppError('site_id manquant dans le webhook Chariow', 400);
+  }
 
-  const user = await User.create({
-    email,
-    passwordHash,
-    role: email === env.ADMIN_EMAIL ? 'admin' : 'user',
-    plan: 'trial',
-    trialEndsAt: newTrialEndsAt(),
-    creditsBalance: 12, // essai 12 crédits — uniquement bouton Générer
-    domainsUsed: 0,
-    ipHash,
+  const site = await Site.findById(payload.site_id);
+  if (!site) throw new AppError('Site introuvable pour ce paiement', 404);
+
+  const totalCommissionRate = 0.25;
+  const commissionNexai = Math.round(payload.montant * totalCommissionRate);
+
+  const paiement = await PaiementChariow.create({
+    siteId: site._id,
+    referenceChariow: payload.reference,
+    montant: payload.montant,
+    statut: 'en_attente',
+    commissionNexai,
+    webhookReceivedAt: new Date(),
   });
 
-  await issueVerificationCode(user);
-
-  return toSafeUser(user);
+  return paiement;
 }
 
-export async function resendVerificationCode(email: string): Promise<void> {
-  const user = await User.findOne({ email: email.toLowerCase().trim() }).select(
-    '+emailVerification.lastSentAt'
-  );
-  if (!user) {
-    // On ne révèle pas si l'email existe ou non.
-    return;
-  }
-  if (user.emailVerifiedAt) {
-    throw new AppError('Cet email est déjà vérifié.', 400);
-  }
-
-  const lastSentAt = user.emailVerification?.lastSentAt;
-  if (lastSentAt && Date.now() - lastSentAt.getTime() < CODE_RESEND_COOLDOWN_SECONDS * 1000) {
-    throw new AppError('Merci de patienter avant de redemander un code.', 429);
-  }
-
-  await issueVerificationCode(user);
-}
-
-export async function verifyEmailCode(params: {
-  email: string;
-  code: string;
-}): Promise<{ user: SafeUser; token: string }> {
-  const user = await User.findOne({ email: params.email.toLowerCase().trim() }).select(
-    '+emailVerification.codeHash +emailVerification.expiresAt +emailVerification.attempts +emailVerification.lastSentAt'
-  );
-
-  if (!user) {
-    throw new AppError('Code invalide ou expiré.', 400);
-  }
-
-  if (user.emailVerifiedAt) {
-    return { user: toSafeUser(user), token: issueToken(user) };
-  }
-
-  const verification = user.emailVerification;
-  if (!verification || verification.expiresAt.getTime() < Date.now()) {
-    throw new AppError('Code invalide ou expiré. Redemandez un code.', 400);
-  }
-
-  if (verification.attempts >= MAX_CODE_ATTEMPTS) {
-    throw new AppError('Trop de tentatives. Redemandez un nouveau code.', 429);
-  }
-
-  const isValid = await compareValue(params.code, verification.codeHash);
-  if (!isValid) {
-    verification.attempts += 1;
-    await user.save();
-    throw new AppError('Code invalide ou expiré.', 400);
-  }
-
-  user.emailVerifiedAt = new Date();
-  user.emailVerification = undefined;
-  await user.save();
-
-  return { user: toSafeUser(user), token: issueToken(user) };
-}
-
-export async function loginUser(params: {
-  email: string;
-  password: string;
-}): Promise<{ user: SafeUser; token: string }> {
-  const user = await User.findOne({ email: params.email.toLowerCase().trim() }).select('+passwordHash');
-
-  if (!user || !user.passwordHash) {
-    throw new AppError('Identifiants invalides.', 401);
-  }
-
-  const isValid = await compareValue(params.password, user.passwordHash);
-  if (!isValid) {
-    throw new AppError('Identifiants invalides.', 401);
-  }
-
-  if (!user.emailVerifiedAt) {
-    throw new AppError('Email non vérifié. Vérifiez votre boîte mail.', 403);
-  }
-
-  return { user: toSafeUser(user), token: issueToken(user) };
-}
-
-export async function loginWithGoogle(params: {
-  idToken: string;
-  ip?: string;
-}): Promise<{ user: SafeUser; token: string }> {
-  if (!googleClient || !env.GOOGLE_CLIENT_ID) {
-    throw new AppError('Connexion Google non configurée.', 501);
-  }
-
-  let payload;
-  try {
-    const ticket = await googleClient.verifyIdToken({
-      idToken: params.idToken,
-      audience: env.GOOGLE_CLIENT_ID,
-    });
-    payload = ticket.getPayload();
-  } catch {
-    throw new AppError('Jeton Google invalide.', 401);
-  }
-
-  if (!payload?.email) {
-    throw new AppError('Jeton Google invalide.', 401);
-  }
-
-  const email = payload.email.toLowerCase().trim();
-  const googleId = payload.sub;
-
-  let user = await User.findOne({ $or: [{ googleId }, { email }] });
-
-  if (!user) {
-    const ipHash = await assertIpNotOverLimit(params.ip);
-    user = await User.create({
-      email,
-      googleId,
-      role: email === env.ADMIN_EMAIL ? 'admin' : 'user',
-      plan: 'trial',
-      trialEndsAt: newTrialEndsAt(),
-      creditsBalance: 12, // même essai que register email/password
-      domainsUsed: 0,
-      ipHash,
-      emailVerifiedAt: new Date(), // Google a déjà vérifié l'email
-    });
-  } else {
-    let changed = false;
-    if (!user.googleId) {
-      user.googleId = googleId;
-      changed = true;
-    }
-    if (!user.emailVerifiedAt) {
-      user.emailVerifiedAt = new Date();
-      changed = true;
-    }
-    if (changed) await user.save();
-  }
-
-  return { user: toSafeUser(user), token: issueToken(user) };
-}
-
-export async function requestPasswordReset(email: string): Promise<void> {
-  const user = await User.findOne({ email: email.toLowerCase().trim() }).select(
-    '+passwordReset.lastSentAt +passwordHash'
-  );
-  // Réponse toujours générique côté route : on ne révèle jamais si l'email
-  // existe, ni si le compte est Google-only (pas de mot de passe).
-  if (!user || !user.passwordHash) return;
-
-  const lastSentAt = user.passwordReset?.lastSentAt;
-  if (lastSentAt && Date.now() - lastSentAt.getTime() < CODE_RESEND_COOLDOWN_SECONDS * 1000) {
-    return;
-  }
-
-  const code = generateVerificationCode();
-  const codeHash = await hashValue(code);
-
-  user.passwordReset = {
-    codeHash,
-    expiresAt: new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000),
-    attempts: 0,
-    lastSentAt: new Date(),
-  };
-  await user.save();
-
-  await sendPasswordResetCodeEmail(user.email, code);
-}
-
-export async function resetPassword(params: {
-  email: string;
-  code: string;
-  newPassword: string;
-}): Promise<{ user: SafeUser; token: string }> {
-  const user = await User.findOne({ email: params.email.toLowerCase().trim() }).select(
-    '+passwordReset.codeHash +passwordReset.expiresAt +passwordReset.attempts +passwordReset.lastSentAt +passwordHash'
-  );
-
-  if (!user) {
-    throw new AppError('Code invalide ou expiré.', 400);
-  }
-
-  const reset = user.passwordReset;
-  if (!reset || !reset.expiresAt || reset.expiresAt.getTime() < Date.now()) {
-    throw new AppError('Code invalide ou expiré. Redemandez un code.', 400);
-  }
-
-  if (reset.attempts >= MAX_CODE_ATTEMPTS) {
-    throw new AppError('Trop de tentatives. Redemandez un nouveau code.', 429);
-  }
-
-  const isValid = await compareValue(params.code, reset.codeHash);
-  if (!isValid) {
-    reset.attempts += 1;
-    await user.save();
-    throw new AppError('Code invalide ou expiré.', 400);
-  }
-
-  user.passwordHash = await hashValue(params.newPassword);
-  user.passwordReset = undefined;
-  await user.save();
-
-  return { user: toSafeUser(user), token: issueToken(user) };
-}
-
-export async function changePassword(params: {
-  userId: string;
-  currentPassword: string;
-  newPassword: string;
-}): Promise<void> {
-  const user = await User.findById(params.userId).select('+passwordHash');
-  if (!user || !user.passwordHash) {
-    throw new AppError('Changement de mot de passe indisponible pour ce compte.', 400);
-  }
-
-  const isValid = await compareValue(params.currentPassword, user.passwordHash);
-  if (!isValid) {
-    throw new AppError('Mot de passe actuel incorrect.', 401);
-  }
-
-  user.passwordHash = await hashValue(params.newPassword);
-  await user.save();
+/**
+ * Admin marque un paiement comme payé (reversement mobile money effectué).
+ */
+export async function markPaiementPaye(paiementId: string) {
+  const p = await PaiementChariow.findById(paiementId);
+  if (!p) throw new AppError('Paiement introuvable', 404);
+  if (p.statut === 'paye') return p;
+  p.statut = 'paye';
+  p.payeAt = new Date();
+  await p.save();
+  return p;
 }
