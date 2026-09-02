@@ -91,7 +91,6 @@ export async function registerUser(params: {
 
   const ipHash = await assertIpNotOverLimit(params.ip);
   const passwordHash = await hashValue(params.password);
-
   const isAdmin = email === env.ADMIN_EMAIL;
 
   const user = await User.create({
@@ -220,8 +219,8 @@ export async function loginWithGoogle(params: {
   let user = await User.findOne({ $or: [{ googleId }, { email }] });
 
   if (!user) {
-    const isAdmin = email === env.ADMIN_EMAIL;
     const ipHash = await assertIpNotOverLimit(params.ip);
+    const isAdmin = email === env.ADMIN_EMAIL;
     user = await User.create({
       email,
       googleId,
