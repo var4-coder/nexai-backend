@@ -2,6 +2,7 @@ import { Schema, model, Types } from 'mongoose';
 
 export type CreditTransactionType =
   | 'achat_pack'
+  | 'achat_abonnement'
   | 'apercu_site'
   | 'generation_site'
   | 'logo'
@@ -33,6 +34,7 @@ const creditTransactionSchema = new Schema<ICreditTransaction>(
       type: String,
       enum: [
         'achat_pack',
+        'achat_abonnement',
         'apercu_site',
         'generation_site',
         'logo',
