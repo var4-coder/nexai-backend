@@ -303,6 +303,21 @@ export const PLAN_CREDITS: Record<string, number> = {
   pro_max: 400,
 } as const;
 
+/** Prix mensuel FCFA par plan payant (source de vérité — voir page Paramètres). */
+export const PLAN_PRICES_FCFA: Record<'starter' | 'createur' | 'agence' | 'pro_max', number> = {
+  starter: 5000,
+  createur: 10000,
+  agence: 25000,
+  pro_max: 35000,
+};
+
+export const PLAN_LABELS: Record<'starter' | 'createur' | 'agence' | 'pro_max', string> = {
+  starter: 'Starter',
+  createur: 'Créateur',
+  agence: 'Agence',
+  pro_max: 'Pro Max',
+};
+
 /**
  * Quota de noms de domaine GoDaddy inclus par plan.
  * Sous-domaine NexAI : gratuit, ne consomme pas ce quota.
@@ -529,6 +544,114 @@ export class CreditsService {
       currency: finalCurrency,
       paymentLink,
     };
+  }
+
+  /**
+   * Initie un changement d'abonnement (upgrade ou downgrade) via Chariow.
+   * Le plan n'est appliqué qu'à la confirmation du paiement (webhook, type
+   * plan_purchase) — voir fulfillPlanPurchase.
+   */
+  public static async purchasePlanUpgrade(
+    userId: string,
+    targetPlan: 'starter' | 'createur' | 'agence' | 'pro_max',
+    currency: 'XOF' | 'USD' = 'XOF'
+  ) {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new AppError('Utilisateur introuvable.', 404);
+    }
+
+    if (user.plan === targetPlan) {
+      throw new AppError('Vous êtes déjà sur ce plan.', 400);
+    }
+
+    const priceFCFA = PLAN_PRICES_FCFA[targetPlan];
+    if (!priceFCFA) {
+      throw new AppError('Plan invalide.', 400);
+    }
+
+    let finalAmount = priceFCFA;
+    let finalCurrency = 'XOF';
+    if (currency === 'USD') {
+      const exchangeRate = 600;
+      finalAmount = parseFloat((priceFCFA / exchangeRate).toFixed(2));
+      finalCurrency = 'USD';
+    }
+
+    const transaction = await CreditTransaction.create({
+      userId: user._id,
+      type: 'achat_abonnement',
+      amount: 0,
+      balanceAfter: user.creditsBalance,
+      note: `pending:${targetPlan}:${finalCurrency}:${finalAmount}`,
+    });
+
+    const paymentLink = await ChariowService.createPaymentLink({
+      amount: finalAmount,
+      currency: finalCurrency,
+      description: `Abonnement NexAI ${PLAN_LABELS[targetPlan]}`,
+      customerEmail: user.email,
+      metadata: {
+        transactionId: transaction._id.toString(),
+        userId: user._id.toString(),
+        type: 'plan_purchase',
+        targetPlan,
+      },
+    });
+
+    return {
+      transactionId: transaction._id,
+      targetPlan,
+      totalAmount: finalAmount,
+      currency: finalCurrency,
+      paymentLink,
+    };
+  }
+
+  /**
+   * Appelé par le webhook Chariow une fois le paiement d'abonnement confirmé.
+   * Applique le nouveau plan et crédite le montant de crédits mensuels
+   * correspondant (remplace le solde, comme un renouvellement d'abonnement).
+   */
+  public static async fulfillPlanPurchase(
+    transactionId: string,
+    targetPlan?: 'starter' | 'createur' | 'agence' | 'pro_max'
+  ) {
+    const transaction = await CreditTransaction.findById(transactionId);
+    if (!transaction) return;
+    if (transaction.note?.startsWith('completed:')) return;
+
+    const plan =
+      targetPlan ??
+      (transaction.note?.startsWith('pending:')
+        ? (transaction.note.split(':')[1] as 'starter' | 'createur' | 'agence' | 'pro_max')
+        : undefined);
+    if (!plan) return;
+
+    // Marquage atomique pending → completed, même logique anti-doublon que
+    // fulfillCreditPurchase (voir commentaire ci-dessous pour le détail).
+    const claimed = await CreditTransaction.findOneAndUpdate(
+      { _id: transactionId, note: { $regex: '^pending:' } },
+      { $set: { note: `completed:${plan}` } },
+      { new: true }
+    );
+    if (!claimed) return;
+
+    const newCredits = PLAN_CREDITS[plan] ?? 0;
+    const user = await User.findById(claimed.userId);
+    if (!user) return;
+
+    user.plan = plan;
+    user.creditsBalance = newCredits;
+    await user.save();
+
+    await CreditTransaction.create({
+      userId: user._id,
+      type: 'achat_abonnement',
+      amount: newCredits,
+      balanceAfter: user.creditsBalance,
+      note: `plan_actif:${plan}`,
+    });
   }
 
   public static async fulfillCreditPurchase(transactionId: string, quantity?: number) {
