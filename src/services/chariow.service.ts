@@ -109,6 +109,26 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
     } as unknown as InstanceType<typeof PaiementChariow>;
   }
 
+  // Changement d'abonnement (pas lié à un site client)
+  if (metaType === 'plan_purchase') {
+    const transactionId = String(meta.transactionId || '');
+    const targetPlan = meta.targetPlan as
+      | 'starter'
+      | 'createur'
+      | 'agence'
+      | 'pro_max'
+      | undefined;
+    if (transactionId) {
+      const { CreditsService } = await import('@/services/credits.service');
+      await CreditsService.fulfillPlanPurchase(transactionId, targetPlan);
+    }
+    return {
+      _id: transactionId || payload.reference,
+      type: 'plan_purchase',
+      referenceChariow: payload.reference,
+    } as unknown as InstanceType<typeof PaiementChariow>;
+  }
+
   const existing = await PaiementChariow.findOne({ referenceChariow: payload.reference });
   if (existing) {
     return existing;
