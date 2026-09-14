@@ -13,8 +13,7 @@
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
     "seed:library": "tsx scripts/seed-library.ts",
-    "postinstall": "playwright install --with-deps chromium",
-    "fix:admin": "tsx scripts/fix-admin-plan.ts"
+   "fix:admin": "tsx scripts/fix-admin-plan.ts"
   },
   "dependencies": {
     "@types/adm-zip": "^0.5.8",
