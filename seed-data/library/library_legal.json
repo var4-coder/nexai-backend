@@ -1,0 +1,67 @@
+[
+  {
+    "_id": "legal",
+    "source_file": "LEGAL.md",
+    "content_md": "# LEGAL.md — mentions légales & conformité (nouveau, absent à 100% de la v3)\n\nSocle minimal pour un site pro, aligné pratiques FR/UE et pertinent pour les\nmarchés Bénin/Côte d'Ivoire/Sénégal. Le Codeur ne génère **jamais** de contenu\njuridique inventé : uniquement des placeholders structurés, remplis ensuite\npar les vraies données du client (via le brief ou l'espace admin).\n\n## Placeholders obligatoires (jamais de valeur inventée à la place)\n\n`{{raisonSociale}}` · `{{formeJuridique}}` · `{{capitalSocial}}` ·\n`{{adresseSiege}}` · `{{emailContact}}` · `{{telephoneContact}}` ·\n`{{numeroRCS}}` ou équivalent local · `{{hebergeurNom}}` + `{{hebergeurAdresse}}`\n(Netlify par défaut, valeurs réelles côté NexAI)\n\n## Pages générées selon contexte\n\n| Page | Déclencheur | Contenu minimal |\n|---|---|---|\n| Mentions légales | Toujours | Éditeur (identité, forme juridique, capital si société), adresse, contact, hébergeur |\n| Politique de confidentialité | Dès qu'un `formulaire_contact` (form.meta.md) existe | Finalités de collecte, droits accès/rectification/opposition, durée de conservation, contact du responsable |\n| CGV | Niche `mode` (e-commerce) | Conditions de vente, livraison, rétractation, litiges |\n| Bandeau cookies/RGPD | Site visant un public UE, ou si un tracking script est actif | Consentement avant tout cookie non-essentiel, lien vers confidentialité, choix mémorisé |\n\n## Footer (lien vers footer.meta.md existant)\n\nLe footer contient au minimum : `Mentions légales` · `Politique de\nconfidentialité` (si applicable) · `CGV` (si `mode`). Ce lien est un VETO\nimplicite : son absence casse C6 (title/lang) au sens large de conformité\nmais n'est pas encore un ID de test formel — voir note pour JUDGES.md\nci-dessous.\n\n## Note d'implémentation pour JUDGES.md (à valider avant activation)\n\nUn nouveau test **L3 — présence footer légal** (mentions légales + confidentialité\nsi formulaire + CGV si `mode`) est proposé comme VETO au même niveau que L1/L2.\nIl n'est pas encore actif dans `JUDGES.md` de cette édition — à ajouter par ton\nIA codeuse dans le tableau CODE de `JUDGES.md` une fois le générateur de pages\nlégales branché (sinon le VETO bloquerait tous les sites tant que le\ngénérateur n'existe pas).\n\n## Ce qu'on ne fait jamais\n\nInventer une raison sociale, un numéro RCS/SIRET, une adresse, ou tout autre\nélément d'identité légale. Si le brief client ne fournit pas l'information,\nle placeholder reste visible tel quel (`{{raisonSociale}}`) plutôt que d'être\nrempli par une valeur plausible mais fausse.\n",
+    "structured": {
+      "placeholders": [
+        "{{raisonSociale}}",
+        "{{formeJuridique}}",
+        "{{capitalSocial}}",
+        "{{adresseSiege}}",
+        "{{emailContact}}",
+        "{{telephoneContact}}",
+        "{{numeroRCS}}",
+        "{{hebergeurNom}}",
+        "{{hebergeurAdresse}}"
+      ],
+      "pages": [
+        {
+          "id": "mentions_legales",
+          "declencheur": "toujours",
+          "contenu_min": [
+            "éditeur",
+            "adresse",
+            "contact",
+            "hébergeur"
+          ]
+        },
+        {
+          "id": "confidentialite",
+          "declencheur": "formulaire_contact présent",
+          "contenu_min": [
+            "finalités",
+            "droits accès/rectification/opposition",
+            "durée conservation",
+            "contact responsable"
+          ]
+        },
+        {
+          "id": "cgv",
+          "declencheur": "niche = mode (e-commerce)",
+          "contenu_min": [
+            "conditions vente",
+            "livraison",
+            "rétractation",
+            "litiges"
+          ]
+        },
+        {
+          "id": "bandeau_rgpd",
+          "declencheur": "public UE ou tracking actif",
+          "contenu_min": [
+            "consentement avant cookie non-essentiel",
+            "lien confidentialité",
+            "choix mémorisé"
+          ]
+        }
+      ],
+      "footer_requirement": "Mentions légales + Confidentialité (si form) + CGV (si mode) toujours liés en footer",
+      "veto_propose_non_actif": {
+        "id": "L3",
+        "description": "présence footer légal complet",
+        "statut": "proposé, pas encore actif dans JUDGES.md — activer seulement une fois le générateur de pages légales branché côté backend"
+      }
+    }
+  }
+]
