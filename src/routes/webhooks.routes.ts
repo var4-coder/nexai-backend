@@ -1,5 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { verifyChariowSignature, handleChariowWebhook } from '@/services/chariow.service';
+import {
+  verifyChariowSignature,
+  handleChariowWebhook,
+  normalizeChariowWebhookBody,
+} from '@/services/chariow.service';
 import { AppError } from '@/middleware/errorHandler';
 
 export const webhooksRouter = Router();
@@ -8,11 +12,6 @@ webhooksRouter.post('/chariow', async (req: Request, res: Response, next: NextFu
   try {
     const signature = req.headers['x-chariow-signature'] as string | undefined;
 
-    // Vérifie la signature sur les octets bruts reçus (capturés par
-    // express.json({ verify }) dans app.ts), jamais sur une resérialisation
-    // JS de req.body qui peut différer de l'original (ordre des clés,
-    // formatage des nombres, échappement Unicode) et invalider une signature
-    // pourtant valide — ou pire, en valider une invalide par coïncidence.
     if (!req.rawBody) {
       throw new AppError('Corps de requête brut indisponible pour la vérification de signature', 400);
     }
@@ -22,23 +21,15 @@ webhooksRouter.post('/chariow', async (req: Request, res: Response, next: NextFu
       throw new AppError('Signature Chariow invalide', 401);
     }
 
-    const payload = {
-      reference: String(req.body.reference || req.body.id || ''),
-      montant: Number(req.body.montant || req.body.amount || 0),
-      statut: String(req.body.statut || req.body.status || ''),
-      site_id: req.body.site_id || req.body.metadata?.site_id,
-      metadata: req.body.metadata,
-    };
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+    const payload = normalizeChariowWebhookBody(body);
 
-    if (!payload.reference || !payload.montant) {
-      throw new AppError('Payload Chariow incomplet', 400);
+    if (!payload.reference) {
+      throw new AppError('Payload Chariow incomplet (référence manquante)', 400);
     }
 
     const paiement = await handleChariowWebhook(payload);
 
-    // null = événement volontairement ignoré (statut non abouti : pending,
-    // failed, refunded…). On répond 200 pour que Chariow cesse de réessayer,
-    // mais aucun crédit n'a été accordé.
     if (!paiement) {
       res.status(200).json({ ok: true, ignored: true, reason: 'statut_non_abouti' });
       return;
