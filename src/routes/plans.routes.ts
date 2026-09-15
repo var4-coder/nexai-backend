@@ -110,10 +110,18 @@ plansRouter.get('/', requireAuth, async (req: Request, res: Response, next: Next
 plansRouter.post('/acheter', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const body = z
-      .object({ plan: z.enum(['starter', 'createur', 'agence', 'pro_max']) })
+      .object({
+        plan: z.enum(['starter', 'createur', 'agence', 'pro_max']),
+        prenom: z.string().optional(),
+        nom: z.string().optional(),
+        telephone: z.string().optional(),
+        telephonePays: z.string().optional(),
+      })
       .parse(req.body);
 
-    const user = await User.findById(req.auth!.userId).select('email plan');
+    const user = await User.findById(req.auth!.userId).select(
+      'email plan prenom nom telephone telephonePays'
+    );
     if (!user) throw new AppError('Utilisateur introuvable', 404);
 
     if (user.plan === body.plan) {
@@ -123,11 +131,22 @@ plansRouter.post('/acheter', requireAuth, async (req: Request, res: Response, ne
     const plan = PLANS.find((p) => p.id === body.plan);
     if (!plan) throw new AppError('Formule inconnue.', 400);
 
+    if (body.prenom) user.prenom = body.prenom;
+    if (body.nom) user.nom = body.nom;
+    if (body.telephone) user.telephone = body.telephone.replace(/\D/g, '');
+    if (body.telephonePays) user.telephonePays = body.telephonePays.toUpperCase();
+    await user.save();
+
     const paymentLink = await ChariowService.createPaymentLink({
       amount: plan.prixFcfa,
       currency: 'XOF',
       description: `Abonnement NexAI ${plan.nom}`,
       customerEmail: user.email,
+      customerFirstName: user.prenom,
+      customerLastName: user.nom,
+      customerPhone: user.telephone,
+      customerPhoneCountry: user.telephonePays,
+      productKey: plan.id,
       metadata: {
         type: 'plan_purchase',
         // Identifiant de traçabilité de cette tentative d'achat (le webhook
@@ -135,6 +154,7 @@ plansRouter.post('/acheter', requireAuth, async (req: Request, res: Response, ne
         transactionId: `plan_${plan.id}_${String(user._id)}_${Date.now()}`,
         userId: String(user._id),
         plan: plan.id,
+        montantFcfa: String(plan.prixFcfa),
       },
     });
 
