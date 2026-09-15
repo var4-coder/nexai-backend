@@ -26,6 +26,19 @@ const envSchema = z.object({
 
   CHARIOW_WEBHOOK_SECRET: z.string().optional().default(''),
   CHARIOW_API_KEY: z.string().optional().default(''),
+  /**
+   * IDs ou slugs produits Chariow (prd_… ou licence-nexai-starter).
+   * Si vides, recherche par nom/prix via GET /v1/products.
+   */
+  CHARIOW_PRODUCT_STARTER: z.string().optional().default(''),
+  CHARIOW_PRODUCT_CREATEUR: z.string().optional().default(''),
+  CHARIOW_PRODUCT_AGENCE: z.string().optional().default(''),
+  CHARIOW_PRODUCT_PRO_MAX: z.string().optional().default(''),
+  CHARIOW_PRODUCT_PACK_10: z.string().optional().default(''),
+  CHARIOW_PRODUCT_PACK_20: z.string().optional().default(''),
+  CHARIOW_PRODUCT_PACK_50: z.string().optional().default(''),
+  CHARIOW_PRODUCT_PACK_100: z.string().optional().default(''),
+  CHARIOW_PRODUCT_PACK_200: z.string().optional().default(''),
 
   CLOUDINARY_CLOUD_NAME: z.string().optional().default(''),
   CLOUDINARY_API_KEY: z.string().optional().default(''),
