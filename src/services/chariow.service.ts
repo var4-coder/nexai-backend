@@ -4,15 +4,10 @@ import { PaiementChariow } from '@/models/PaiementChariow';
 import { Site } from '@/models/Site';
 import { AppError } from '@/middleware/errorHandler';
 
-/**
- * Webhook Chariow signé + enregistrement dans paiements_chariow_nexai.
- * Flux : Compte NexAI (Chariow) → webhook → table → délai 3 jours → admin reverse mobile money.
- * Architecture §7.6 + Partie D.9 à D.11.
- */
+const CHARIOW_API = 'https://api.chariow.com/v1';
 
 export function verifyChariowSignature(rawBody: string, signatureHeader: string | undefined): boolean {
   if (!env.CHARIOW_WEBHOOK_SECRET) {
-    // En dev sans secret on accepte (log warning)
     if (env.NODE_ENV !== 'production') {
       console.warn('[chariow] CHARIOW_WEBHOOK_SECRET absent — signature non vérifiée (dev only)');
       return true;
@@ -39,15 +34,191 @@ export interface ChariowWebhookPayload {
   metadata?: Record<string, unknown>;
 }
 
+export function normalizeChariowWebhookBody(body: Record<string, unknown>): ChariowWebhookPayload {
+  const sale = (body.sale && typeof body.sale === 'object' ? body.sale : null) as Record<string, unknown> | null;
+  const amountObj = sale?.amount as { value?: number } | undefined;
+  const metaFromSale =
+    (sale?.custom_metadata as Record<string, unknown> | undefined) ||
+    (body.custom_metadata as Record<string, unknown> | undefined) ||
+    (body.metadata as Record<string, unknown> | undefined) ||
+    {};
+
+  if (sale || body.event === 'successful.sale') {
+    const status =
+      String(sale?.status || '') ||
+      (body.event === 'successful.sale' ? 'completed' : '');
+    return {
+      reference: String(sale?.id || body.id || ''),
+      montant: Number(amountObj?.value ?? body.montant ?? body.amount ?? 0),
+      statut: status,
+      site_id: String(metaFromSale.site_id || body.site_id || '') || undefined,
+      metadata: metaFromSale,
+    };
+  }
+
+  return {
+    reference: String(body.reference || body.id || ''),
+    montant: Number(body.montant || body.amount || 0),
+    statut: String(body.statut || body.status || ''),
+    site_id: (body.site_id as string) || (metaFromSale.site_id as string | undefined),
+    metadata: (body.metadata as Record<string, unknown>) || metaFromSale,
+  };
+}
+
+type ListedProduct = {
+  id: string;
+  name?: string;
+  slug?: string;
+  pricing?: {
+    current_price?: { value?: number; currency?: string };
+    price?: { value?: number; currency?: string };
+  };
+};
+
+let productsCache: { at: number; items: ListedProduct[] } | null = null;
+
+async function chariowFetch(path: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data: any }> {
+  if (!env.CHARIOW_API_KEY) {
+    throw new AppError(
+      'Paiement Chariow non configuré : ajoutez CHARIOW_API_KEY dans l’environnement Render.',
+      503
+    );
+  }
+  const res = await fetch(`${CHARIOW_API}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${env.CHARIOW_API_KEY}`,
+      'Content-Type': 'application/json',
+      ...(init?.headers ?? {}),
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
+async function listChariowProducts(): Promise<ListedProduct[]> {
+  if (productsCache && Date.now() - productsCache.at < 5 * 60 * 1000) return productsCache.items;
+  try {
+    const { ok, data } = await chariowFetch('/products?per_page=100');
+    if (!ok) {
+      console.error('[chariow] list products', data);
+      return [];
+    }
+    const items: ListedProduct[] = data?.data?.data || data?.data || data?.products || [];
+    productsCache = { at: Date.now(), items: Array.isArray(items) ? items : [] };
+    return productsCache.items;
+  } catch (err) {
+    console.error('[chariow] list products failed', err);
+    return [];
+  }
+}
+
+function productPrice(p: ListedProduct): number | null {
+  const v = p.pricing?.current_price?.value ?? p.pricing?.price?.value;
+  return typeof v === 'number' ? v : null;
+}
+
+const PRODUCT_ENV: Record<string, string> = {
+  starter: env.CHARIOW_PRODUCT_STARTER,
+  createur: env.CHARIOW_PRODUCT_CREATEUR,
+  agence: env.CHARIOW_PRODUCT_AGENCE,
+  pro_max: env.CHARIOW_PRODUCT_PRO_MAX,
+  pack_10: env.CHARIOW_PRODUCT_PACK_10,
+  pack_20: env.CHARIOW_PRODUCT_PACK_20,
+  pack_50: env.CHARIOW_PRODUCT_PACK_50,
+  pack_100: env.CHARIOW_PRODUCT_PACK_100,
+  pack_200: env.CHARIOW_PRODUCT_PACK_200,
+};
+
+const PRODUCT_NAMES: Record<string, string[]> = {
+  starter: ['starter', 'académie', 'academie'],
+  createur: ['créateur+', 'createur+', 'créateur', 'createur'],
+  agence: ['agence'],
+  pro_max: ['pro max', 'promax', 'pro-max'],
+  pack_10: ['pack 10', '10 crédits', '10 credits'],
+  pack_20: ['pack 20', '20 crédits', '20 credits'],
+  pack_50: ['pack 50', '50 crédits', '50 credits'],
+  pack_100: ['pack 100', '100 crédits', '100 credits'],
+  pack_200: ['pack 200', '200 crédits', '200 credits'],
+};
+
+const PRODUCT_PRICES: Record<string, number> = {
+  starter: 5000,
+  createur: 10000,
+  agence: 25000,
+  pro_max: 35000,
+  pack_10: 1500,
+  pack_20: 3000,
+  pack_50: 7500,
+  pack_100: 15000,
+  pack_200: 30000,
+};
+
+function inferProductKey(
+  metadata: { type?: string; plan?: string; quantity?: string; [k: string]: string | undefined },
+  amount: number
+): string {
+  const plan = String(metadata.plan || '').toLowerCase();
+  if (plan && PRODUCT_ENV[plan] !== undefined) return plan;
+  const q = parseInt(String(metadata.quantity || ''), 10);
+  if (q && PRODUCT_ENV[`pack_${q}`] !== undefined) return `pack_${q}`;
+  const byPrice = Object.entries(PRODUCT_PRICES).find(([, p]) => Math.abs(p - amount) < 1);
+  if (byPrice) return byPrice[0];
+  return 'starter';
+}
+
+async function resolveProductId(productKey: string, fallbackAmount?: number): Promise<string> {
+  const fromEnv = (PRODUCT_ENV[productKey] || '').trim();
+  if (fromEnv) return fromEnv;
+
+  const products = await listChariowProducts();
+  const names = PRODUCT_NAMES[productKey] || [];
+  const byName = products.find((p) => {
+    const hay = `${p.name || ''} ${p.slug || ''}`.toLowerCase();
+    return names.some((want) => hay.includes(want));
+  });
+  if (byName?.id) return byName.id;
+
+  const target = PRODUCT_PRICES[productKey] ?? fallbackAmount;
+  if (target != null) {
+    const byPrice = products.find((p) => {
+      const pr = productPrice(p);
+      return pr != null && Math.abs(pr - target) < 1;
+    });
+    if (byPrice?.id) return byPrice.id;
+  }
+
+  throw new AppError(
+    `Produit Chariow introuvable pour « ${productKey} ». Créez-le dans votre boutique Chariow (même nom et même prix) puis renseignez CHARIOW_PRODUCT_${productKey.toUpperCase()} dans Render.`,
+    502
+  );
+}
+
+function splitName(email: string, first?: string, last?: string) {
+  const clean = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 50);
+  if (first && last) return { first_name: clean(first), last_name: clean(last) };
+  if (first && first.trim().includes(' ')) {
+    const [a, ...rest] = first.trim().split(/\s+/);
+    return { first_name: clean(a), last_name: clean(rest.join(' ') || 'NexAI') };
+  }
+  const local = (email.split('@')[0] || 'client').replace(/[._-]+/g, ' ').trim() || 'Client';
+  return {
+    first_name: clean(first || local),
+    last_name: clean(last || 'NexAI'),
+  };
+}
+
 export class ChariowService {
-  /**
-   * Crée un lien de paiement dynamique sur Chariow pour l'achat de crédits (10 à 200)
-   */
   public static async createPaymentLink(params: {
     amount: number;
     currency: string;
     description: string;
     customerEmail: string;
+    customerFirstName?: string;
+    customerLastName?: string;
+    customerPhone?: string;
+    customerPhoneCountry?: string;
+    productKey?: string;
     metadata: {
       transactionId: string;
       userId: string;
@@ -56,49 +227,100 @@ export class ChariowService {
       [key: string]: string | undefined;
     };
   }) {
-    try {
-      const res = await fetch('https://api.chariow.com/v1/payments', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${env.CHARIOW_API_KEY || ''}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: params.amount,
-          currency: params.currency,
-          description: params.description,
-          customer_email: params.customerEmail,
-          metadata: params.metadata,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { payment_link?: string; url?: string };
-      if (!res.ok) {
-        console.error('Erreur Chariow:', data);
-        throw new AppError('Impossible de générer le lien de paiement Chariow.', 502);
+    const productKey =
+      params.productKey ||
+      inferProductKey(params.metadata, params.amount);
+    const productId = await resolveProductId(productKey, params.amount);
+
+    let phone = String(params.customerPhone || '').replace(/\D/g, '');
+    let firstName = params.customerFirstName;
+    let lastName = params.customerLastName;
+    if (phone.length < 8 && params.metadata?.userId) {
+      const { User } = await import('@/models/User');
+      const u = await User.findById(params.metadata.userId).select(
+        'prenom nom telephone telephonePays'
+      );
+      if (u) {
+        phone = phone || String(u.telephone || '').replace(/\D/g, '');
+        firstName = firstName || u.prenom;
+        lastName = lastName || u.nom;
+        if (!params.customerPhoneCountry && u.telephonePays) {
+          params.customerPhoneCountry = String(u.telephonePays);
+        }
       }
-      return data.payment_link || data.url;
-    } catch (error: unknown) {
-      if (error instanceof AppError) throw error;
-      console.error('Erreur lors de la création du lien Chariow:', error);
-      throw new AppError('Impossible de générer le lien de paiement Chariow.', 502);
     }
+    const { first_name, last_name } = splitName(
+      params.customerEmail,
+      firstName,
+      lastName
+    );
+    if (phone.length < 8) {
+      throw new AppError(
+        'Indiquez un numéro de téléphone (Mobile Money) pour ouvrir le paiement Chariow.',
+        400
+      );
+    }
+
+    const custom_metadata: Record<string, string> = {};
+    for (const [k, v] of Object.entries(params.metadata)) {
+      if (v == null || v === '') continue;
+      custom_metadata[k] = String(v).slice(0, 255);
+      if (Object.keys(custom_metadata).length >= 10) break;
+    }
+
+    const payload = {
+      product_id: productId,
+      email: params.customerEmail,
+      first_name,
+      last_name,
+      phone: {
+        number: phone,
+        country_code: (params.customerPhoneCountry || 'CI').toUpperCase().slice(0, 2),
+      },
+      payment_currency: params.currency === 'USD' ? 'USD' : 'XOF',
+      redirect_url: `${env.CLIENT_URL.replace(/\/$/, '')}/abonnement?paiement=ok`,
+      custom_metadata,
+    };
+
+    const { ok, status, data } = await chariowFetch('/checkout', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    if (!ok) {
+      const detail =
+        (typeof data?.message === 'string' && data.message) ||
+        (Array.isArray(data?.errors) && data.errors[0] && JSON.stringify(data.errors[0])) ||
+        JSON.stringify(data).slice(0, 220);
+      console.error('[chariow] checkout', status, detail);
+      throw new AppError(
+        `Impossible de générer le lien de paiement Chariow (${status}). ${detail}`,
+        502
+      );
+    }
+
+    const nested = data?.data || data;
+    const url =
+      nested?.payment?.checkout_url ||
+      nested?.checkout_url ||
+      nested?.url ||
+      nested?.payment_link ||
+      data?.payment_link;
+    if (!url || typeof url !== 'string') {
+      console.error('[chariow] checkout sans URL', data);
+      throw new AppError(
+        'Chariow n’a pas renvoyé d’URL de paiement. Vérifiez que le produit est publié dans votre boutique.',
+        502
+      );
+    }
+    return url;
   }
 }
 
-/**
- * Traite un webhook Chariow valide.
- * Commission totale NexAI (15% Chariow + 10% marge NexAI = 25%).
- */
 export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
   const meta = payload.metadata || {};
   const metaType = String(meta.type || '');
 
-  // ─────────────────────────────────────────────────────────────
-  // GARDE-FOU ARGENT : ne jamais créditer sur autre chose qu'un
-  // paiement réellement abouti. Chariow envoie aussi des événements
-  // 'pending', 'failed', 'refunded' — tous correctement signés, donc
-  // la seule signature ne suffit pas à autoriser un crédit.
-  // ─────────────────────────────────────────────────────────────
   const statutBrut = String(payload.statut || '').toLowerCase();
   const STATUTS_ABOUTIS = ['success', 'succeeded', 'paid', 'paye', 'payé', 'completed'];
   if (!STATUTS_ABOUTIS.includes(statutBrut)) {
@@ -108,7 +330,6 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
     return null;
   }
 
-  // Achat de crédits plateforme (pas lié à un site client)
   if (metaType === 'credit_purchase') {
     const transactionId = String(meta.transactionId || '');
     const quantity = meta.quantity ? parseInt(String(meta.quantity), 10) : undefined;
@@ -116,7 +337,6 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
       const { CreditsService } = await import('@/services/credits.service');
       await CreditsService.fulfillCreditPurchase(transactionId, quantity);
     }
-    // Enregistrement minimal sans siteId — on réutilise reference pour l'idempotence via note
     return {
       _id: transactionId || payload.reference,
       type: 'credit_purchase',
@@ -124,9 +344,6 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
     } as unknown as InstanceType<typeof PaiementChariow>;
   }
 
-  // Achat d'ABONNEMENT (Architecture v6, section 7) — le plan n'est JAMAIS
-  // appliqué au clic sur "Passer à...", uniquement ici, à la confirmation
-  // réelle du paiement par Chariow.
   if (metaType === 'plan_purchase') {
     const userId = String(meta.userId || '');
     const plan = String(meta.plan || '') as 'starter' | 'createur' | 'agence' | 'pro_max';
@@ -138,9 +355,6 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
     const { PLAN_CREDITS } = await import('@/services/credits.service');
     const { CreditTransaction } = await import('@/models/CreditTransaction');
 
-    // IDEMPOTENCE : Chariow peut rejouer un webhook (retry réseau, incident
-    // de leur côté). Sans cette garde, chaque rejeu re-créditerait le plan.
-    // La référence de paiement est unique par transaction réelle.
     const dejaTraite = await CreditTransaction.findOne({
       type: 'achat_abonnement',
       referencePaiement: payload.reference,
@@ -159,16 +373,10 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
 
     const wasTrial = user.plan === 'trial';
     user.plan = plan;
-    // Crédits du plan ajoutés au solde existant (jamais de remise à zéro :
-    // le client ne doit pas perdre ce qu'il n'a pas encore consommé).
     user.creditsBalance = (user.creditsBalance ?? 0) + (PLAN_CREDITS[plan] ?? 0);
-    // L'abonnement payant met fin à l'essai : la date d'expiration n'a plus
-    // lieu d'être (sinon le compte resterait marqué comme essai expiré).
     user.trialEndsAt = undefined;
     await user.save();
 
-    // Trace du paiement — sert d'historique, de garde d'idempotence, ET de
-    // source pour le reçu téléchargeable (Agence/Pro Max, section 17).
     const montantFcfa = Number(meta.montantFcfa ?? payload.montant ?? 0);
     await CreditTransaction.create({
       userId: user._id,
@@ -180,9 +388,6 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
       note: `Abonnement ${plan}`,
     });
 
-    // Parrainage : récompense versée au parrain UNIQUEMENT ici, à la
-    // première conversion payante du filleul (jamais à l'inscription).
-    // N'échoue jamais le paiement en cas de problème (voir le service).
     const { grantReferralRewardOnFirstPayment } = await import('@/services/referral.service');
     await grantReferralRewardOnFirstPayment(user._id);
 
@@ -221,11 +426,6 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
     webhookReceivedAt: new Date(),
   });
 
-  // Méthode de retrait — mode "Compte NexAI" (Architecture v6, section 12) :
-  // NexAI a encaissé pour le compte du client, on inscrit la part qui lui
-  // revient (montant net de commission) au ledger de reversement. En mode
-  // 'lien_personnel', rien à enregistrer : l'argent n'est jamais passé par
-  // NexAI.
   if (site.paymentMode === 'chariow' && site.userId) {
     try {
       const { enregistrerEncaissement } = await import('@/services/reversement.service');
@@ -237,8 +437,6 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
         note: 'Vente encaissée via Compte NexAI',
       });
     } catch (err) {
-      // Non bloquant : le paiement reste enregistré même si le ledger
-      // échoue, l'écriture manquante pourra être rattrapée côté admin.
       console.error('[chariow] Échec enregistrement ledger reversement :', err);
     }
   }
@@ -246,9 +444,6 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
   return paiement;
 }
 
-/**
- * Admin marque un paiement comme payé (reversement mobile money effectué).
- */
 export async function markPaiementPaye(paiementId: string) {
   const p = await PaiementChariow.findById(paiementId);
   if (!p) throw new AppError('Paiement introuvable', 404);
