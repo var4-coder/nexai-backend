@@ -22,6 +22,8 @@ export interface IUser {
   email: string;
   telephone?: string;
   telephonePays?: string;
+  prenom?: string;
+  nom?: string;
   passwordHash?: string;
   googleId?: string;
   role: UserRole;
@@ -62,6 +64,8 @@ const userSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     telephone: { type: String },
     telephonePays: { type: String },
+    prenom: { type: String },
+    nom: { type: String },
     passwordHash: { type: String, select: false },
     googleId: { type: String, index: true, sparse: true, unique: true },
     role: { type: String, enum: ['user', 'admin', 'finance', 'support'], default: 'user' },
