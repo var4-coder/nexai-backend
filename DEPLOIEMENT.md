@@ -100,35 +100,40 @@ PLATFORM_AGENT_TOKEN=…
 
 ## Étape 5 — Le worker : deux options
 
-### Option A — Pour tester sans payer (mono-service)
+### Option A — Plan free Render (recommandé pour démarrer) — mono-service
 
-Render ne propose pas de Background Worker en offre gratuite. Pour vos tests,
-vous pouvez faire tourner le worker **dans le processus de l'API** : ajoutez
-simplement cette variable au service web, et ne créez pas de second service.
+Render free **n’a pas de Background Worker**. Tout tourne dans **un seul**
+Web Service : l’API + le worker BullMQ dans le même processus.
+
+Par défaut le backend démarre déjà ainsi (`RUN_WORKER_IN_WEB=true`).  
+Vous n’avez **rien à créer** de plus qu’un Web Service + Redis + Mongo.
+
+Variables utiles sur le **Web Service** :
 
 ```
 RUN_WORKER_IN_WEB=true
+REDIS_URL=redis://…   # obligatoire (ex. Upstash free)
 ```
 
-Les générations fonctionnent alors normalement. Deux limites à connaître :
-une génération vidéo lourde ralentit les requêtes HTTP pendant son
-traitement, et un redémarrage de l'API interrompt les travaux en cours.
+Dans les logs au démarrage vous devez voir :
 
-> Le Web Service gratuit s'endort après 15 minutes d'inactivité : une
-> génération lancée juste avant peut être coupée. Pour des tests confortables,
-> le plan Starter (~7 $) reste préférable.
+```
+⚙️  Mode mono-service : démarrage du worker dans ce processus
+🔧 NexAI BullMQ worker démarré (queues: pipeline, reminders, quality-agent)
+```
 
-### Option B — Pour la production (service dédié, recommandé)
+Limites du free à connaître :
+- une génération vidéo lourde peut ralentir les requêtes HTTP le temps du job ;
+- un redémarrage de l’API coupe les jobs en cours ;
+- le Web Service free s’endort après ~15 min d’inactivité (une génération
+  lancée juste avant peut être interrompue).
 
-Laissez `RUN_WORKER_IN_WEB=false` sur le service web, et créez un second
-service :
+### Option B — Production (service Worker dédié, plus tard)
 
+Quand vous payez un Background Worker :
 
-
-**Sans ce second service, aucun site ni aucune vidéo ne se génère** : les
-demandes resteraient en file d'attente indéfiniment.
-
-Sur Render : **New → Background Worker** → même dépôt `nexai-backend`.
+1. Sur le **Web Service** : `RUN_WORKER_IN_WEB=false`
+2. **New → Background Worker** → même dépôt `nexai-backend`
 
 | Réglage | Valeur |
 |---|---|
@@ -136,9 +141,10 @@ Sur Render : **New → Background Worker** → même dépôt `nexai-backend`.
 | Dockerfile Path | `./Dockerfile` |
 | Docker Command | `node dist/jobs/worker.js` |
 
-**Mêmes variables d'environnement que le service web.** Le plus simple :
-créez un *Environment Group* sur Render et rattachez-le aux deux services,
-pour ne jamais avoir à les mettre à jour en double.
+**Mêmes variables d’environnement que le service web** (Environment Group).
+
+Sans worker (ni intégré ni dédié), les sites et vidéos resteraient en file
+d’attente indéfiniment.
 
 ---
 
