@@ -1,0 +1,249 @@
+[
+  {
+    "_id": "global",
+    "$schema": "design-library/v3",
+    "meta": {
+      "version": "3.0.0",
+      "baseFontPx": 16,
+      "typeRatio": {
+        "desktop": 1.25,
+        "mobile": 1.15
+      },
+      "spacingUnit": 4,
+      "contrastMin": 4.5,
+      "touchMin": 44,
+      "perf": {
+        "lcpMs": 2500,
+        "cls": 0.1,
+        "inpMs": 200
+      }
+    },
+    "primitive": {
+      "space": {
+        "0": "0px",
+        "1": "4px",
+        "2": "8px",
+        "3": "16px",
+        "4": "24px",
+        "5": "32px",
+        "6": "48px",
+        "7": "64px"
+      },
+      "radius": {
+        "none": "0px",
+        "sm": "4px",
+        "md": "8px",
+        "lg": "12px",
+        "xl": "16px",
+        "full": "9999px"
+      },
+      "breakpoint": {
+        "xs": "375px",
+        "sm": "768px",
+        "md": "1024px",
+        "lg": "1280px",
+        "xl": "1440px"
+      },
+      "container": {
+        "sm": "720px",
+        "md": "960px",
+        "lg": "1120px",
+        "xl": "1280px"
+      },
+      "z": {
+        "base": 0,
+        "dropdown": 20,
+        "sticky": 30,
+        "overlay": 40,
+        "modal": 50,
+        "toast": 60
+      },
+      "duration": {
+        "instant": "100ms",
+        "fast": "160ms",
+        "base": "240ms",
+        "slow": "360ms"
+      },
+      "easing": {
+        "standard": "cubic-bezier(0.2, 0, 0, 1)",
+        "out": "cubic-bezier(0, 0, 0.2, 1)",
+        "in": "cubic-bezier(0.4, 0, 1, 1)",
+        "emphasize": "cubic-bezier(0.2, 0, 0, 1.15)"
+      },
+      "shadow": {
+        "sm": "0 1px 2px rgba(15,23,42,0.06), 0 1px 1px rgba(15,23,42,0.04)",
+        "md": "0 4px 12px rgba(15,23,42,0.08), 0 1px 3px rgba(15,23,42,0.06)",
+        "lg": "0 16px 40px rgba(15,23,42,0.12), 0 4px 12px rgba(15,23,42,0.06)"
+      },
+      "type": {
+        "desktop": {
+          "caption": {
+            "size": "13px",
+            "lh": 1.4,
+            "tracking": "0.01em"
+          },
+          "body": {
+            "size": "16px",
+            "lh": 1.6,
+            "tracking": "0"
+          },
+          "lead": {
+            "size": "20px",
+            "lh": 1.5,
+            "tracking": "-0.01em"
+          },
+          "h4": {
+            "size": "20px",
+            "lh": 1.35,
+            "tracking": "-0.015em"
+          },
+          "h3": {
+            "size": "25px",
+            "lh": 1.3,
+            "tracking": "-0.02em"
+          },
+          "h2": {
+            "size": "31px",
+            "lh": 1.22,
+            "tracking": "-0.025em"
+          },
+          "h1": {
+            "size": "39px",
+            "lh": 1.15,
+            "tracking": "-0.03em"
+          },
+          "display": {
+            "size": "49px",
+            "lh": 1.1,
+            "tracking": "-0.035em"
+          },
+          "hero": {
+            "size": "61px",
+            "lh": 1.05,
+            "tracking": "-0.04em"
+          }
+        },
+        "mobile": {
+          "caption": {
+            "size": "13px",
+            "lh": 1.4
+          },
+          "body": {
+            "size": "16px",
+            "lh": 1.55
+          },
+          "lead": {
+            "size": "18px",
+            "lh": 1.45
+          },
+          "h4": {
+            "size": "18px",
+            "lh": 1.35
+          },
+          "h3": {
+            "size": "21px",
+            "lh": 1.3
+          },
+          "h2": {
+            "size": "24px",
+            "lh": 1.25
+          },
+          "h1": {
+            "size": "28px",
+            "lh": 1.18
+          },
+          "display": {
+            "size": "32px",
+            "lh": 1.12
+          },
+          "hero": {
+            "size": "37px",
+            "lh": 1.08
+          }
+        }
+      }
+    },
+    "semantic": {
+      "space": {
+        "inset-xs": "{primitive.space.2}",
+        "inset-sm": "{primitive.space.3}",
+        "inset-md": "{primitive.space.4}",
+        "inset-lg": "{primitive.space.5}",
+        "stack-sm": "{primitive.space.3}",
+        "stack-md": "{primitive.space.4}",
+        "stack-lg": "{primitive.space.5}",
+        "section-y": "{primitive.space.7}",
+        "section-y-sm": "{primitive.space.6}",
+        "gutter": "{primitive.space.3}",
+        "gutter-lg": "{primitive.space.4}"
+      },
+      "color": {
+        "success": "#15803D",
+        "success-bg": "#F0FDF4",
+        "warning": "#B45309",
+        "warning-bg": "#FFFBEB",
+        "danger": "#B91C1C",
+        "danger-bg": "#FEF2F2",
+        "info": "#1D4ED8",
+        "info-bg": "#EFF6FF",
+        "focus-ring": "0 0 0 3px color-mix(in srgb, var(--color-action) 45%, transparent)"
+      },
+      "type": {
+        "family-body": "var(--font-body)",
+        "family-display": "var(--font-display)",
+        "family-mono": "ui-monospace, SFMono-Regular, Menlo, monospace",
+        "weight-regular": 400,
+        "weight-medium": 500,
+        "weight-semibold": 600,
+        "weight-bold": 700
+      }
+    },
+    "component": {
+      "button": {
+        "height": "48px",
+        "height-sm": "44px",
+        "padding-x": "{primitive.space.4}",
+        "radius": "var(--radius-control)",
+        "font": "600 16px/1 var(--font-body)"
+      },
+      "input": {
+        "height": "48px",
+        "padding-x": "{primitive.space.3}",
+        "radius": "var(--radius-control)",
+        "border": "1px solid var(--color-border)"
+      },
+      "card": {
+        "padding": "{primitive.space.4}",
+        "radius": "var(--radius-card)",
+        "shadow": "var(--shadow-sm)"
+      },
+      "nav": {
+        "height": "72px",
+        "height-mobile": "64px"
+      }
+    },
+    "grid": {
+      "columns": 12,
+      "maxWidth": "1280px",
+      "padX": {
+        "mobile": "16px",
+        "desktop": "24px"
+      }
+    },
+    "icon": {
+      "sm": "16px",
+      "md": "20px",
+      "lg": "24px",
+      "set": "lucide"
+    },
+    "media": {
+      "hero": "16/9",
+      "card": "4/3",
+      "portrait": "3/4",
+      "square": "1/1",
+      "story": "9/16",
+      "product": "4/5"
+    },
+    "css_raw": ":root {\n  --space-0: 0px; --space-1: 4px; --space-2: 8px; --space-3: 16px;\n  --space-4: 24px; --space-5: 32px; --space-6: 48px; --space-7: 64px;\n\n  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;\n  --radius-full: 9999px;\n\n  --shadow-sm: 0 1px 2px rgba(15,23,42,.06), 0 1px 1px rgba(15,23,42,.04);\n  --shadow-md: 0 4px 12px rgba(15,23,42,.08), 0 1px 3px rgba(15,23,42,.06);\n  --shadow-lg: 0 16px 40px rgba(15,23,42,.12), 0 4px 12px rgba(15,23,42,.06);\n\n  --duration-fast: 160ms; --duration-base: 240ms; --duration-slow: 360ms;\n  --ease-standard: cubic-bezier(0.2, 0, 0, 1);\n  --ease-out: cubic-bezier(0, 0, 0.2, 1);\n\n  --text-body: clamp(16px, 0.2vw + 15.4px, 16px);\n  --text-lead: clamp(18px, 0.6vw + 16px, 20px);\n  --text-h3: clamp(21px, 1.2vw + 17px, 25px);\n  --text-h2: clamp(24px, 1.8vw + 18px, 31px);\n  --text-h1: clamp(28px, 2.6vw + 18px, 39px);\n  --text-display: clamp(32px, 3.4vw + 18px, 49px);\n  --text-hero: clamp(37px, 4.2vw + 18px, 61px);\n\n  --container: 1280px;\n  --gutter: var(--space-3);\n  --section-y: clamp(48px, 8vw, 64px);\n  --touch: 44px;\n\n  /* Sémantique partagée — chaque niche définit color-action / on-action / accent\n     dans son bloc [data-theme=\"{slug}\"] ci-dessous ou injecté à la génération. */\n  --bg: var(--color-surface);\n  --bg-elevated: var(--color-surface-alt);\n  --fg: var(--color-text);\n  --fg-muted: var(--color-text-muted);\n  --action: var(--color-action);\n  --action-hover: var(--color-action-hover);\n  --on-action: var(--color-on-action);\n  --border: var(--color-border);\n  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--action) 45%, transparent);\n}\n\n@media (prefers-reduced-motion: reduce) {\n  :root {\n    --duration-fast: 1ms; --duration-base: 1ms; --duration-slow: 1ms;\n  }\n  *, *::before, *::after {\n    animation-duration: 1ms !important;\n    transition-duration: 1ms !important;\n    scroll-behavior: auto !important;\n  }\n}\n\n/* Exemple d'injection par niche (le générateur copie ce bloc avec les valeurs\n   de niches/{slug}.json — jamais de hex écrit ailleurs dans le code généré) */\n[data-theme=\"saas\"] {\n  --color-primary: #0B1F3A;\n  --color-action: #1D4ED8;\n  --color-action-hover: #1E40AF;\n  --color-on-action: #FFFFFF;\n  --color-accent: #3B82F6; /* hover/icône/chart only, jamais bouton/texte */\n  --color-surface: #F1F5F9;\n  --color-surface-alt: #FFFFFF;\n  --color-text: #0B1F3A;\n  --color-text-muted: #475569;\n  --color-border: #E2E8F0;\n  --font-display: Inter, system-ui, sans-serif;\n  --font-body: Inter, system-ui, sans-serif;\n  --radius-control: 8px;\n  --radius-card: 12px;\n  --radius-image: 12px;\n}\n"
+  }
+]
