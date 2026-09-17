@@ -147,10 +147,21 @@ export const CREDIT_COSTS = {
   REGENERER_SITE: 15,
   LOGO: 6,
   BUSINESS_COACH: 6,
-  VIDEO_TEST_ESSAI: 10,
-  PUB_STANDARD_30S: 25,
-  PUB_STANDARD_60S: 63,
-  PUB_STANDARD_120S: 125,
+  // Essai gratuit "Tester Vidéo IA" (8s) : épuise quasi tout le solde des 15
+  // crédits offerts, empêchant de cumuler avec un site ou le coach.
+  VIDEO_TEST_ESSAI: 12,
+  // Tarifs séparés par mode (avant : un seul tarif "PUB_STANDARD" partagé
+  // entre avatar et voix off malgré des coûts réels très différents —
+  // 1,73$ vs 2,89$ à 30s — ce qui écrasait la marge voix off. Chaque palier
+  // vise une marge nette ≥55% même sur Pro Max, le plan au $/crédit le plus
+  // bas (~0,208$) : Avatar ≈58% ProMax / ≈65% pack. Voix off ≈57% ProMax /
+  // ≈64% pack. Premium = ×2 (voir getVideoAdCreditCost).
+  AVATAR_PUB_30S: 20,
+  AVATAR_PUB_60S: 40,
+  AVATAR_PUB_120S: 80,
+  VOIX_OFF_30S: 32,
+  VOIX_OFF_60S: 64,
+  VOIX_OFF_120S: 128,
   MINI_FILM_120S_STANDARD: 140,
   MINI_FILM_120S_PREMIUM: 280,
 } as const;
@@ -193,12 +204,11 @@ export function getVideoAdCreditCost(mode: VideoAdMode, format: VideoAdFormat, q
     return quality === 'premium' ? CREDIT_COSTS.MINI_FILM_120S_PREMIUM : CREDIT_COSTS.MINI_FILM_120S_STANDARD;
   }
 
-  const standardBase =
-    format === '30s'
-      ? CREDIT_COSTS.PUB_STANDARD_30S
-      : format === '60s'
-      ? CREDIT_COSTS.PUB_STANDARD_60S
-      : CREDIT_COSTS.PUB_STANDARD_120S;
+  const tarifsParMode = mode === 'avatar_pub'
+    ? { '30s': CREDIT_COSTS.AVATAR_PUB_30S, '60s': CREDIT_COSTS.AVATAR_PUB_60S, '120s': CREDIT_COSTS.AVATAR_PUB_120S }
+    : { '30s': CREDIT_COSTS.VOIX_OFF_30S, '60s': CREDIT_COSTS.VOIX_OFF_60S, '120s': CREDIT_COSTS.VOIX_OFF_120S };
+
+  const standardBase = tarifsParMode[format];
 
   return quality === 'premium' ? standardBase * 2 : standardBase;
 }
@@ -261,8 +271,8 @@ export const PLAN_CREDITS: Record<string, number> = {
   trial: 15,
   starter: 30,
   createur: 70,
-  agence: 270,
-  pro_max: 400,
+  agence: 180,
+  pro_max: 280,
 } as const;
 
 export function assertTrialVideoTestAllowed(plan: UserPlan, alreadyUsed: boolean) {

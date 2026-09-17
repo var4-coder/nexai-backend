@@ -82,6 +82,31 @@ async function generateTitleAndDescription(opts: {
 }
 
 /**
+ * Régénère UNIQUEMENT titre + description pour une fiche qui existe déjà
+ * (Academy ou Boutique), à la demande de l'admin (bouton dédié, jamais
+ * automatique) — contrairement à `buildAutoDraft` (appelé une seule fois,
+ * à l'upload). Aucun fichier n'est re-téléchargé/ré-analysé ici : le
+ * contenu qui alimente le prompt est le titre + la description actuels de
+ * la fiche, pas le PDF/la vidéo source. Utilisée pour retravailler en lot
+ * des fiches déjà publiées, sans repasser par un nouvel upload.
+ */
+export async function regenerateTitleAndDescription(opts: {
+  kind: 'academy' | 'boutique';
+  niche: string;
+  currentTitle: string;
+  currentDescription?: string;
+}): Promise<{ title: string; description: string }> {
+  return generateTitleAndDescription({
+    kind: opts.kind,
+    niche: opts.niche || 'général',
+    filename: opts.currentTitle,
+    extractedText: opts.currentDescription
+      ? `Titre actuel : ${opts.currentTitle}\nDescription actuelle : ${opts.currentDescription}\nPropose une version plus accrocheuse (ne recopie pas telle quelle).`
+      : `Titre actuel : ${opts.currentTitle}`,
+  });
+}
+
+/**
  * Cherche une image de couverture via Pexels (niche + titre généré). Double
  * tentative intégrée dans sourceMockupImage lui-même (voir
  * site-image-sourcing.service.ts) ; si tout échoue, renvoie undefined —

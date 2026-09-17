@@ -17,8 +17,9 @@ import { VIDEO_TEST_INCITATION, VIDEO_TEST_TELECHARGEMENT_VERROUILLE } from '@/c
  * Caractéristiques (toutes volontaires) :
  *   - FalAI Kling Avatar Standard, 8 secondes, avatar générique NexAI
  *     + voix personnalisée au nom/activité du client → coût réel ~0,46 $
- *   - 10 crédits, ce qui épuise le solde des 15 offerts et rend impossible
- *     de cumuler avec un site (12cr) ou le coach (6cr)
+ *   - 12 crédits, ce qui épuise le solde des 15 offerts (3cr restants,
+ *     insuffisant pour tout autre action) et rend impossible de cumuler
+ *     avec un site (12cr) ou le coach (6cr)
  *   - UNE SEULE FOIS par compte, verrouillé ensuite
  *   - Streaming uniquement : jamais de téléchargement (la vidéo serait
  *     sinon utilisable ailleurs sans jamais payer)

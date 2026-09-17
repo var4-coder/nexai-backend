@@ -6,17 +6,28 @@ import { AiRoleConfig, AiRole } from '@/models/AiRoleConfig';
  * avec ce poste (jamais une bascule libre — un modèle sans vision ne sera
  * par exemple jamais proposé pour le Juge Visuel).
  *
- * Seul 'support_client' a une vraie alternative validée à ce jour
- * (Haiku 4.5 ↔ Grok 4.3). Les autres rôles n'ont qu'un seul modèle
+ * Seul 'support_client', 'chat_creation_site' et 'chat_autres_modes' ont une
+ * vraie alternative validée à ce jour (Haiku 4.5 ↔ Sonnet 5, ou ↔ Grok 4.3
+ * pour le support). Les autres rôles n'ont qu'un seul modèle
  * "compatible" pour l'instant, mais passent par le même mécanisme de
  * résolution — ajouter une alternative future ne nécessite qu'une ligne de
  * config ici, jamais une réécriture de code appelant.
  */
 export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; alternatives: string[] }> = {
   chat_creation_site: {
-    label: 'Chat création de site (site / logo / edit / business)',
+    // Split (demandé) : ce rôle ne couvre plus QUE le sous-mode "site" du
+    // chat hub (conversation + extraction du brief business). Les 3 autres
+    // sous-modes (logo / edit / business) sont un rôle séparé ci-dessous —
+    // les deux peuvent être basculés indépendamment entre Haiku et Sonnet 5
+    // depuis ce panneau, sans toucher au code.
+    label: 'Chat création de site — sous-mode "site" (dialogue + extraction brief)',
     default: 'claude-haiku-4-5-20251001',
-    alternatives: [],
+    alternatives: ['claude-sonnet-5'],
+  },
+  chat_autres_modes: {
+    label: 'Chat — sous-modes Logo / Modifier un site / Coach business',
+    default: 'claude-haiku-4-5-20251001',
+    alternatives: ['claude-sonnet-5'],
   },
   support_client: {
     label: 'Support client',

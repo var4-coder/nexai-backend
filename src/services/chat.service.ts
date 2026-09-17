@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Types } from 'mongoose';
-import { callClaude } from './ai-clients';
+import { callClaude, ClaudeModel } from './ai-clients';
+import { getModelForRole } from './ai-role-registry';
 import { ChatSession, IChatMessage, IChatAttachment, ChatHubMode } from '@/models/ChatSession';
 import { Site, SiteNiche, resolveSiteType } from '@/models/Site';
 import { Client } from '@/models/Client';
@@ -23,13 +24,25 @@ import {
 } from './credits.service';
 
 /**
- * Chat IA de guidage — Claude Haiku.
+ * Chat IA de guidage — Claude (Haiku par défaut, bascule Sonnet 5 possible
+ * par sous-mode depuis l'admin « Équipe IA », voir ai-role-registry.ts).
  *
  * Modes hub : site | logo | edit | business
  * Assemblage prompt : ANTI_RULES (non éditables) + guidage mode + instructions admin.
  */
 
-const CHAT_MODEL = 'claude-haiku-4-5-20251001' as const;
+/**
+ * Résout le modèle actif pour le chat, SÉPARÉMENT pour le sous-mode "site"
+ * et pour les 3 autres (logo / edit / business) — split demandé pour
+ * pouvoir basculer l'un sur Sonnet 5 sans toucher l'autre si l'un des deux
+ * s'avère insuffisant sur Haiku. Résolu dynamiquement (panneau admin),
+ * jamais codé en dur.
+ */
+async function resolveChatModel(hubMode: ChatHubMode): Promise<ClaudeModel> {
+  const role = hubMode === 'site' ? 'chat_creation_site' : 'chat_autres_modes';
+  return (await getModelForRole(role)) as ClaudeModel;
+}
+
 /** 3 retries = 4 tentatives parsing JSON max. */
 const MAX_DIALOGUE_RETRIES = 3;
 
@@ -522,6 +535,7 @@ async function callDialogueTurn(session: InstanceType<typeof ChatSession>) {
   });
   const history = toClaudeHistory(session.messages);
   const baseMessages = history.length ? history : [{ role: 'user' as const, content: 'Bonjour' }];
+  const model = await resolveChatModel(hubMode);
 
   let lastRaw = '';
   for (let attempt = 0; attempt <= MAX_DIALOGUE_RETRIES; attempt++) {
@@ -537,7 +551,7 @@ async function callDialogueTurn(session: InstanceType<typeof ChatSession>) {
             },
           ];
 
-    lastRaw = await callClaude(CHAT_MODEL, system, messages, {
+    lastRaw = await callClaude(model, system, messages, {
       maxTokens: 1000,
       temperature: attempt === 0 ? 0.4 : 0.2,
     });
@@ -569,6 +583,10 @@ async function callExtraction(session: InstanceType<typeof ChatSession>): Promis
     .map((m) => `${m.role === 'assistant' ? 'NexAI' : 'Client'}: ${withAttachmentNote(m.content, m.attachments)}`)
     .join('\n');
 
+  // Extraction finale n'a lieu qu'en sous-mode "site" (voir appelant) —
+  // toujours le rôle 'chat_creation_site', jamais 'chat_autres_modes'.
+  const model = (await getModelForRole('chat_creation_site')) as ClaudeModel;
+
   let lastRaw = '';
   for (let attempt = 0; attempt <= MAX_DIALOGUE_RETRIES; attempt++) {
     const userContent =
@@ -576,7 +594,7 @@ async function callExtraction(session: InstanceType<typeof ChatSession>): Promis
         ? transcript
         : `${transcript}\n\n[Système] La réponse précédente n'était pas un JSON valide. Réponds UNIQUEMENT avec le JSON d'extraction demandé.`;
     lastRaw = await callClaude(
-      CHAT_MODEL,
+      model,
       EXTRACTION_SYSTEM_PROMPT,
       [{ role: 'user', content: userContent }],
       { maxTokens: 600, temperature: 0 }
@@ -1227,4 +1245,38 @@ export function getBusinessCatalog() {
     ),
     socleDebutant: [...BUSINESS_SOCLE_DEBUTANT],
   };
+}
+
+
+/** Liste les sessions récentes d'un utilisateur pour un mode donné (continuité conversation). */
+export async function listChatSessions(
+  userId: string,
+  opts?: { mode?: ChatHubMode; limit?: number }
+) {
+  const filter: Record<string, unknown> = { userId };
+  if (opts?.mode) filter.mode = opts.mode;
+  const limit = Math.min(opts?.limit ?? 10, 30);
+  const sessions = await ChatSession.find(filter)
+    .sort({ updatedAt: -1 })
+    .limit(limit)
+    .select('mode status messages siteId editSiteId createdAt updatedAt')
+    .lean();
+  return sessions.map((s) => {
+    const lastMsg = Array.isArray(s.messages) && s.messages.length
+      ? s.messages[s.messages.length - 1]
+      : null;
+    return {
+      id: String(s._id),
+      mode: s.mode,
+      status: s.status,
+      messageCount: Array.isArray(s.messages) ? s.messages.length : 0,
+      lastPreview: lastMsg && typeof lastMsg.content === 'string'
+        ? lastMsg.content.slice(0, 120)
+        : '',
+      siteId: s.siteId ? String(s.siteId) : undefined,
+      editSiteId: s.editSiteId ? String(s.editSiteId) : undefined,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+    };
+  });
 }
