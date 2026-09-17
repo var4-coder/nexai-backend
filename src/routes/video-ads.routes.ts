@@ -52,32 +52,43 @@ videoAdsRouter.post(
  * GET /tarifs — grille publique des prix (crédits NexAI), les 3 produits vidéo IA.
  */
 videoAdsRouter.get('/tarifs', (_req: Request, res: Response) => {
-  // Grille client UNIFIÉE (Architecture v6) : voix_off et avatar_pub ont le
-  // même prix à une durée donnée — le coût réel fournisseur diffère (voir
-  // credits.service.ts VIDEO_AD_REAL_COST_USD) mais jamais le prix affiché.
+  // Grille client PAR MODE (revue marge) : avatar_pub et voix_off ont des
+  // tarifs distincts car leur coût réel fournisseur diffère nettement (voir
+  // credits.service.ts VIDEO_AD_REAL_COST_USD, ~1,73$ vs ~2,89$ à 30s) — un
+  // tarif unifié écrasait la marge voix off sous les 35% sur Pro Max.
   // Premium = toujours ×2 du Standard.
-  const standard = {
-    '30s': CREDIT_COSTS.PUB_STANDARD_30S,
-    '60s': CREDIT_COSTS.PUB_STANDARD_60S,
-    '120s': CREDIT_COSTS.PUB_STANDARD_120S,
+  const avatarStandard = {
+    '30s': CREDIT_COSTS.AVATAR_PUB_30S,
+    '60s': CREDIT_COSTS.AVATAR_PUB_60S,
+    '120s': CREDIT_COSTS.AVATAR_PUB_120S,
   };
-  const premium = {
-    '30s': CREDIT_COSTS.PUB_STANDARD_30S * 2,
-    '60s': CREDIT_COSTS.PUB_STANDARD_60S * 2,
-    '120s': CREDIT_COSTS.PUB_STANDARD_120S * 2,
+  const avatarPremium = {
+    '30s': CREDIT_COSTS.AVATAR_PUB_30S * 2,
+    '60s': CREDIT_COSTS.AVATAR_PUB_60S * 2,
+    '120s': CREDIT_COSTS.AVATAR_PUB_120S * 2,
+  };
+  const voixStandard = {
+    '30s': CREDIT_COSTS.VOIX_OFF_30S,
+    '60s': CREDIT_COSTS.VOIX_OFF_60S,
+    '120s': CREDIT_COSTS.VOIX_OFF_120S,
+  };
+  const voixPremium = {
+    '30s': CREDIT_COSTS.VOIX_OFF_30S * 2,
+    '60s': CREDIT_COSTS.VOIX_OFF_60S * 2,
+    '120s': CREDIT_COSTS.VOIX_OFF_120S * 2,
   };
   res.json({
     voix_off: {
       label: 'Vidéo pub voix off',
       description:
         'Une publicité visuelle avec voix off et musique de fond, pour présenter votre site ou vos produits.',
-      formats: { standard, premium },
+      formats: { standard: voixStandard, premium: voixPremium },
       planRequis: ['starter', 'createur', 'agence', 'pro_max'],
     },
     avatar_pub: {
       label: 'Avatar pub',
       description: 'Un présentateur IA qui parle face caméra pour promouvoir votre activité.',
-      formats: { standard, premium },
+      formats: { standard: avatarStandard, premium: avatarPremium },
       planRequis: ['starter', 'createur', 'agence', 'pro_max'],
     },
     mini_film: {

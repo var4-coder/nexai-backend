@@ -19,7 +19,7 @@ import {
   deleteAcademyResource,
   deleteBoutiqueResource,
 } from '@/services/cloudinary.service';
-import { buildAutoDraft } from '@/services/academy-boutique-automation.service';
+import { buildAutoDraft, regenerateTitleAndDescription } from '@/services/academy-boutique-automation.service';
 import { env } from '@/config/env';
 import { genererAvis } from '@/services/avis-generation.service';
 import { getStatutSecurite, demanderChangementEmail, confirmerChangementEmail } from '@/services/admin-security.service';
@@ -484,6 +484,51 @@ adminRouter.patch(
   }
 );
 
+/**
+ * Régénère titre + description (IA) pour des contenus Academy DÉJÀ
+ * PUBLIÉS — action manuelle déclenchée par l'admin (jamais automatique,
+ * contrairement à l'auto-upload). `ids` optionnel : liste précise de
+ * contenus à retraiter ; omis ou vide = tous les contenus publiés,
+ * quel qu'en soit le nombre. Boutique n'est JAMAIS touchée par cette route
+ * (voir /boutique/regenerer-titres, séparée).
+ */
+adminRouter.post(
+  '/academy/regenerer-titres',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z.object({ ids: z.array(z.string()).optional() }).parse(req.body ?? {});
+      const filter: Record<string, unknown> = { status: 'publié' };
+      if (body.ids && body.ids.length > 0) filter._id = { $in: body.ids };
+
+      const contents = await AcademyContent.find(filter);
+      const updated: string[] = [];
+      const failed: { id: string; error: string }[] = [];
+
+      for (const content of contents) {
+        try {
+          const { title, description } = await regenerateTitleAndDescription({
+            kind: 'academy',
+            niche: content.niche || 'général',
+            currentTitle: content.title,
+            currentDescription: content.description,
+          });
+          content.title = title;
+          content.description = description;
+          await content.save();
+          updated.push(String(content._id));
+        } catch (err) {
+          failed.push({ id: String(content._id), error: err instanceof Error ? err.message : 'Erreur inconnue' });
+        }
+      }
+
+      res.json({ total: contents.length, updated: updated.length, failed });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 adminRouter.post(
   '/academy',
   requireRole('admin'),
@@ -648,6 +693,50 @@ adminRouter.post(
 
       const product = await BoutiqueProduct.create(body);
       res.status(201).json({ product });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * Régénère titre + description (IA) pour des produits Boutique DÉJÀ
+ * PUBLIÉS — action manuelle déclenchée par l'admin, jamais automatique.
+ * `ids` optionnel : produits précis à retraiter ; omis ou vide = tous les
+ * produits publiés, quel qu'en soit le nombre. Academy n'est JAMAIS
+ * touchée par cette route (voir /academy/regenerer-titres, séparée).
+ */
+adminRouter.post(
+  '/boutique/regenerer-titres',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z.object({ ids: z.array(z.string()).optional() }).parse(req.body ?? {});
+      const filter: Record<string, unknown> = { status: 'publié' };
+      if (body.ids && body.ids.length > 0) filter._id = { $in: body.ids };
+
+      const products = await BoutiqueProduct.find(filter);
+      const updated: string[] = [];
+      const failed: { id: string; error: string }[] = [];
+
+      for (const product of products) {
+        try {
+          const { title, description } = await regenerateTitleAndDescription({
+            kind: 'boutique',
+            niche: product.niche || 'général',
+            currentTitle: product.title,
+            currentDescription: product.description,
+          });
+          product.title = title;
+          product.description = description;
+          await product.save();
+          updated.push(String(product._id));
+        } catch (err) {
+          failed.push({ id: String(product._id), error: err instanceof Error ? err.message : 'Erreur inconnue' });
+        }
+      }
+
+      res.json({ total: products.length, updated: updated.length, failed });
     } catch (err) {
       next(err);
     }

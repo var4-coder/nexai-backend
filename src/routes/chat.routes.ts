@@ -12,6 +12,7 @@ import {
   getChatSession,
   switchChatMode,
   getBusinessCatalog,
+  listChatSessions,
 } from '@/services/chat.service';
 
 export const chatRouter = Router();
@@ -171,6 +172,20 @@ chatRouter.post(
     }
   }
 );
+
+
+chatRouter.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const mode = typeof req.query.mode === 'string' ? req.query.mode : undefined;
+    const sessions = await listChatSessions(req.auth!.userId, {
+      mode: mode as any,
+      limit: 15,
+    });
+    res.json({ sessions });
+  } catch (err) {
+    next(err);
+  }
+});
 
 chatRouter.get('/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {

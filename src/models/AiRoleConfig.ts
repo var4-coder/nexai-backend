@@ -12,6 +12,7 @@ import { Schema, model, Types } from 'mongoose';
  */
 export type AiRole =
   | 'chat_creation_site'
+  | 'chat_autres_modes'
   | 'support_client'
   | 'codeur_normale'
   | 'codeur_premium'
