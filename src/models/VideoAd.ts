@@ -39,7 +39,7 @@ export interface IVideoAd {
   userId: Types.ObjectId;
   siteId?: Types.ObjectId; // optionnel — vidéo peut être personnalisée via URL externe
   mode: VideoAdMode; // 'voix_off' | 'avatar_pub' | 'mini_film'
-  format: VideoAdFormat; // '30s' | '60s' | '120s' (mini_film : 120s uniquement)
+  format: VideoAdFormat; // '20s' | '30s' | '60s' pour les pubs · '120s' réservé au mini-film
   quality: VideoAdQuality; // 'standard' | 'premium' — Premium = ×2 crédits, tous modes
   aspectRatio: '16:9' | '9:16';
   brief: Record<string, unknown>;
@@ -185,7 +185,7 @@ const videoAdSchema = new Schema<IVideoAd>(
       required: true,
       default: 'voix_off',
     },
-    format: { type: String, enum: ['30s', '60s', '120s'], required: true },
+    format: { type: String, enum: ['20s', '30s', '60s', '120s'], required: true },
     quality: { type: String, enum: ['standard', 'premium'], required: true, default: 'standard' },
     aspectRatio: { type: String, enum: ['16:9', '9:16'], default: '16:9' },
     brief: { type: Schema.Types.Mixed, default: {} },

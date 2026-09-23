@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '@/middleware/auth';
 import { AppError } from '@/middleware/errorHandler';
+import { aUnAbonnementActif } from '@/utils/abonnement';
 import { User } from '@/models/User';
 import { CreditTransaction } from '@/models/CreditTransaction';
 import { LANGUES_SUPPORTEES, isPaysSupporte } from '@/constants/pays';
@@ -20,6 +21,13 @@ usersRouter.get('/me', requireAuth, async (req, res, next) => {
         role: user.role,
         plan: user.plan,
         trialEndsAt: user.trialEndsAt,
+        // Fin de la période payée. Indispensable au frontend : un abonné
+        // expiré garde l'ÉTIQUETTE de son plan, si bien que `plan` seul ne
+        // dit PAS s'il paie encore. Sans cette date, impossible d'afficher
+        // les avertissements de fin d'abonnement ni d'adapter l'interface.
+        planExpiresAt: user.planExpiresAt ?? null,
+        /** Calculé ici pour que le frontend n'ait pas à refaire la règle. */
+        abonnementActif: aUnAbonnementActif(user),
         creditsBalance: user.creditsBalance,
         domainsUsed: user.domainsUsed ?? 0,
         logosUsed: user.logosUsed ?? 0,

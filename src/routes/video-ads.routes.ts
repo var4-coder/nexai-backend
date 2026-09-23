@@ -215,7 +215,7 @@ videoAdsRouter.post('/', requireAuth, async (req: Request, res: Response, next: 
       .object({
         siteId: z.string().min(1).optional(),
         mode: z.enum(['voix_off', 'avatar_pub', 'mini_film']),
-        format: z.enum(['30s', '60s', '120s']),
+        format: z.enum(['20s', '30s', '60s', '120s']),
         quality: z.enum(['standard', 'premium']).default('standard'),
         aspectRatio: z.enum(['16:9', '9:16']).default('16:9'),
         brief: z
@@ -230,6 +230,27 @@ videoAdsRouter.post('/', requireAuth, async (req: Request, res: Response, next: 
              * ajoutées par le client, utilisées en priorité comme référence
              * image-to-image (voir product-image-sourcing.service.ts). */
             clientProductImageUrls: z.array(z.string().url()).max(6).optional(),
+            /**
+             * Mini-film uniquement : décide du style des plans.
+             *  · 'histoire'     — une histoire filmée avec des acteurs
+             *  · 'decouverte'   — scènes cinématiques sans acteur
+             *  · 'presentateur' — un présentateur face caméra
+             */
+            composition: z.enum(['histoire', 'decouverte', 'presentateur']).optional(),
+            /**
+             * Histoire racontée par le client. Laissée vide, le scénariste en
+             * écrit une, adaptée au produit et au public visé.
+             */
+            scenario: z.string().max(2000).optional(),
+            /** Présentateur choisi, pour les modes avec avatar. */
+            avatar: z
+              .object({
+                genre: z.string().optional(),
+                carnation: z.string().optional(),
+                age: z.string().optional(),
+                style: z.string().optional(),
+              })
+              .optional(),
           })
           .passthrough()
           .default({}),

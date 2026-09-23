@@ -137,11 +137,14 @@ sitesRouter.get('/:id/hebergement', requireAuth, async (req: Request, res: Respo
 
     res.json({
       abonnementActif,
-      // Un abonné actif n'a aucune limite : aucun quota n'est renvoyé.
+      // Un abonné actif n'a AUCUNE limite : pas de quota.
       quotaVisiteurs: abonnementActif
         ? null
         : quotaVisiteursMensuel(joursDepuisFinAbonnement(proprietaire)),
-      visiteursMois: abonnementActif ? null : await compterVisiteursDuMois(site._id),
+      // Le nombre de visiteurs est TOUJOURS renvoyé, même à un abonné actif :
+      // il sert aussi à le féliciter quand son site marche bien, ce qui
+      // rappelle au passage ce que son abonnement lui apporte.
+      visiteursMois: await compterVisiteursDuMois(site._id),
       hebergementPaye,
       payeJusquAu,
       etape: heb.etape ?? 'aucune',
