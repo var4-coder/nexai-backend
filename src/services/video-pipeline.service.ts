@@ -2589,14 +2589,17 @@ async function runAvatarPipeline(
   const brief0 = videoAd.brief as Record<string, unknown> | undefined;
   const dureeForcee =
     typeof brief0?.durationSecondsOverride === 'number' ? brief0.durationSecondsOverride : null;
-  const totalDurationSeconds =
-    dureeForcee ?? (videoAd.format === '30s' ? 30 : videoAd.format === '60s' ? 60 : 120);
+  // Table explicite plutôt qu'une cascade de ternaires : celle-ci renvoyait
+  // 120 pour TOUTE durée non prévue, si bien qu'un 20 s était produit en
+  // deux minutes, avec une narration six fois trop longue.
+  const DUREES: Record<string, number> = { '20s': 20, '30s': 30, '60s': 60, '120s': 120 };
+  const totalDurationSeconds = dureeForcee ?? DUREES[String(videoAd.format)] ?? 30;
 
   // 1. Script + portrait du présentateur (Claude + Grok Imagine)
   const script = await buildNarrationScript(
     videoAd.brief,
     niche,
-    isScenario ? 120 : totalDurationSeconds
+    totalDurationSeconds
   );
   videoAd.narrationScript = script;
   await videoAd.save();
@@ -2707,7 +2710,7 @@ async function runAvatarPipeline(
   // Best-effort : jamais bloquant, la vidéo part sans overlay plutôt que
   // d'échouer une génération déjà coûteuse (portrait + lipsync FalAI payés).
   try {
-    const overlayDuration = isScenario ? 120 : totalDurationSeconds;
+    const overlayDuration = totalDurationSeconds;
     const briefForOverlay = videoAd.brief as { brandName?: string; ctaText?: string; siteMeta?: { title?: string }; offerHighlights?: string[] };
     const withCtaPath = path.join(os.tmpdir(), `${videoAdId}_avatar_with_cta.mp4`);
     tmpFiles.push(withCtaPath);
