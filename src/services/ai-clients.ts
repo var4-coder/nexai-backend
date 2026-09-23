@@ -1,5 +1,26 @@
 import { env } from '@/config/env';
 import { AppError } from '@/middleware/errorHandler';
+import { Agent, setGlobalDispatcher } from 'undici';
+
+/**
+ * Le `fetch` natif de Node.js repose en interne sur `undici`, qui applique
+ * ses PROPRES timeouts par défaut (headersTimeout / bodyTimeout ≈ 5 min),
+ * complètement indépendants de l'AbortController utilisé ci-dessous. Sans
+ * ceci, Node coupe la requête lui-même avec `UND_ERR_HEADERS_TIMEOUT` avant
+ * même que notre timeout (calculé plus haut, jusqu'à ~8 min pour une
+ * génération de page complète) n'ait eu la moindre chance de s'appliquer.
+ * On aligne cette limite Node sur la plus grande valeur possible calculée
+ * par `resolveTimeoutMs` (voir plus bas), avec une marge de sécurité.
+ * Appliqué une seule fois au chargement de ce module, pour l'API comme
+ * pour le worker (tous deux importent ce fichier).
+ */
+setGlobalDispatcher(
+  new Agent({
+    headersTimeout: 600_000, // 10 min
+    bodyTimeout: 600_000,
+    connectTimeout: 30_000,
+  })
+);
 
 /**
  * Clients API réels — xAI (Grok) + Anthropic (Claude).
@@ -87,7 +108,12 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function fetchWithRetry(
+/**
+ * Exportée pour être réutilisée par les services qui appellent l'API xAI en
+ * dehors des fonctions ci-dessous (ex. grok-imagine.service.ts) — évite de
+ * dupliquer la logique de timeout/retry, et donc de recréer les mêmes bugs.
+ */
+export async function fetchWithRetry(
   url: string,
   init: RequestInit,
   label: string,

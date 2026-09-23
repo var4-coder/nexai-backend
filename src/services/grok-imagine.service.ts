@@ -1,5 +1,6 @@
 import { env } from '@/config/env';
 import { AppError } from '@/middleware/errorHandler';
+import { fetchWithRetry } from '@/services/ai-clients';
 
 /**
  * Grok Imagine (xAI) — images d'ambiance de site et images de départ vidéo.
@@ -63,14 +64,23 @@ export async function generateGrokImagine(params: {
     body.image = { url: params.imageUrl, type: 'image_url' };
   }
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.XAI_API_KEY}`,
-      'Content-Type': 'application/json',
+  // Timeout + retry (réseau/429/5xx) — même mécanisme que callGrok/callClaude
+  // dans ai-clients.ts. Avant, cet appel n'avait ni l'un ni l'autre : une
+  // réponse lente ou instable de xAI pouvait bloquer indéfiniment le job en
+  // cours (aucun AbortController), au lieu d'échouer proprement ou de
+  // réessayer comme le reste des appels IA.
+  const res = await fetchWithRetry(
+    endpoint,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.XAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+    `xAI/${GROK_IMAGE_MODELS[params.tier ?? 'standard']}`
+  );
 
   if (!res.ok) {
     const text = await res.text();
