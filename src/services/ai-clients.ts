@@ -10,6 +10,28 @@ const DEFAULT_TIMEOUT_MS = 90_000;
 const MAX_RETRIES = 2;
 const RETRY_BASE_MS = 800;
 
+/**
+ * Calcule un timeout proportionnel à la taille de génération demandée.
+ *
+ * 90s fixes suffisaient pour de petites réponses (titres, JSON de jugement)
+ * mais sont bien trop courts pour une génération de page complète
+ * (maxTokens: 16000) : au débit de sortie constaté des modèles actuels
+ * (~50-60 tokens/s) plus le délai avant le premier token (30-40s), une
+ * réponse de 16 000 tokens peut prendre 4-5 minutes. Sans ce calcul, ces
+ * appels étaient annulés (AbortError) avant la fin de la génération, à
+ * chacune des tentatives — d'où des échecs systématiques de génération de
+ * site qui n'ont rien à voir avec une panne du fournisseur.
+ *
+ * `timeoutMs` explicite dans les options reste toujours prioritaire.
+ */
+function resolveTimeoutMs(opts?: { maxTokens?: number; timeoutMs?: number }): number {
+  if (opts?.timeoutMs) return opts.timeoutMs;
+  const maxTokens = opts?.maxTokens ?? 8000;
+  // 45s de marge de démarrage + ~25ms/token (≈ 40 tokens/s, marge incluse),
+  // avec 90s comme plancher pour les petites requêtes.
+  return Math.max(DEFAULT_TIMEOUT_MS, 45_000 + maxTokens * 25);
+}
+
 /** Erreurs où un nouvel essai a une chance de réussir (réseau / 429 / 5xx). */
 export function isRetryableApiError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
@@ -157,7 +179,7 @@ export async function callGrok(
       }),
     },
     `xAI/${model}`,
-    opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    resolveTimeoutMs(opts)
   );
 
   if (!res.ok) {
@@ -205,16 +227,22 @@ export async function callClaude(
         'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
+      // NOTE : Anthropic a déprécié le paramètre `temperature` pour ses
+      // modèles récents (Sonnet 5, Opus 4.8, Fable/Mythos 5...) — l'envoyer,
+      // même avec une valeur, fait échouer la requête en 400
+      // ("`temperature` is deprecated for this model"). Comme ce rôle peut
+      // être basculé vers n'importe quel modèle depuis l'admin, on ne
+      // l'envoie plus du tout : c'est sans risque (paramètre optionnel) et
+      // ça marche avec tous les modèles, anciens et récents.
       body: JSON.stringify({
         model,
         max_tokens: opts?.maxTokens ?? 8000,
-        temperature: opts?.temperature ?? 0.3,
         system,
         messages,
       }),
     },
     `Anthropic/${model}`,
-    opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    resolveTimeoutMs(opts)
   );
 
   if (!res.ok) {
@@ -262,16 +290,18 @@ export async function callClaudeVision(
         'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
+      // Voir la note dans callClaude ci-dessus : `temperature` est déprécié
+      // et rejeté (400) par les modèles Anthropic récents, donc on ne
+      // l'envoie plus.
       body: JSON.stringify({
         model,
         max_tokens: opts?.maxTokens ?? 200,
-        temperature: opts?.temperature ?? 0,
         system,
         messages: [{ role: 'user', content }],
       }),
     },
     `AnthropicVision/${model}`,
-    opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    resolveTimeoutMs(opts)
   );
 
   if (!res.ok) {
@@ -326,16 +356,17 @@ export async function callClaudeVisionBase64(
         'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
+      // Voir la note dans callClaude : `temperature` est déprécié et rejeté
+      // (400) par les modèles Anthropic récents, donc on ne l'envoie plus.
       body: JSON.stringify({
         model,
         max_tokens: opts?.maxTokens ?? 1200,
-        temperature: opts?.temperature ?? 0.2,
         system,
         messages: [{ role: 'user', content }],
       }),
     },
     `AnthropicVision/${model}`,
-    opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    resolveTimeoutMs(opts)
   );
 
   if (!res.ok) {
