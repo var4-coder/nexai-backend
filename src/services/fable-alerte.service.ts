@@ -83,6 +83,7 @@ async function relancerEnVariation(siteId: string, userId: string): Promise<stri
   }
 
   site.status = 'generating';
+  site.generationStartedAt = new Date();
   site.proposals = [];
   await site.save();
 

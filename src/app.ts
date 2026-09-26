@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
 import { env, isProd } from '@/config/env';
 import { router } from '@/routes';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
@@ -47,11 +48,32 @@ export function createApp() {
   app.use(cookieParser());
   app.use(morgan(isProd ? 'combined' : 'dev'));
 
-  // Rate limiting global — protection de base (voir Partie 11 - Sécurité)
+  // Rate limiting global — protection de base (voir Partie 11 - Sécurité).
+  //
+  // Client connecté : compté PAR COMPTE (1 000 requêtes / 15 min). Beaucoup
+  // d'opérateurs mobiles partagent une même adresse IP entre des milliers
+  // d'abonnés : compter par IP bloquait des clients qui n'avaient rien fait,
+  // et une navigation normale (tableau de bord, Académie, suivi d'une
+  // création) atteignait vite 300 requêtes. Visiteur anonyme : par IP (300).
+  const compteDe = (req: express.Request): string | null => {
+    const entete = req.headers.authorization;
+    const jeton = entete?.startsWith('Bearer ') ? entete.slice(7) : (req.cookies?.token as string | undefined);
+    if (!jeton) return null;
+    try {
+      const p = jwt.verify(jeton, env.JWT_SECRET) as { userId?: string };
+      return p.userId ?? null;
+    } catch {
+      return null;
+    }
+  };
   app.use(
     rateLimit({
       windowMs: 15 * 60 * 1000,
-      limit: 300,
+      limit: (req) => (compteDe(req) ? 1000 : 300),
+      keyGenerator: (req) => {
+        const compte = compteDe(req);
+        return compte ? `compte:${compte}` : `ip:${req.ip}`;
+      },
       standardHeaders: true,
       legacyHeaders: false,
     })

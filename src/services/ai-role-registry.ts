@@ -1,4 +1,5 @@
 import { AiRoleConfig, AiRole } from '@/models/AiRoleConfig';
+import { AppError } from '@/middleware/errorHandler';
 
 /**
  * Registre central du panneau admin "Équipe IA". Pour chaque rôle : le
@@ -50,10 +51,26 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
     default: 'claude-sonnet-5',
     alternatives: ['grok-4.7', 'grok-4.6'],
   },
+  // Opus 5.5 par défaut depuis le 26/09/2026 (décision admin) : meilleur
+  // classement en création de sites et ≈ 40 % moins cher que Fable 5.1,
+  // qui reste en seconde place, sélectionnable ici.
   codeur_premium: {
-    label: 'Codeur — qualité Premium (Fable 5.1 par défaut, Opus 5 en alternative)',
-    default: 'claude-fable-5-1',
-    alternatives: ['claude-opus-5', 'claude-sonnet-5'],
+    label: 'Codeur — qualité Premium (Opus 5.5 par défaut, Fable 5.1 en alternative)',
+    default: 'claude-opus-5-5',
+    alternatives: ['claude-fable-5-1', 'claude-sonnet-5'],
+  },
+  // Pages intérieures (menu, contact, à propos…) des sites multi-pages.
+  // Toujours jugées comme l'accueil. Fable y est possible mais ferait
+  // dépasser le plafond de dépense Premium (≈ 2,25 $ pour 3 pages).
+  codeur_pages_premium: {
+    label: 'Codeur — pages intérieures Premium (Opus 5.5 par défaut)',
+    default: 'claude-opus-5-5',
+    alternatives: ['claude-sonnet-5', 'claude-fable-5-1'],
+  },
+  codeur_pages_normale: {
+    label: 'Codeur — pages intérieures essai et Standard (Grok 4.6 par défaut)',
+    default: 'grok-4.6',
+    alternatives: ['grok-4.7', 'claude-sonnet-5'],
   },
   juge_code: {
     label: 'Juge Code (Scan 1 + Scan 2)',
@@ -65,15 +82,15 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
     default: 'grok-build-0.1',
     alternatives: [],
   },
-  // Architecture v6 : Sonnet 5 juge dans LES DEUX qualités. Opus 5
+  // Architecture v6 : Sonnet 5 juge dans LES DEUX qualités. Opus 5.5
   // n'intervient jamais comme juge, uniquement comme « Aide » en
   // reconstruction (voir aide_ia_payant).
   // Juge visuel OFFICIEL. Remplacé automatiquement par Sonnet 5 lorsque
-  // c'est Opus 5 qui a codé (voir getJugeVisuelPour) — ce réglage ne peut
+  // c'est Opus 5.5 qui a codé (voir getJugeVisuelPour) — ce réglage ne peut
   // donc jamais conduire un modèle à juger sa propre production.
   juge_visuel: {
     label: 'Juge Visuel (officiel)',
-    default: 'claude-opus-5',
+    default: 'claude-opus-5-5',
     alternatives: ['claude-sonnet-5'],
   },
   aide_ia_essai: {
@@ -83,7 +100,7 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
   },
   aide_ia_payant: {
     label: 'Aide IA — plans payants',
-    default: 'claude-opus-5',
+    default: 'claude-opus-5-5',
     alternatives: [],
   },
   amelioration_prompts: {
@@ -108,6 +125,11 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
   },
 };
 
+/** Anciens identifiants de modèle → leur remplaçant. */
+const MODELES_REMPLACES: Record<string, string> = {
+  'claude-opus-5': 'claude-opus-5-5',
+};
+
 const cache = new Map<AiRole, string>();
 let cacheLoadedAt = 0;
 const CACHE_TTL_MS = 30_000; // évite de relire Mongo à chaque appel IA
@@ -116,7 +138,12 @@ async function ensureCache() {
   if (Date.now() - cacheLoadedAt < CACHE_TTL_MS && cache.size > 0) return;
   const rows = await AiRoleConfig.find().lean();
   cache.clear();
-  for (const row of rows) cache.set(row.role as AiRole, row.activeModel);
+  for (const row of rows) {
+    // Opus 5 remplacé par Opus 5.5 : un réglage admin enregistré avant la
+    // mise à jour bascule automatiquement sur le nouveau modèle.
+    const modele = MODELES_REMPLACES[row.activeModel] ?? row.activeModel;
+    cache.set(row.role as AiRole, modele);
+  }
   cacheLoadedAt = Date.now();
 }
 
@@ -138,11 +165,13 @@ export async function getModelForRole(role: AiRole): Promise<string> {
  */
 export async function setModelForRole(role: AiRole, model: string, adminEmail?: string) {
   const entry = AI_ROLE_REGISTRY[role];
-  if (!entry) throw new Error(`Rôle IA inconnu : ${role}`);
+  if (!entry) throw new AppError(`Rôle IA inconnu : ${role}`, 404);
   const allowed = new Set([entry.default, ...entry.alternatives]);
   if (!allowed.has(model)) {
-    throw new Error(
-      `Modèle "${model}" non compatible avec le rôle "${role}". Modèles autorisés : ${[...allowed].join(', ')}`
+    // 400 : réglage refusé, pas une panne (aucune alerte incident).
+    throw new AppError(
+      `Modèle "${model}" non compatible avec le rôle "${role}". Modèles autorisés : ${[...allowed].join(', ')}`,
+      400
     );
   }
   await AiRoleConfig.findOneAndUpdate(
@@ -184,8 +213,8 @@ export async function getJugeVisuelPour(modeleCodeur: string): Promise<string> {
   const officiel = await getModelForRole('juge_visuel');
   if (officiel !== modeleCodeur) return officiel;
   // Le juge officiel a lui-même codé : on bascule pour ne jamais s'auto-juger.
-  if (modeleCodeur.startsWith('claude-fable') || modeleCodeur === 'claude-opus-5') {
+  if (modeleCodeur.startsWith('claude-fable') || modeleCodeur === 'claude-opus-5-5') {
     return 'claude-sonnet-5';
   }
-  return officiel === 'claude-sonnet-5' ? 'claude-opus-5' : 'claude-sonnet-5';
+  return officiel === 'claude-sonnet-5' ? 'claude-opus-5-5' : 'claude-sonnet-5';
 }

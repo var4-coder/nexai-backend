@@ -9,6 +9,7 @@ import { AppError } from '@/middleware/errorHandler';
 import { deploySite } from '@/services/netlify.service';
 import { createZipBuffer } from '@/utils/zip';
 import { injectPublicBackendScript } from '@/utils/injectBackend';
+import { retirerContenuExemple } from '@/utils/contenuExemple';
 import { generatePublicApiKey } from '@/utils/crypto';
 import { scaffoldNextjsProject } from '@/services/nextjs-pipeline.service';
 import { buildAndDeployNextjsSite } from '@/services/netlify-nextjs.service';
@@ -286,10 +287,11 @@ export async function quickEditSite(
     if (!site.publicApiKey) {
       site.publicApiKey = generatePublicApiKey();
     }
+    // Avis d'EXEMPLE de l'aperçu retirés avant toute mise en ligne.
     const allPages: { slug: string; title: string; html: string }[] = [
       { slug: 'index', title: 'Accueil', html: chosen.htmlDemo },
       ...(chosen.pages || []),
-    ];
+    ].map((p) => ({ ...p, html: retirerContenuExemple(p.html || '').html }));
 
     try {
       if (site.siteType === 'nextjs') {

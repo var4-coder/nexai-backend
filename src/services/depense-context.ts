@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import { CompteurDepense } from '@/services/cout-generation.service';
+import { CompteurDepense, UsageCache } from '@/services/cout-generation.service';
 
 /**
  * Compteur de dépense isolé PAR génération.
@@ -23,10 +23,15 @@ export function compteurCourant(): CompteurDepense | null {
 }
 
 /** Enregistre un appel IA dans le compteur du job en cours, s'il existe. */
-export function enregistrerUsage(modele: string, tokensEntree: number, tokensSortie: number): void {
+export function enregistrerUsage(
+  modele: string,
+  tokensEntree: number,
+  tokensSortie: number,
+  cache?: UsageCache
+): void {
   const c = compteurCourant();
   if (!c) return;
-  c.ajouter(modele, tokensEntree, tokensSortie);
+  c.ajouter(modele, tokensEntree, tokensSortie, cache);
 }
 
 /** true si le plafond de la commande en cours est atteint. */

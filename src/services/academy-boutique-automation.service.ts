@@ -14,6 +14,7 @@ const SYSTEM_PROMPT_ACADEMY = `Tu rédiges les fiches de la NexAI Académie (for
 qui créent leur activité en ligne). À partir du contenu fourni et de la niche, propose :
 - un TITRE court et accrocheur qui donne envie d'ouvrir la formation (pas un titre neutre/descriptif)
 - une DESCRIPTION de 2-3 phrases qui explique clairement de quoi parle la formation et ce que le client va y apprendre
+Règles : jamais de promesse de gains d'argent, de revenus chiffrés ni de résultat garanti (réécris ces titres s'ils en contiennent).
 Réponds UNIQUEMENT en JSON strict, sans texte autour, au format exact :
 {"title": "...", "description": "..."}`;
 
@@ -134,6 +135,8 @@ export async function buildAutoDraft(opts: {
   filename: string;
   fileType: 'pdf' | 'video' | 'image' | 'archive';
   buffer: Buffer;
+  /** Académie : pas de photo pour une leçon (habillage fait par le frontend). */
+  sansImage?: boolean;
 }): Promise<AutoDraftResult> {
   const extractedText = opts.fileType === 'pdf' ? await extractPdfText(opts.buffer) : '';
 
@@ -144,7 +147,7 @@ export async function buildAutoDraft(opts: {
     extractedText,
   });
 
-  const imageUrl = await findCoverImage(opts.niche, title);
+  const imageUrl = opts.sansImage ? undefined : await findCoverImage(opts.niche, title);
 
   return { title, description, imageUrl };
 }

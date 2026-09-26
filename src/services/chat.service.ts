@@ -277,6 +277,8 @@ const extractionSchema = z.object({
   prix: z.string().optional(),
   reseaux: z.string().optional(),
   appelAction: z.string().optional(),
+  /** Où sont les clients du client : pilote le bloc paiement (règles PAY de la Librairie). */
+  clientele: z.string().optional(),
 });
 
 // ─── Instructions admin ────────────────────────────────────
@@ -300,6 +302,29 @@ ${adminText}`;
 }
 
 // ─── Guidage par mode ──────────────────────────────────────
+
+const OPT_CLIENTELE_LOCALE = 'Dans ma ville ou mon pays';
+const OPT_CLIENTELE_DIGITALE = 'Partout, en ligne (Afrique ou monde)';
+const OPT_CLIENTELE_MIXTE = 'Les deux';
+
+/**
+ * Clientèle visée, ramenée à 3 valeurs : `locale` (Mobile Money, WhatsApp,
+ * FCFA), `digitale` (carte, PayPal, devises) ou `mixte`. Accepte aussi une
+ * réponse libre (« à Cotonou », « dans le monde entier »…).
+ */
+export function normaliserClientele(valeur: unknown): 'locale' | 'digitale' | 'mixte' | undefined {
+  const v = String(valeur ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  if (!v) return undefined;
+  if (v === 'locale' || v === 'digitale' || v === 'mixte') return v;
+  if (v.includes('les deux') || v.includes('mixte') || v.includes('deux')) return 'mixte';
+  if (/(partout|monde|international|en ligne|afrique|diaspora|digital|etranger)/.test(v)) return 'digitale';
+  if (/(ville|pays|quartier|local|region|sur place)/.test(v)) return 'locale';
+  return undefined;
+}
 
 function buildSiteModeGuidance(niche?: SiteNiche, hasLibraryLogos?: boolean): string {
   const logoOptions = hasLibraryLogos
@@ -325,10 +350,11 @@ Règles de conversation :
   7. Ce qui le distingue de ses concurrents
   8. Style / ambiance
   9. Préférence de logo, options exactes : ${logoOptions}
+  10. Où se trouvent ses clients (décide des moyens de paiement affichés), options exactes : "${OPT_CLIENTELE_LOCALE}", "${OPT_CLIENTELE_DIGITALE}", "${OPT_CLIENTELE_MIXTE}"
 - Champs OPTIONNELS, une question max si le rythme le permet, jamais bloquants : zone / horaires, ordre de prix, réseaux, action attendue (appeler, commander, réserver).
 - DESCRIPTION : refuse le vague (« coaching », « business », « vente en ligne » seul). Relance une fois, sans readyForExtraction.
 - NE pose PAS encore la question des textes du site, NI le choix Standard / Premium : le backend s'en charge ensuite.
-- Quand les 9 points obligatoires sont couverts → "readyForExtraction": true.
+- Quand les 10 points obligatoires sont couverts → "readyForExtraction": true.
 - Cross-promo : pas de logo → suggestMode:"logo" possible. Idée floue → suggestMode:"business".
 ${niche ? `- Niche déjà choisie : ${NICHE_LABELS[niche]}. Ne redemande pas la niche.` : `- La première question doit être le choix de la niche, options exactes : ${Object.values(NICHE_LABELS).join(', ')}.`}`;
 }
@@ -440,8 +466,9 @@ ${consigneLangue(opts.langue ?? 'fr')}`;
 const EXTRACTION_SYSTEM_PROMPT = `Tu relis une conversation complète entre NexAI et un client qui veut un site web. Extrais UNIQUEMENT les informations réellement données par le client (n'invente rien, ne déduis pas au-delà de ce qui est dit).
 
 Réponds UNIQUEMENT en JSON valide, rien d'autre :
-{"niche": one of [hotellerie_evenementiel, sante_bienetre, immobilier_architecture, services_locaux, business_vitrine, ecommerce_mode, portfolio_creatif, tech_startup_saas, restaurant_gastronomie, education_formation], "brandName": string, "description": string, "cible": string, "tone": string optionnel, "capacites": string[] optionnel, "extraFields": objet clé/valeur optionnel, "logoPreference": "has_logo"|"create_logo"|"no_logo"|"library_logo" optionnel, "offre": string optionnel, "contact": string optionnel, "differenciateur": string optionnel, "zone": string optionnel, "horaires": string optionnel, "prix": string optionnel, "reseaux": string optionnel, "appelAction": string optionnel}
+{"niche": one of [hotellerie_evenementiel, sante_bienetre, immobilier_architecture, services_locaux, business_vitrine, ecommerce_mode, portfolio_creatif, tech_startup_saas, restaurant_gastronomie, education_formation], "brandName": string, "description": string, "cible": string, "tone": string optionnel, "capacites": string[] optionnel, "extraFields": objet clé/valeur optionnel, "logoPreference": "has_logo"|"create_logo"|"no_logo"|"library_logo" optionnel, "offre": string optionnel, "contact": string optionnel, "differenciateur": string optionnel, "zone": string optionnel, "horaires": string optionnel, "prix": string optionnel, "reseaux": string optionnel, "appelAction": string optionnel, "clientele": "locale"|"digitale"|"mixte" optionnel}
 
+- "clientele" : "locale" si ses clients sont dans sa ville ou son pays, "digitale" s'ils sont partout (en ligne, Afrique, monde), "mixte" pour les deux ; "" si non dit.
 - "description" doit être une vraie phrase (au moins 20 caractères) qui résume l'activité, pas juste un mot.
 - "offre" = produits / services / prestations cités. "contact" = moyen d'être joint. "differenciateur" = ce qui le distingue.
 - Si une information n'a pas été donnée, mets une chaîne vide "" (ne l'invente pas).`;
@@ -656,6 +683,15 @@ function buildReviewSummary(brief: z.infer<typeof extractionSchema>): string {
   if (brief.offre) lines.push(`Offre : ${brief.offre}`);
   if (brief.contact) lines.push(`Contact : ${brief.contact}`);
   if (brief.differenciateur) lines.push(`Atout : ${brief.differenciateur}`);
+  const clientele = normaliserClientele(brief.clientele);
+  if (clientele) {
+    const libelles = {
+      locale: 'Clients : dans votre ville ou votre pays (Mobile Money, WhatsApp)',
+      digitale: 'Clients : partout, en ligne (carte bancaire, PayPal…)',
+      mixte: 'Clients : sur place et en ligne (Mobile Money et carte)',
+    } as const;
+    lines.push(libelles[clientele]);
+  }
   return `Voici ce que j'ai compris :\n${lines.join('\n')}\n\nC'est correct ?`;
 }
 
@@ -687,6 +723,7 @@ function briefFromExtraction(brief: z.infer<typeof extractionSchema>): Record<st
     ...(brief.reseaux ? { reseaux: brief.reseaux } : {}),
     ...(brief.appelAction ? { appelAction: brief.appelAction } : {}),
     ...(brief.extraFields || {}),
+    ...(normaliserClientele(brief.clientele) ? { clientele: normaliserClientele(brief.clientele) } : {}),
   };
 }
 

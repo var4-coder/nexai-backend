@@ -16,13 +16,30 @@ import {
   refundLaunchCharges,
   type LaunchCharges,
 } from '@/services/credits.service';
-import { callGrok, callClaude, callClaudeVisionBase64, type ClaudeModel, type GrokModel, dernierUsage, reinitialiserUsage } from '@/services/ai-clients';
+import {
+  callGrok,
+  callClaude,
+  callClaudeVisionBase64,
+  systemeEnTexte,
+  type BlocSysteme,
+  type ClaudeModel,
+  type GrokModel,
+  dernierUsage,
+  reinitialiserUsage,
+} from '@/services/ai-clients';
 import { captureHtmlScreenshots } from '@/services/site-capture.service';
 import { getModelForRole, getJugeVisuelPour } from '@/services/ai-role-registry';
 import { generateGrokImagine, buildSiteImagePrompt } from '@/services/grok-imagine.service';
 import { sourceMockupImage } from '@/services/site-image-sourcing.service';
 import { verifyImageUrl } from '@/utils/verifyMedia';
-import { loadLibraryForNiche, libraryToCoderContext } from '@/services/library.service';
+import {
+  chargerLibrairie,
+  construireBlocCommun,
+  construireBlocJuges,
+  construireBlocJugeVisuel,
+  construireBlocNiche,
+  type BlocNiche,
+} from '@/services/library.service';
 import { AppError } from '@/middleware/errorHandler';
 import { assertNoDuplicateJob } from '@/utils/jobGuard';
 import { consigneLangue, type Langue } from '@/constants/pays';
@@ -48,11 +65,11 @@ import type { PaymentProvider } from '@/models/Site';
  * Rôles — qualité STANDARD payante (12 crédits, jusqu'à 2 aperçus) :
  * - Codeur aperçu 1 → Grok 4.7 (codeur_normale)
  * - Codeur aperçu 2 → Sonnet 5 (codeur_normale_apercu2)
- * - IA Aide         → Opus 5 uniquement si score < 70
+ * - IA Aide         → Opus 5.5 uniquement si score < 70
  *
  * Rôles — qualité PREMIUM (25 crédits, 1 aperçu) :
- * - Codeur      → Fable 5.1 (codeur_premium, bascule admin Opus 5 possible)
- * - IA Aide     → Opus 5 uniquement si score < 70
+ * - Codeur      → Opus 5.5 (codeur_premium, bascule admin Fable 5.1 possible)
+ * - IA Aide     → Opus 5.5 uniquement si score < 70
  *
  * Les deux scans (Scan 1 = Juge Code, Scan 2 = Juge Visuel) restent aux mêmes
  * étapes du pipeline dans les deux cas ; seuls les modèles derrière changent.
@@ -61,14 +78,68 @@ import type { PaymentProvider } from '@/models/Site';
  * renseignées sur Render (Environment).
  */
 
-// ─── Bibliothèque minimale injectée au Codeur (par niche) ─
-// En prod tu enrichiras depuis Mongo (design_systems, composants…).
-// Ici : contrat minimal pour que le Codeur produise du HTML valide.
+// ─── Consignes : Librairie (qualité) + contrat technique (machine) ─────────
+//
+// Toutes les RÈGLES DE QUALITÉ viennent de la Librairie (library.service) :
+// le codeur, les juges, l'IA Aide et les pages intérieures lisent le même
+// texte. Ce fichier ne garde que le CONTRAT TECHNIQUE, c'est-à-dire ce dont
+// la machine a besoin pour fonctionner (format de sortie, data-nexai-id,
+// bouton de paiement, format JSON des juges) : le laisser modifiable dans
+// l'admin permettrait de casser les générations.
+//
+// Ordre des blocs = ordre de mise en cache : ce qui est identique pour tous
+// (bloc commun) d'abord, puis ce qui est identique pour une niche, puis ce
+// qui est propre au site.
+
+interface ContexteLibrairie {
+  version: string;
+  blocCommun: string;
+  blocJuges: string;
+  /** Sous-ensemble visuel de la Librairie pour le juge visuel (moins cher). */
+  blocJugeVisuel: string;
+  blocNiche: BlocNiche;
+}
+
+async function preparerContexteLibrairie(niche: string): Promise<ContexteLibrairie> {
+  const lib = await chargerLibrairie();
+  return {
+    version: lib.version,
+    blocCommun: construireBlocCommun(lib),
+    blocJuges: construireBlocJuges(lib),
+    blocJugeVisuel: construireBlocJugeVisuel(lib),
+    blocNiche: construireBlocNiche(lib, niche),
+  };
+}
+
+/** Clé de cache xAI : stable par rôle, version de Librairie et niche — jamais par site. */
+function cleCacheGrok(role: string, ctx: ContexteLibrairie, avecNiche = true): string {
+  return `nexai-${role}-${ctx.version}${avecNiche ? `-${ctx.blocNiche.idNiche}` : ''}`;
+}
+
+const CONTRAT_TECHNIQUE_CODEUR = `CONTRAT TECHNIQUE NEXAI (non négociable — le système en dépend) :
+- Réponds UNIQUEMENT avec le document HTML complet (<!DOCTYPE html> … </html>), sans markdown ni explication.
+- Page d'accueil au format démo : un seul fichier HTML autonome avec les sections #page-accueil, #page-services, #page-contact, et un script minimal sans dépendance externe pour naviguer entre sections (hash).
+- Attribut data-nexai-id UNIQUE sur chaque bloc de texte modifiable : c'est grâce à lui que le client modifie ses textes.
+- Bouton de paiement : si (et SEULEMENT si) le brief indique une vente en ligne, une réservation payante, des dons ou des abonnements, ajoute un bouton bien visible sur une balise <a> portant l'attribut data-nexai-payment-link (ex. <a data-nexai-payment-link href="#">Payer maintenant</a>). JAMAIS de vraie URL de paiement : le lien réel du client est posé automatiquement après coup. Libellé et moyens affichés : règles PAY de la Librairie.
+- Qualité : applique STRICTEMENT la Librairie (règles communes ci-dessous + fiche de la niche). Les juges noteront ta page avec exactement ces règles, par numéro.`;
+
+const LIBELLES_CLIENTELE: Record<string, string> = {
+  locale: 'LOCALE — clients dans sa ville ou son pays → règle PAY1 (Mobile Money via Chariow/Maketou, WhatsApp, prix en FCFA)',
+  digitale:
+    'DIGITALE / INTERNATIONALE — clients partout en Afrique ou dans le monde → règle PAY2 (carte bancaire, PayPal…, devise adaptée)',
+  mixte: 'MIXTE — clients locaux ET à distance → règle PAY3 (Mobile Money puis carte)',
+};
+
+/** Ligne « clientèle visée » transmise au codeur (règles PAY de la Librairie). */
+function ligneClientele(brief: Record<string, unknown>): string {
+  const c = typeof brief.clientele === 'string' ? brief.clientele : '';
+  return `- Clientèle visée : ${LIBELLES_CLIENTELE[c] ?? 'non précisée → règle PAY4'}`;
+}
 
 function buildCoderSystemPrompt(
+  ctx: ContexteLibrairie,
   niche: SiteNiche,
   brief: Record<string, unknown>,
-  libraryContext: string,
   isPremium: boolean,
   pagePlan?: { slug: string; title: string }[],
   /**
@@ -77,73 +148,100 @@ function buildCoderSystemPrompt(
    * en français à ses propres clients.
    */
   langue: Langue = 'fr'
-): string {
+): BlocSysteme[] {
   const identiteCodeur = isPremium
-    ? 'Tu es le Codeur NexAI (Claude Sonnet 5), en mode qualité Premium.'
-    : 'Tu es le Codeur NexAI (Grok 4.6).';
+    ? 'Tu es le Codeur NexAI, en mode qualité Premium.'
+    : 'Tu es le Codeur NexAI.';
   const isMultiPage = !!pagePlan && pagePlan.length > 1;
   const multiPageInstructions = isMultiPage
     ? `\n\nCE SITE EST MULTI-PAGES. Plan de pages du site (à respecter dans le header ET le footer de CETTE page d'accueil) : ${pagePlan!
         .map((p) => `${p.slug === 'index' ? 'index.html' : `${p.slug}.html`} (${p.title})`)
         .join(', ')}.\nPour chaque page AUTRE que l'accueil, utilise un vrai lien <a href="slug.html">Titre</a> vers son fichier (pas une simple ancre #) ; tu peux garder des ancres # uniquement pour naviguer DANS la page d'accueil elle-même.`
     : '';
-  return `${identiteCodeur} Tu génères un site vitrine pro en HTML/CSS/JS autonome.
-
-
-RÈGLES ABSOLUES :
-- Un seul fichier HTML autonome (format démo) avec sections #page-accueil, #page-services, #page-contact
-- MOBILE D'ABORD — non négociable. La majorité des visiteurs sont sur téléphone :
-  · <meta name="viewport" content="width=device-width, initial-scale=1"> OBLIGATOIRE dans le <head>
-  · Conçois la mise en page pour un écran de 360px de large, puis élargis avec des @media (min-width: 768px) et (min-width: 1024px)
-  · Aucun débordement horizontal : jamais de largeur fixe en px sur un conteneur, images en max-width:100%, tableaux et blocs de code dans un conteneur overflow-x:auto
-  · Unités relatives (%, rem, vw, clamp()) plutôt que des px figés ; grilles en flex/grid qui repassent sur une colonne en dessous de 768px
-  · Zones tactiles d'au moins 44x44px pour tout bouton ou lien cliquable, et texte de 16px minimum pour le corps
-  · Navigation utilisable au pouce sur mobile (menu replié type burger si plus de 4 entrées)
-- Script JS minimal sans dépendance externe pour naviguer entre sections (hash)
-- Tokens CSS uniquement (variables :root), WCAG 2.2 AA, un seul h1
-- Attribut data-nexai-id unique sur chaque bloc de texte éditable
-- Copywriting spécifique au brief (PAS/BAB), interdiction de formules vides
-- Si (et SEULEMENT si) le brief indique que le client vend en ligne, prend des réservations payantes, des dons ou des abonnements : ajoute un bouton bien visible ("Payer", "Réserver", "Acheter"...) avec l'attribut data-nexai-payment-link sur la balise <a> (ex: <a data-nexai-payment-link href="#">Payer maintenant</a>). Ne mets JAMAIS de vraie URL de paiement — ce repère est résolu automatiquement après coup, une fois le lien réel du client connu.
-- Niche : ${niche}
-- Brief client (JSON) : ${JSON.stringify(brief)}${multiPageInstructions}
-
-LIBRAIRIE SÉLECTIONNÉE (Mongo — respecter strictement palette, composants tirés, copy, anti-slop) :
-${libraryContext}
-
-Réponds UNIQUEMENT avec le HTML complet, sans markdown, sans explication.
-
-${consigneLangue(langue)}`;
+  return [
+    { texte: ctx.blocCommun, cache: true },
+    { texte: `${CONTRAT_TECHNIQUE_CODEUR}\n\n${ctx.blocNiche.texte}`, cache: true },
+    {
+      texte:
+        `${identiteCodeur} Tu génères un site vitrine pro en HTML/CSS/JS autonome.\n\n` +
+        `CE SITE :\n- Niche : ${niche}\n${ligneClientele(brief)}\n- Brief client (JSON) : ${JSON.stringify(brief)}` +
+        `${multiPageInstructions}\n\n${consigneLangue(langue)}`,
+    },
+  ];
 }
 
-function buildJudgeCodePrompt(html: string, niche: string): string {
-  return `Tu es le Juge Code NexAI (Grok 4.5). Note ce HTML contre la grille NexAI.
+// ─── Juges ────────────────────────────────────────────────────────────────
 
-Critères (total /100) :
-- contraste_wcag (12, bloquant)
-- responsive (18, bloquant) — vérifie précisément : présence du <meta name="viewport" content="width=device-width...">, absence de largeur fixe en px sur les conteneurs, images en max-width:100%, aucun débordement horizontal à 360px de large, grilles qui repassent en une colonne sous 768px, zones tactiles ≥44px, corps de texte ≥16px. Tout manquement ici est BLOQUANT : la majorité des visiteurs sont sur téléphone.
-- hierarchie_visuelle (12)
-- distinctivite_anti_slop (10)
-- espacement_coherent (8)
-- alignement_grille (8)
-- coherence_palette (8)
-- typographie (6)
-- sensation_pro (6)
-- personnalite_niche (6)
-- performance_percue (4)
-- microinteractions_feedback (2)
+const CONTRAT_SORTIE_JUGE_CODE = `Tu es le Juge Code NexAI. Tu juges le CODE HTML/CSS d'une page avec les règles de la Librairie ci-dessus (bloc commun + JUDGES.md), et la fiche de la niche fournie avec la page.
 
-Niche attendue : ${niche}
+Réponds en JSON strict uniquement, sans texte autour :
+{"vetos": ["M3"], "warns": ["P5"], "score_total": 0, "bloquants": ["M3 : constat court"], "erreurs": [{"erreur_id": "err_001", "regle": "C1", "composant": "...", "data_nexai_id": "...", "critere_viole": "critère du barème", "gravite": "veto|majeur|mineur", "constat": "...", "correction_attendue": "..."}]}
+- "vetos" : UNIQUEMENT les numéros de règles marquées VETO dans la Librairie et réellement violées (liste vide si aucune).
+- "score_total" : barème /100 du juge code (JUDGES.md), même s'il y a des vetos.
+- Chaque erreur cite le numéro de la règle violée dans "regle". Pas de remarque sans règle : mets-la en conseil dans "constat" d'une erreur "mineur" avec "regle": "conseil".`;
 
-Réponds en JSON strict uniquement :
-{"score_total": number, "bloquants": string[], "erreurs": [{"erreur_id":"err_001","composant":"...","data_nexai_id":"...","critere_viole":"...","gravite":"bloquant|majeur|mineur","constat":"...","correction_attendue":"..."}]}
+const CONTRAT_SORTIE_JUGE_VISUEL = `Tu es le Juge Visuel NexAI. Tu juges le RENDU RÉEL d'une page (captures téléphone 390 px puis ordinateur 1 280 px) avec les règles visuelles de la Librairie ci-dessus (JUDGES.md : tests V1–V10 et barème du juge visuel ; SLOP ; LAYOUTS ; règles M et PAY), et la fiche de la niche fournie avec les captures. Tu dois TOUJOURS motiver ton verdict.
 
-HTML à juger :
-${html.slice(0, 120000)}`;
+Réponds en JSON strict uniquement, sans texte autour :
+{"vetos": ["V9"], "warns": [], "score_visuel": 0, "ok": true, "raisons": ["V9 : constat court"], "conseils": ["conseil concret"]}
+- "vetos" : UNIQUEMENT des numéros de tests marqués VETO réellement violés (liste vide si aucun).
+- "ok" : true seulement s'il n'y a aucun veto.
+- "score_visuel" : barème /100 du juge visuel (JUDGES.md).`;
+
+function systemeJugeCode(ctx: ContexteLibrairie): string {
+  return `${ctx.blocCommun}\n\n${ctx.blocJuges}\n\n${CONTRAT_SORTIE_JUGE_CODE}`;
+}
+
+function systemeJugeVisuel(ctx: ContexteLibrairie): BlocSysteme[] {
+  return [{ texte: `${ctx.blocJugeVisuel}\n\n${CONTRAT_SORTIE_JUGE_VISUEL}`, cache: true }];
+}
+
+function buildJudgeCodePrompt(html: string, ctx: ContexteLibrairie, niche: string): string {
+  return `${ctx.blocNiche.texte}\n\nNiche du site : ${niche}\n\nHTML à juger :\n${html.slice(0, 120000)}`;
+}
+
+interface VerdictCode {
+  score_total?: number;
+  vetos?: string[];
+  warns?: string[];
+  bloquants?: string[];
+  erreurs?: Array<Record<string, string>>;
+}
+
+/**
+ * Appel du juge code (modèle réglé dans Équipe IA). Renvoie le verdict
+ * analysé, ou null si la réponse n'est pas du JSON exploitable.
+ */
+async function appelerJugeCode(
+  modele: string,
+  ctx: ContexteLibrairie,
+  html: string,
+  niche: string,
+  opts: { maxTokens: number; strict?: boolean }
+): Promise<VerdictCode | null> {
+  const raw = await callGrok(
+    modele as GrokModel,
+    [
+      { role: 'system', content: systemeJugeCode(ctx) },
+      { role: 'user', content: buildJudgeCodePrompt(html, ctx, niche) },
+    ],
+    { maxTokens: opts.maxTokens, temperature: opts.strict ? 0 : 0.1, cleCache: cleCacheGrok('juge-code', ctx, false) }
+  );
+  const verdict = parseJsonSafe<VerdictCode>(raw);
+  if (!verdict) {
+    console.warn(`[ia-pipeline] Juge Code : JSON invalide. raw=${raw.slice(0, 300).replace(/\n/g, ' ')}`);
+  }
+  return verdict;
+}
+
+function vetosDe(v: { vetos?: unknown } | null | undefined): string[] {
+  return Array.isArray(v?.vetos) ? (v!.vetos as unknown[]).map(String).filter(Boolean) : [];
 }
 
 function buildRepairPrompt(html: string, errorsJson: string): string {
-  return `Tu es le Réparateur NexAI (Grok Build 0.1). Corrige UNIQUEMENT les erreurs signalées.
-Déclare ta zone d'impact (data-nexai-id modifiés + tokens CSS changés).
+  return `Tu es le Réparateur NexAI. Corrige UNIQUEMENT les erreurs signalées, en commençant par celles de gravité "veto".
+Chaque erreur cite le numéro de la règle de la Librairie NexAI qu'elle viole (ex. M3 = débordement horizontal à 360 px, C1 = contraste, L1 = bouton principal visible sans défiler) et la correction attendue.
+Déclare ta zone d'impact (data-nexai-id modifiés + tokens CSS changés). Ne touche à rien d'autre.
 
 Erreurs :
 ${errorsJson}
@@ -362,6 +460,7 @@ export async function enqueueSiteGeneration(
 
   site.qualityTier = qualityTier;
   site.status = 'generating';
+  site.generationStartedAt = new Date();
   site.lastError = undefined;
   site.clientMessage = undefined;
   await site.save();
@@ -452,6 +551,7 @@ export async function enqueueAiModify(siteId: string, userId: string, instructio
   });
 
   site.status = 'generating';
+  site.generationStartedAt = new Date();
   await site.save();
 
   const bullJob = await pipelineQueue.add(
@@ -732,36 +832,42 @@ export function resolvePagePlan(
 }
 
 function buildSecondaryPageSystemPrompt(
+  ctx: ContexteLibrairie,
   niche: SiteNiche,
   brief: Record<string, unknown>,
-  libraryContext: string,
   isPremium: boolean,
   homepageHtml: string,
   page: { slug: string; title: string },
   allPages: { slug: string; title: string }[]
-): string {
+): BlocSysteme[] {
+  // Pas de nom de modèle : le modèle réel se règle dans l'admin (Équipe IA).
   const identiteCodeur = isPremium
-    ? 'Tu es le Codeur NexAI (Claude Sonnet 5), en mode qualité Premium.'
-    : 'Tu es le Codeur NexAI (Grok 4.6).';
+    ? 'Tu es le Codeur NexAI, en mode qualité Premium.'
+    : 'Tu es le Codeur NexAI.';
   const navLinks = allPages
     .map((p) => `${p.slug === 'index' ? 'index.html' : `${p.slug}.html`} (${p.title})`)
     .join(', ');
 
-  return `${identiteCodeur} Tu génères la page "${page.title}" (slug: ${page.slug}) d'un site multi-pages déjà commencé.
+  return [
+    { texte: ctx.blocCommun, cache: true },
+    { texte: `${CONTRAT_TECHNIQUE_CODEUR}\n\n${ctx.blocNiche.texte}`, cache: true },
+    {
+      texte: `${identiteCodeur} Tu génères la page "${page.title}" (slug: ${page.slug}) d'un site multi-pages déjà commencé. Pour cette page, le format démo à sections (#page-accueil…) du contrat ne s'applique pas : c'est un document HTML complet et autonome, <!DOCTYPE html> inclus.
 
 RÈGLE ABSOLUE DE COHÉRENCE : cette page fait partie du MÊME site que la page d'accueil ci-dessous. Réutilise exactement le même header/navigation, le même footer, la même palette de couleurs, la même typographie, les mêmes tokens CSS et le même contrat data-nexai-id que la page d'accueil. Ne change JAMAIS l'identité visuelle.
 
 Navigation du site (toutes les pages, à inclure dans le header de CETTE page, avec des liens <a href="..."> vers chaque fichier) : ${navLinks}.
 
-Niche : ${niche}. Brief client : ${JSON.stringify(brief)}.
-Si (et SEULEMENT si) le brief indique une vente en ligne / réservation payante / don / abonnement ET que cette page est concernée : ajoute un bouton avec l'attribut data-nexai-payment-link sur la balise <a> (ex: <a data-nexai-payment-link href="#">Payer maintenant</a>), sans jamais mettre de vraie URL.
-
-${libraryContext}
+Niche : ${niche}
+${ligneClientele(brief)}
+Brief client : ${JSON.stringify(brief)}
 
 Page d'accueil du site (référence de style à reproduire strictement, ne PAS la recopier telle quelle — génère le contenu propre à "${page.title}") :
 ${homepageHtml.slice(0, 12000)}
 
-Réponds uniquement avec le HTML complet et autonome de la page "${page.title}" (document HTML entier, <!DOCTYPE html> inclus).`;
+Réponds uniquement avec le HTML complet et autonome de la page "${page.title}".`,
+    },
+  ];
 }
 
 /**
@@ -775,7 +881,7 @@ async function generateSecondaryPagesForProposal(
   proposal: ISiteProposal,
   pagePlan: { slug: string; title: string }[],
   site: { niche: SiteNiche; brief: Record<string, unknown> },
-  libraryContext: string,
+  ctx: ContexteLibrairie,
   isPremium: boolean
 ): Promise<void> {
   const homepageHtml = proposal.htmlDemo || '';
@@ -783,34 +889,74 @@ async function generateSecondaryPagesForProposal(
   if (secondaryPlan.length === 0 || !homepageHtml) return;
 
   const pages: NonNullable<ISiteProposal['pages']> = [];
+  // Modèles réglés dans Équipe IA (plus aucun nom écrit en dur ici).
+  const modelePages = await getModelForRole(isPremium ? 'codeur_pages_premium' : 'codeur_pages_normale');
+  const modeleJugeCode = await getModelForRole('juge_code');
 
   for (const page of secondaryPlan) {
+    if (plafondDepasse()) {
+      console.warn(`[ia-pipeline] Plafond de dépense atteint — page "${page.slug}" non générée.`);
+      break;
+    }
     try {
       const prompt = buildSecondaryPageSystemPrompt(
+        ctx,
         site.niche,
         site.brief,
-        libraryContext,
         isPremium,
         homepageHtml,
         page,
         pagePlan
       );
-      let html = isPremium
-        ? await callClaude('claude-sonnet-5', prompt, [{ role: 'user', content: `Génère la page ${page.slug}.` }], {
-            maxTokens: 16000,
-            temperature: 0.4,
-          })
-        : await callGrok(
-            'grok-4.6',
-            [
-              { role: 'system', content: prompt },
-              { role: 'user', content: `Génère la page ${page.slug}.` },
-            ],
-            { maxTokens: 16000, temperature: 0.4 }
-          );
+      let html = await appelerCodeur(modelePages, prompt, `Génère la page ${page.slug}.`, {
+        maxTokens: 16000,
+        temperature: 0.4,
+        cleCache: cleCacheGrok('pages', ctx),
+        // Les pages s'enchaînent avec le même début de consigne : la 2e
+        // page relit la Librairie depuis le cache.
+        reutilisationPrevue: secondaryPlan.length > 1,
+      });
       html = html.replace(/^```html?\s*/i, '').replace(/```\s*$/i, '').trim();
 
-      pages.push({ slug: page.slug, title: page.title, html });
+      // Chaque page intérieure est JUGÉE comme l'accueil (décision admin
+      // 26/09/2026) : veto puis note /100, réparation si besoin, re-jugement.
+      let score: number | undefined;
+      let vetos: string[] = [];
+      try {
+        let verdict = await appelerJugeCode(modeleJugeCode, ctx, html, site.niche, { maxTokens: 2500 });
+        if (verdict) {
+          score = typeof verdict.score_total === 'number' ? verdict.score_total : undefined;
+          vetos = vetosDe(verdict);
+          if (!plafondDepasse() && (vetos.length > 0 || (score ?? 0) < 80)) {
+            const repRaw = await callGrok(
+              'grok-build-0.1',
+              [
+                { role: 'system', content: 'Tu réponds uniquement en JSON valide.' },
+                {
+                  role: 'user',
+                  content: buildRepairPrompt(html, JSON.stringify({ vetos, erreurs: verdict.erreurs ?? [] })),
+                },
+              ],
+              { maxTokens: 16000, temperature: 0.2 }
+            );
+            const rep = parseJsonSafe<{ html_patch: string }>(repRaw);
+            const patch = rep?.html_patch?.replace(/^```html?\s*/i, '').replace(/```\s*$/i, '').trim();
+            if (patch && runScan2(patch).ok) {
+              html = patch;
+              verdict = await appelerJugeCode(modeleJugeCode, ctx, html, site.niche, { maxTokens: 2000 });
+              if (verdict) {
+                score = typeof verdict.score_total === 'number' ? verdict.score_total : score;
+                vetos = vetosDe(verdict);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[ia-pipeline] Jugement de la page "${page.slug}" indisponible`, err);
+      }
+      if (vetos.length > 0 && score !== undefined) score = Math.min(score, 59);
+
+      pages.push({ slug: page.slug, title: page.title, html, score, vetos });
     } catch (err) {
       console.warn(`[ia-pipeline] Page secondaire "${page.slug}" non générée`, err);
     }
@@ -864,17 +1010,20 @@ function compterDernierAppel(): void {
 
 async function appelerCodeur(
   modele: string,
-  systemPrompt: string,
+  systemPrompt: string | BlocSysteme[],
   instruction: string,
-  opts: { maxTokens: number; temperature: number }
+  opts: { maxTokens: number; temperature: number; cleCache?: string; reutilisationPrevue?: boolean }
 ): Promise<string> {
+  // Claude reçoit les blocs (mise en cache explicite) ; Grok reçoit le même
+  // texte d'un seul tenant, dans le même ordre (cache automatique xAI sur
+  // le début commun, regroupé par la clé de cache).
   const lancer = (m: string) =>
     m.startsWith('claude-')
       ? callClaude(m as ClaudeModel, systemPrompt, [{ role: 'user', content: instruction }], opts)
       : callGrok(
           m as GrokModel,
           [
-            { role: 'system', content: systemPrompt },
+            { role: 'system', content: systemeEnTexte(systemPrompt) },
             { role: 'user', content: instruction },
           ],
           opts
@@ -985,12 +1134,17 @@ async function executerGeneration(
   const refabricationFable = opts?.refabricationFable === true;
 
   const previewCount = isPremium || plan === 'trial' ? 1 : 2;
-  const libraryContexts: string[] = [];
-  for (let n = 0; n < previewCount; n++) {
-    const lib = await loadLibraryForNiche(site.niche);
-    libraryContexts.push(libraryToCoderContext(lib));
+  // Librairie : UNE lecture pour toute la génération. Codeur, juges, IA Aide
+  // et pages intérieures travaillent ainsi exactement sur la même version,
+  // enregistrée sur le site (comparaison avant/après, test A/B).
+  const ctx = await preparerContexteLibrairie(site.niche);
+  site.libraryVersion = ctx.version;
+  if (!ctx.blocNiche.ficheTrouvee) {
+    console.warn(
+      `[ia-pipeline] Librairie : aucune fiche pour la niche « ${site.niche} » ` +
+        `(id Librairie « ${ctx.blocNiche.idNiche} ») — dernier filet utilisé.`
+    );
   }
-  const libraryContext = libraryContexts[0];
   // Calculé avant la génération de l'accueil pour que son header/footer
   // pointe déjà vers les bonnes pages (voir PAGES_PAR_NICHE / resolvePagePlan).
   const pagePlan = resolvePagePlan(site.niche, site.brief);
@@ -999,16 +1153,15 @@ async function executerGeneration(
   const langueClient = (owner?.langue as Langue) ?? 'fr';
   const proposals: ISiteProposal[] = [];
 
-  // 1 aperçu : essai (réglage admin Grok 4.7 ou Sonnet 5) et Premium (Fable 5.1).
+  // 1 aperçu : essai (réglage admin Grok 4.7 ou Sonnet 5) et Premium (Opus 5.5, Fable en alternative).
   // 2 aperçus : Standard payant, Grok 4.7 + Sonnet 5, en parallèle.
   const modeleCodeurParApercu: Record<number, string> = {};
 
   const runOnePreview = async (i: number): Promise<ISiteProposal | null> => {
-    const libraryContextI = libraryContexts[i - 1] || libraryContext;
     const systemPrompt = buildCoderSystemPrompt(
+      ctx,
       site.niche,
       site.brief,
-      libraryContextI,
       isPremium,
       pagePlan,
       langueClient
@@ -1050,8 +1203,8 @@ async function executerGeneration(
     const consigneTextes = validatedCopy
       ? ` TEXTES VALIDÉS PAR LE CLIENT — utilise-les tels quels (tu peux seulement adapter la découpe) :\n${String(validatedCopy).slice(0, 4000)}`
       : i === 2
-        ? ' Angle rédactionnel DISTINCT du premier aperçu (preuve et concret vs désir et aspiration). Ne recopie pas les mêmes titres.'
-        : ' Angle rédactionnel : clair, concret, orienté bénéfice immédiat.';
+        ? ' TEXTES : MÊME message, mêmes informations, mêmes offres et mêmes prix que le premier aperçu (tout vient du brief) — seule la FORMULATION change : angle preuve et concret plutôt que désir et aspiration, titres reformulés. Ne change jamais le sens, n\'ajoute aucune promesse.'
+        : ' TEXTES : clairs, concrets, orientés bénéfice immédiat, fidèles au brief.';
     const consigneStructure =
       i === 2
         ? ' STRUCTURE DISTINCTE : autre type de hero, autre ordre des sections, autre densité. Palette et composants de CETTE librairie uniquement.'
@@ -1066,7 +1219,7 @@ async function executerGeneration(
         : `Génère une direction ${i === 1 ? 'A' : 'B'} pour le site du client. Seed : ${seedDa}.${consigneStructure}${consigneTextes}${consigneVariation}`;
 
     // Répartition :
-    //   · Premium            → codeur_premium (Fable 5.1, alternable Opus)
+    //   · Premium            → codeur_premium (Opus 5.5, alternable Fable 5.1)
     //   · Standard aperçu 2  → codeur_normale_apercu2 (Sonnet 5)
     //   · Essai / aperçu 1   → codeur_normale (Grok 4.7 ou Sonnet 5, admin)
     const roleCodeur = isPremium
@@ -1079,6 +1232,7 @@ async function executerGeneration(
     let html = await appelerCodeur(modeleCodeur, systemPrompt, userInstruction, {
       maxTokens: 16000,
       temperature: 0.5 + i * 0.05,
+      cleCache: cleCacheGrok('codeur', ctx),
     });
 
     // Nettoyage éventuel de fences markdown
@@ -1109,6 +1263,7 @@ async function executerGeneration(
           const continued = await appelerCodeur(modeleCodeur, systemPrompt, continueInstruction, {
             maxTokens: 16000,
             temperature: 0.3,
+            cleCache: cleCacheGrok('codeur', ctx),
           });
           html = continued.replace(/^```html?\s*/i, '').replace(/```\s*$/i, '').trim();
         } catch (contErr) {
@@ -1143,45 +1298,21 @@ async function executerGeneration(
       }
     }
 
-    // 2. Juge Code — Grok 4.5 (identique dans les deux qualités)
+    // 2. Juge Code — modèle réglé dans Équipe IA. Il juge avec les règles de
+    //    la Librairie (bloc commun + JUDGES.md) : décision en 2 temps,
+    //    VETO puis note /100 (voir JUDGES.md).
     const modeleJugeCode = await getModelForRole('juge_code');
-    let judgeRaw = await callGrok(
-      modeleJugeCode as GrokModel,
-      [
-        { role: 'system', content: 'Tu réponds uniquement en JSON valide, sans texte autour.' },
-        { role: 'user', content: buildJudgeCodePrompt(html, site.niche) },
-      ],
-      { maxTokens: 2000, temperature: 0.1 }
-    );
 
     // Score par défaut bas si le juge ne répond pas en JSON valide (plus de faux 80 silencieux)
     let score = 55;
-    let judge = parseJsonSafe<{
-      score_total: number;
-      bloquants: string[];
-      erreurs: Array<Record<string, string>>;
-    }>(judgeRaw);
+    let judge = await appelerJugeCode(modeleJugeCode, ctx, html, site.niche, { maxTokens: 2500 });
 
     if (!judge) {
       // Retry juge UNIQUEMENT plans payants (éviter coût API inutile sur l'essai gratuit)
       if (plan !== 'trial' && plan !== 'starter') {
-        console.warn(
-          `[ia-pipeline] Juge Code JSON invalide aperçu ${i} — 1 retry (payant). raw=${judgeRaw.slice(0, 300).replace(/\n/g, ' ')}`
-        );
+        console.warn(`[ia-pipeline] Juge Code JSON invalide aperçu ${i} — 1 retry (payant).`);
         try {
-          judgeRaw = await callGrok(
-            modeleJugeCode as GrokModel,
-            [
-              {
-                role: 'system',
-                content:
-                  'Tu réponds UNIQUEMENT en JSON valide strict, sans markdown ni texte autour : {"score_total":number,"bloquants":[],"erreurs":[]}',
-              },
-              { role: 'user', content: buildJudgeCodePrompt(html, site.niche) },
-            ],
-            { maxTokens: 2000, temperature: 0 }
-          );
-          judge = parseJsonSafe(judgeRaw);
+          judge = await appelerJugeCode(modeleJugeCode, ctx, html, site.niche, { maxTokens: 2500, strict: true });
         } catch (jErr) {
           console.warn('[ia-pipeline] Retry Juge Code échoué', jErr);
         }
@@ -1192,18 +1323,24 @@ async function executerGeneration(
       }
     }
 
+    // Vetos du juge code encore présents sur la page (mis à jour après réparation).
+    let vetosCode: string[] = vetosDe(judge);
+
     if (judge) {
       score = typeof judge.score_total === 'number' ? judge.score_total : 55;
 
-      // 3. Réparation si score < 80 ou bloquants
-      if (score < 80 || (judge.bloquants && judge.bloquants.length > 0)) {
+      // 3. Réparation si au moins un veto, un bloquant, ou une note < 80
+      if (score < 80 || vetosCode.length > 0 || (judge.bloquants && judge.bloquants.length > 0)) {
         const repairRaw = await callGrok(
           'grok-build-0.1',
           [
             { role: 'system', content: 'Tu réponds uniquement en JSON valide.' },
             {
               role: 'user',
-              content: buildRepairPrompt(html, JSON.stringify(judge.erreurs ?? [])),
+              content: buildRepairPrompt(
+                html,
+                JSON.stringify({ vetos: vetosCode, erreurs: judge.erreurs ?? [] })
+              ),
             },
           ],
           { maxTokens: 16000, temperature: 0.2 }
@@ -1238,51 +1375,48 @@ async function executerGeneration(
             }
           }
 
-          // Re-juge après réparation (simplifié)
-          const rejudgeRaw = await callGrok(
-            'grok-4.5',
-            [
-              { role: 'system', content: 'JSON uniquement.' },
-              { role: 'user', content: buildJudgeCodePrompt(html, site.niche) },
-            ],
-            { maxTokens: 1500, temperature: 0.1 }
-          );
-          const rejudge = parseJsonSafe<{ score_total: number }>(rejudgeRaw);
-          if (rejudge?.score_total != null) score = rejudge.score_total;
+          // Re-jugement après réparation — même juge que ci-dessus (réglage
+          // Équipe IA). Avant, « grok-4.5 » était écrit en dur ici.
+          const rejudge = await appelerJugeCode(modeleJugeCode, ctx, html, site.niche, { maxTokens: 2000 });
+          if (rejudge?.score_total != null) {
+            score = rejudge.score_total;
+            vetosCode = vetosDe(rejudge);
+            judge = { ...judge, ...rejudge };
+          }
         }
       }
     }
 
-    // 4. Juge Visuel — Opus 5 par défaut, Sonnet 5 quand Opus a codé.
+    // 4. Juge Visuel — Opus 5.5 par défaut, Sonnet 5 quand Opus a codé.
     //    Un modèle ne juge jamais sa propre production (voir
-    //    getJugeVisuelPour). Le juge doit MOTIVER son verdict (raisons +
-    //    conseils), réutilisé ensuite par la correction et par la file
-    //    d'alertes admin.
+    //    getJugeVisuelPour). Il juge avec les MÊMES règles que le codeur
+    //    (Librairie : tests V1–V10 et barème visuel de JUDGES.md) et doit
+    //    MOTIVER son verdict (raisons + conseils), réutilisé ensuite par la
+    //    correction et par la file d'alertes admin.
     let judgeReasons: string[] = [];
     let judgeAdvice: string[] = [];
+    let vetosVisuels: string[] = [];
     try {
       const modeleJugeVisuel = await getJugeVisuelPour(modeleCodeurParApercu[i]);
-      const consigneJuge =
-        'Tu es le Juge Visuel NexAI. Évalue la qualité perçue et anti-slop. Tu dois TOUJOURS motiver ton verdict. Réponds en JSON : {"score_visuel": number, "ok": boolean, "raisons": string[], "conseils": string[]}';
+      const consigneJuge = systemeJugeVisuel(ctx);
 
       // Le juge analyse le RENDU RÉEL : captures sur téléphone (390 px) et
-      // sur ordinateur (1 280 px). C'est ce qui justifie un modèle de haut
-      // niveau à ce poste — sans image, il ne ferait que relire du code.
-      // Si la capture échoue, repli sur l'analyse du code : un jugement
-      // dégradé vaut mieux qu'une génération bloquée.
+      // sur ordinateur (1 280 px). Si la capture échoue, repli sur l'analyse
+      // du code : un jugement dégradé vaut mieux qu'une génération bloquée.
       const captures = await captureHtmlScreenshots(html);
       const visualRaw =
         captures.length > 0
           ? await callClaudeVisionBase64(
               modeleJugeVisuel as ClaudeModel,
               consigneJuge,
-              `Niche : ${site.niche}\nScore du code : ${score}\n` +
+              `${ctx.blocNiche.texteFiche}\n\nNiche : ${site.niche}\nScore du code : ${score}\n` +
                 `Voici le site rendu, d'abord sur téléphone (390 px), puis sur ordinateur (1 280 px). ` +
-                `Juge ce que verra réellement un visiteur : lisibilité, hiérarchie, contraste, qualité ` +
-                `perçue, et SURTOUT le comportement sur téléphone — débordements, textes trop petits, ` +
-                `boutons trop serrés, colonnes qui ne passent pas en une seule.`,
+                `Juge ce que verra réellement un visiteur, avec les tests V1–V10 de la Librairie, ` +
+                `et SURTOUT le comportement sur téléphone (V9, M3).`,
               captures.map(({ base64, mediaType }) => ({ base64, mediaType })),
-              { maxTokens: 1200, temperature: 0.2 }
+              // 2 aperçus = 2 jugements par le même modèle, quelques secondes
+              // d'écart : la consigne mise en cache au 1er est relue au 2e.
+              { maxTokens: 1500, temperature: 0.2, reutilisationPrevue: previewCount > 1 }
             )
           : await callClaude(
               modeleJugeVisuel as ClaudeModel,
@@ -1290,14 +1424,17 @@ async function executerGeneration(
               [
                 {
                   role: 'user',
-                  content: `Niche: ${site.niche}\nScore code actuel: ${score}\nExtrait HTML (début):\n${html.slice(0, 8000)}`,
+                  content:
+                    `${ctx.blocNiche.texteFiche}\n\nNiche: ${site.niche}\nScore code actuel: ${score}\n` +
+                    `Capture indisponible : juge d'après le code (début de la page) :\n${html.slice(0, 8000)}`,
                 },
               ],
-              { maxTokens: 1200, temperature: 0.2 }
+              { maxTokens: 1500, temperature: 0.2 }
             );
       const visual = parseJsonSafe<{
         score_visuel: number;
         ok: boolean;
+        vetos?: string[];
         raisons?: string[];
         conseils?: string[];
       }>(visualRaw);
@@ -1305,10 +1442,19 @@ async function executerGeneration(
         // Moyenne pondérée simple
         score = Math.round(score * 0.6 + visual.score_visuel * 0.4);
       }
+      vetosVisuels = vetosDe(visual);
       if (Array.isArray(visual?.raisons)) judgeReasons = visual.raisons.slice(0, 5);
       if (Array.isArray(visual?.conseils)) judgeAdvice = visual.conseils.slice(0, 5);
     } catch (err) {
       console.warn('[ia-pipeline] Juge Visuel indisponible', err);
+    }
+
+    // Décision en 2 temps (JUDGES.md) : une page qui garde un veto voit sa
+    // note plafonnée à 59 — elle déclenche donc l'IA Aide (plans payants)
+    // et ne peut pas passer pour une bonne page dans le rapport qualité.
+    const vetosRestants = () => Array.from(new Set([...vetosCode, ...vetosVisuels]));
+    if (vetosRestants().length > 0) {
+      score = Math.min(score, 59);
     }
 
     // ── 5. IA Aide — recours en reconstruction ──
@@ -1342,6 +1488,9 @@ async function executerGeneration(
         // avant, l'IA Aide ne recevait qu'un score chiffré et devait deviner
         // ce qui n'allait pas.
         const verdicts = [
+          vetosRestants().length
+            ? `VETOS à corriger en priorité (numéros de règles de la Librairie) : ${vetosRestants().join(', ')}`
+            : null,
           judge?.bloquants?.length
             ? `Juge Code — problèmes BLOQUANTS :\n- ${judge.bloquants.join('\n- ')}`
             : null,
@@ -1360,16 +1509,27 @@ async function executerGeneration(
           .filter(Boolean)
           .join('\n\n');
 
+        // Même Librairie que le codeur et les juges : l'IA Aide corrige
+        // avec les règles exactes qui ont servi à juger la page.
         const aideHtml = await appelerCodeur(
           modeleAide,
-          "Tu es l'IA Aide NexAI. Une page a été jugée insuffisante. Corrige EXACTEMENT les " +
-            'problèmes listés, en conservant tout ce qui fonctionne : structure, contenu, ' +
-            'identité visuelle. Ne repars de zéro que si la page est irrécupérable. ' +
-            'Réponds uniquement avec le HTML complet, sans commentaire.',
-          `Niche : ${site.niche}\nBrief du client : ${JSON.stringify(site.brief)}\n\n` +
+          [
+            { texte: ctx.blocCommun, cache: true },
+            { texte: `${CONTRAT_TECHNIQUE_CODEUR}\n\n${ctx.blocNiche.texte}`, cache: true },
+            {
+              texte:
+                "Tu es l'IA Aide NexAI. Une page a été jugée insuffisante. Corrige EXACTEMENT les " +
+                'problèmes listés (numéros de règles de la Librairie ci-dessus), vetos d\'abord, en ' +
+                'conservant tout ce qui fonctionne : structure, contenu, identité visuelle. Ne repars ' +
+                'de zéro que si la page est irrécupérable. Réponds uniquement avec le HTML complet, ' +
+                'sans commentaire.\n\n' +
+                consigneLangue(langueClient),
+            },
+          ],
+          `Niche : ${site.niche}\n${ligneClientele(site.brief)}\nBrief du client : ${JSON.stringify(site.brief)}\n\n` +
             `${verdicts || 'Aucun verdict détaillé disponible.'}\n\n` +
             `PAGE ACTUELLE (complète) :\n${html}`,
-          { maxTokens: 16000, temperature: 0.3 }
+          { maxTokens: 16000, temperature: 0.3, cleCache: cleCacheGrok('aide', ctx) }
         );
 
         const htmlAide = aideHtml.replace(/^```html?\s*/i, '').replace(/```\s*$/i, '').trim();
@@ -1381,18 +1541,16 @@ async function executerGeneration(
           html = htmlAide;
           // Re-jugement RÉEL de ce qu'Opus vient de produire. Le score n'est
           // plus jamais forcé : il est mesuré.
+          // Le juge visuel n'est pas relancé (coût) : ses vetos sont
+          // considérés comme traités par l'IA Aide, qui les a reçus.
           try {
-            const modeleJugeApres = await getModelForRole('juge_code');
-            const rawApres = await callGrok(
-              modeleJugeApres as GrokModel,
-              [
-                { role: 'system', content: 'Tu réponds uniquement en JSON valide, sans texte autour.' },
-                { role: 'user', content: buildJudgeCodePrompt(html, site.niche) },
-              ],
-              { maxTokens: 2000, temperature: 0.1 }
-            );
-            const jugeApres = parseJsonSafe<{ score_total?: number }>(rawApres);
-            if (typeof jugeApres?.score_total === 'number') score = jugeApres.score_total;
+            const jugeApres = await appelerJugeCode(modeleJugeCode, ctx, html, site.niche, { maxTokens: 2000 });
+            if (typeof jugeApres?.score_total === 'number') {
+              score = jugeApres.score_total;
+              vetosCode = vetosDe(jugeApres);
+              vetosVisuels = [];
+              if (vetosCode.length > 0) score = Math.min(score, 59);
+            }
           } catch (err) {
             console.warn('[ia-pipeline] Re-jugement après IA Aide indisponible', err);
           }
@@ -1425,6 +1583,7 @@ async function executerGeneration(
       versionId: `prop_${i}`,
       seedDa,
       score,
+      vetos: vetosRestants(),
       judgeReasons,
       judgeAdvice,
       htmlDemo: html,
@@ -1567,11 +1726,22 @@ async function executerGeneration(
   // N'affecte que les niches qui en ont besoin (voir PAGES_PAR_NICHE) — pour
   // toutes les autres, kept[].pages reste vide et le site garde son
   // comportement historique de page unique (htmlDemo).
+  //
+  // Plusieurs aperçus (Standard) : les pages restantes ne sont créées que
+  // pour l'aperçu que le client CHOISIT (« Finaliser mon site », voir
+  // enqueueFinalisation) — les fabriquer pour les deux doublait le coût
+  // pour un aperçu abandonné. Un seul aperçu (essai, Premium) : pages
+  // créées tout de suite, le site est livré complet.
   try {
-    if (pagePlan.length > 1 && !depense.depasse) {
-      for (const p of kept) {
-        if (depense.depasse) break;
-        await generateSecondaryPagesForProposal(p, pagePlan, site, libraryContext, isPremium);
+    if (pagePlan.length > 1) {
+      if (kept.length > 1) {
+        for (const p of kept) p.pagesStatut = 'a_finaliser';
+      } else if (!depense.depasse) {
+        for (const p of kept) {
+          if (depense.depasse) break;
+          await generateSecondaryPagesForProposal(p, pagePlan, site, ctx, isPremium);
+          p.pagesStatut = p.pages && p.pages.length > 0 ? 'pretes' : 'echec';
+        }
       }
     }
   } catch (err) {
@@ -1720,6 +1890,74 @@ function extractDataNexaiIds(html: string): string[] {
   return Array.from(ids);
 }
 
+/**
+ * « Finaliser mon site » — le client a choisi son aperçu : on crée les pages
+ * restantes (menu, contact…) pour CET aperçu seulement, jugées comme
+ * l'accueil. Aucun débit supplémentaire : c'est la suite de la génération
+ * déjà payée (ou de l'essai).
+ */
+export async function enqueueFinalisation(siteId: string, userId: string, versionId: string) {
+  const site = await Site.findById(siteId);
+  if (!site) throw new AppError('Site introuvable', 404);
+  if (String(site.userId) !== String(userId)) throw new AppError('Accès refusé', 403);
+  if (site.status !== 'ready' && site.status !== 'launched') {
+    throw new AppError("Le site n'est pas encore prêt : attendez la fin de la création.", 400);
+  }
+  const proposition = site.proposals.find((p) => p.versionId === versionId);
+  if (!proposition) throw new AppError('Proposition introuvable', 400);
+
+  site.chosenProposalId = versionId;
+  // « En cours » depuis plus de 20 minutes = travail interrompu (redémarrage
+  // du worker…) : on autorise une nouvelle tentative.
+  const bloqueDepuis = Date.now() - new Date((site as { updatedAt?: Date }).updatedAt ?? Date.now()).getTime();
+  const enCoursActif = proposition.pagesStatut === 'en_cours' && bloqueDepuis < 20 * 60 * 1000;
+  if (proposition.pagesStatut === 'pretes' || enCoursActif || !proposition.pagesStatut) {
+    // Déjà complète, déjà en cours, ou site d'une seule page : rien à créer.
+    await site.save();
+    return { site, lancee: false };
+  }
+  proposition.pagesStatut = 'en_cours';
+  site.markModified('proposals');
+  await site.save();
+
+  await pipelineQueue.add(
+    'finaliser_pages',
+    { siteId, userId, type: 'finaliser_pages', versionId },
+    { jobId: `fin_${siteId}_${versionId}_${Date.now()}`, attempts: 1, removeOnComplete: true, removeOnFail: 50 }
+  );
+  return { site, lancee: true };
+}
+
+/** Exécutée par le worker : pages restantes de l'aperçu choisi. */
+export async function processFinalisation(siteId: string, versionId: string): Promise<void> {
+  const site = await Site.findById(siteId);
+  if (!site) throw new Error(`Site ${siteId} introuvable`);
+  const proposition = site.proposals.find((p) => p.versionId === versionId);
+  if (!proposition) throw new Error(`Proposition ${versionId} introuvable`);
+
+  const owner = await User.findById(site.userId);
+  const plan = owner?.plan || 'trial';
+  const isPremium = site.qualityTier === 'premium';
+  const depense = new CompteurDepense(plan === 'trial' ? 'essai' : isPremium ? 'premium' : 'normale');
+  depense.reprendre(site.depenseCumuleeUsd || 0);
+  reinitialiserUsage();
+
+  try {
+    await avecCompteurDepense(depense, async () => {
+      const ctx = await preparerContexteLibrairie(site.niche);
+      const pagePlan = resolvePagePlan(site.niche, site.brief);
+      await generateSecondaryPagesForProposal(proposition, pagePlan, site, ctx, isPremium);
+    });
+    proposition.pagesStatut = proposition.pages && proposition.pages.length > 0 ? 'pretes' : 'echec';
+  } catch (err) {
+    console.warn(`[ia-pipeline] Finalisation échouée site=${siteId}`, err);
+    proposition.pagesStatut = 'echec';
+  }
+  site.depenseCumuleeUsd = Number(depense.totalUsd.toFixed(4));
+  site.markModified('proposals');
+  await site.save();
+}
+
 export async function chooseProposal(siteId: string, userId: string, versionId: string) {
   const site = await Site.findById(siteId);
   if (!site) throw new AppError('Site introuvable', 404);
@@ -1786,6 +2024,18 @@ export async function enqueueLaunch(
   if (!site) throw new AppError('Site introuvable', 404);
   if (String(site.userId) !== String(userId)) throw new AppError('Accès refusé', 403);
   if (!site.chosenProposalId) throw new AppError('Aucune proposition choisie', 400);
+  {
+    const choisie = site.proposals.find((p) => p.versionId === site.chosenProposalId);
+    if (choisie?.pagesStatut === 'a_finaliser' || choisie?.pagesStatut === 'echec') {
+      throw new AppError(
+        'Finalisez d’abord votre site : cliquez sur « Finaliser mon site » pour créer les pages restantes.',
+        400
+      );
+    }
+    if (choisie?.pagesStatut === 'en_cours') {
+      throw new AppError('Les pages restantes de votre site sont en cours de création : réessayez dans quelques minutes.', 400);
+    }
+  }
 
   // Anti double-commande — AVANT tout débit. C'est le cas le plus coûteux :
   // un double clic achetait potentiellement deux fois le domaine.

@@ -2,6 +2,8 @@ import { env } from '@/config/env';
 import { AppError } from '@/middleware/errorHandler';
 import { Agent, setGlobalDispatcher } from 'undici';
 import { enregistrerUsage } from '@/services/depense-context';
+import type { UsageCache } from '@/services/cout-generation.service';
+import crypto from 'crypto';
 
 /**
  * Le `fetch` natif de Node.js repose en interne sur `undici`, qui applique
@@ -37,7 +39,93 @@ const DEFAULT_TIMEOUT_MS = 90_000;
  * suffit : le worker traite ses jobs l'un après l'autre à l'intérieur d'un
  * même flux, et la lecture suit immédiatement l'appel.
  */
-export let dernierUsage: { modele: string; entree: number; sortie: number } | null = null;
+export let dernierUsage: { modele: string; entree: number; sortie: number; cache?: UsageCache } | null = null;
+
+/**
+ * Consigne système découpée en blocs. Un bloc `cache: true` marque la fin
+ * d'un préfixe FIXE que le fournisseur garde en cache (Anthropic : jusqu'à
+ * 4 marqueurs, relu à 5-25 % du prix). Les blocs fixes (Librairie) doivent
+ * venir AVANT les blocs variables (brief), sinon rien n'est mis en cache.
+ */
+export interface BlocSysteme {
+  texte: string;
+  cache?: boolean;
+}
+export type Systeme = string | BlocSysteme[];
+
+/** Même consigne, en un seul texte (Grok, journaux). */
+export function systemeEnTexte(systeme: Systeme): string {
+  return typeof systeme === 'string'
+    ? systeme
+    : systeme
+        .map((b) => b.texte)
+        .filter((t) => t && t.trim())
+        .join('\n\n');
+}
+
+// ─── Mise en cache Anthropic : seulement si elle sera probablement relue ──
+//
+// Chez Anthropic, ÉCRIRE en cache coûte 1,25 × le prix d'entrée ; RELIRE
+// coûte 5 à 25 % du prix, pendant 5 minutes. Mettre en cache une consigne
+// que personne ne relira dans les 5 minutes coûte donc 25 % de PLUS.
+// Règle : on ne demande la mise en cache que si ce même début de consigne a
+// déjà servi au même modèle dans les 5 dernières minutes (activité en cours),
+// ou si l'appelant sait qu'il va le réutiliser (ex. pages intérieures
+// générées l'une après l'autre). Au calme : prix normal, aucun surcoût.
+// En période active : relectures à prix réduit. (xAI n'a pas ce problème :
+// son cache est automatique et l'écriture n'est pas facturée en plus.)
+const FENETRE_CACHE_MS = 5 * 60 * 1000;
+const derniersPrefixes = new Map<string, number>();
+
+function cacheUtile(model: string, systeme: Systeme, reutilisationPrevue?: boolean): boolean {
+  if (typeof systeme === 'string') return false;
+  const prefixe = systeme
+    .filter((b) => b.cache)
+    .map((b) => b.texte)
+    .join('\u0000');
+  if (!prefixe) return false;
+  const cle = `${model}:${crypto.createHash('sha1').update(prefixe).digest('hex')}`;
+  const maintenant = Date.now();
+  const dernier = derniersPrefixes.get(cle);
+  derniersPrefixes.set(cle, maintenant);
+  if (derniersPrefixes.size > 500) {
+    for (const [k, t] of derniersPrefixes) if (maintenant - t > FENETRE_CACHE_MS) derniersPrefixes.delete(k);
+  }
+  return reutilisationPrevue === true || (dernier !== undefined && maintenant - dernier < FENETRE_CACHE_MS);
+}
+
+function systemeAnthropic(systeme: Systeme, activerCache: boolean) {
+  if (typeof systeme === 'string') return systeme;
+  return systeme
+    .filter((b) => b.texte && b.texte.trim())
+    .map((b) => ({
+      type: 'text' as const,
+      text: b.texte,
+      ...(activerCache && b.cache ? { cache_control: { type: 'ephemeral' as const } } : {}),
+    }));
+}
+
+type UsageAnthropic = {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+};
+
+/** Publie l'usage d'un appel Anthropic (tokens hors cache + cache) pour le compteur de coût. */
+function publierUsageAnthropic(modele: string, usage: UsageAnthropic | undefined): void {
+  const cache: UsageCache = {
+    lecture: usage?.cache_read_input_tokens ?? 0,
+    ecriture: usage?.cache_creation_input_tokens ?? 0,
+  };
+  dernierUsage = {
+    modele,
+    entree: usage?.input_tokens ?? 0,
+    sortie: usage?.output_tokens ?? 0,
+    cache,
+  };
+  enregistrerUsage(modele, dernierUsage.entree, dernierUsage.sortie, cache);
+}
 
 /** Remet le compteur à zéro avant une série d'appels. */
 export function reinitialiserUsage(): void {
@@ -239,7 +327,18 @@ export type GrokModel = 'grok-4.7' | 'grok-4.6' | 'grok-4.5' | 'grok-4.3' | 'gro
 export async function callGrok(
   model: GrokModel,
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
-  opts?: { maxTokens?: number; temperature?: number; timeoutMs?: number }
+  opts?: {
+    maxTokens?: number;
+    temperature?: number;
+    timeoutMs?: number;
+    /**
+     * Clé de cache xAI (en-tête x-grok-conv-id). Des appels qui partagent la
+     * même clé ET le même début de consigne relisent ce début depuis le
+     * cache (tarif réduit). Mettre une clé stable par rôle et par version de
+     * la Librairie, jamais par site.
+     */
+    cleCache?: string;
+  }
 ): Promise<string> {
   if (!env.XAI_API_KEY) {
     throw new AppError('XAI_API_KEY manquante — configure-la sur Render (Environment)', 503);
@@ -252,6 +351,7 @@ export async function callGrok(
       headers: {
         Authorization: `Bearer ${env.XAI_API_KEY}`,
         'Content-Type': 'application/json',
+        ...(opts?.cleCache ? { 'x-grok-conv-id': opts.cleCache } : {}),
       },
       body: JSON.stringify({
         model,
@@ -274,17 +374,24 @@ export async function callGrok(
 
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      prompt_tokens_details?: { cached_tokens?: number };
+    };
   };
   // Tokens RÉELLEMENT consommés, tels que le fournisseur les facture.
   // Publiés pour le compteur de coût, qui ne repose ainsi sur aucune
-  // estimation.
+  // estimation. Chez xAI, prompt_tokens INCLUT les tokens relus du cache.
+  const lectureCache = data.usage?.prompt_tokens_details?.cached_tokens ?? 0;
+  const cacheGrok: UsageCache = { lecture: lectureCache };
   dernierUsage = {
     modele: model,
-    entree: data.usage?.prompt_tokens ?? 0,
+    entree: Math.max(0, (data.usage?.prompt_tokens ?? 0) - lectureCache),
     sortie: data.usage?.completion_tokens ?? 0,
+    cache: cacheGrok,
   };
-  enregistrerUsage(dernierUsage.modele, dernierUsage.entree, dernierUsage.sortie);
+  enregistrerUsage(dernierUsage.modele, dernierUsage.entree, dernierUsage.sortie, cacheGrok);
   const content = data.choices?.[0]?.message?.content;
   if (!content || typeof content !== 'string') {
     throw new AppError('Réponse xAI vide ou invalide', 502);
@@ -298,16 +405,22 @@ const ANTHROPIC_BASE = 'https://api.anthropic.com/v1';
 
 export type ClaudeModel =
   | 'claude-sonnet-5'
-  | 'claude-opus-5'
+  | 'claude-opus-5-5'
   | 'claude-haiku-4-5-20251001'
   /** Agent qualité : diagnostic des prompts, alertes payantes, réparations complexes */
   | 'claude-fable-5-1';
 
 export async function callClaude(
   model: ClaudeModel,
-  system: string,
+  system: Systeme,
   messages: { role: 'user' | 'assistant'; content: string }[],
-  opts?: { maxTokens?: number; temperature?: number; timeoutMs?: number }
+  opts?: {
+    maxTokens?: number;
+    temperature?: number;
+    timeoutMs?: number;
+    /** L'appelant va réutiliser ce même début de consigne dans les 5 min. */
+    reutilisationPrevue?: boolean;
+  }
 ): Promise<string> {
   if (!env.ANTHROPIC_API_KEY) {
     throw new AppError('ANTHROPIC_API_KEY manquante — configure-la sur Render (Environment)', 503);
@@ -332,7 +445,7 @@ export async function callClaude(
       body: JSON.stringify({
         model,
         max_tokens: opts?.maxTokens ?? 8000,
-        system,
+        system: systemeAnthropic(system, cacheUtile(model, system, opts?.reutilisationPrevue)),
         messages,
       }),
     },
@@ -350,14 +463,9 @@ export async function callClaude(
 
   const data = (await res.json()) as {
     content?: Array<{ type: string; text?: string }>;
-    usage?: { input_tokens?: number; output_tokens?: number };
+    usage?: UsageAnthropic;
   };
-  dernierUsage = {
-    modele: model,
-    entree: data.usage?.input_tokens ?? 0,
-    sortie: data.usage?.output_tokens ?? 0,
-  };
-  enregistrerUsage(dernierUsage.modele, dernierUsage.entree, dernierUsage.sortie);
+  publierUsageAnthropic(model, data.usage);
   const textBlock = data.content?.find((b) => b.type === 'text');
   const content = textBlock?.text;
   if (!content || typeof content !== 'string') {
@@ -372,7 +480,7 @@ export async function callClaude(
  */
 export async function callClaudeVision(
   model: ClaudeModel,
-  system: string,
+  system: Systeme,
   prompt: string,
   imageUrls: string[],
   opts?: { maxTokens?: number; temperature?: number; timeoutMs?: number }
@@ -401,7 +509,7 @@ export async function callClaudeVision(
       body: JSON.stringify({
         model,
         max_tokens: opts?.maxTokens ?? 200,
-        system,
+        system: systemeAnthropic(system, cacheUtile(model, system)),
         messages: [{ role: 'user', content }],
       }),
     },
@@ -417,7 +525,13 @@ export async function callClaudeVision(
     throw err;
   }
 
-  const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+  // Le coût des appels avec images (juge visuel) est compté comme les
+  // autres : avant, il échappait au compteur de dépense et au plafond.
+  const data = (await res.json()) as {
+    content?: Array<{ type: string; text?: string }>;
+    usage?: UsageAnthropic;
+  };
+  publierUsageAnthropic(model, data.usage);
   const textBlock = data.content?.find((b) => b.type === 'text');
   const text = textBlock?.text;
   if (!text || typeof text !== 'string') {
@@ -436,10 +550,10 @@ export async function callClaudeVision(
  */
 export async function callClaudeVisionBase64(
   model: ClaudeModel,
-  system: string,
+  system: Systeme,
   prompt: string,
   images: { base64: string; mediaType: 'image/png' | 'image/jpeg' }[],
-  opts?: { maxTokens?: number; temperature?: number; timeoutMs?: number }
+  opts?: { maxTokens?: number; temperature?: number; timeoutMs?: number; reutilisationPrevue?: boolean }
 ): Promise<string> {
   if (!env.ANTHROPIC_API_KEY) {
     throw new AppError('ANTHROPIC_API_KEY manquante — configure-la sur Render (Environment)', 503);
@@ -467,7 +581,7 @@ export async function callClaudeVisionBase64(
       body: JSON.stringify({
         model,
         max_tokens: opts?.maxTokens ?? 1200,
-        system,
+        system: systemeAnthropic(system, cacheUtile(model, system, opts?.reutilisationPrevue)),
         messages: [{ role: 'user', content }],
       }),
     },
@@ -483,7 +597,13 @@ export async function callClaudeVisionBase64(
     throw err;
   }
 
-  const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+  // Le coût des appels avec images (juge visuel) est compté comme les
+  // autres : avant, il échappait au compteur de dépense et au plafond.
+  const data = (await res.json()) as {
+    content?: Array<{ type: string; text?: string }>;
+    usage?: UsageAnthropic;
+  };
+  publierUsageAnthropic(model, data.usage);
   const text = data.content?.find((b) => b.type === 'text')?.text;
   if (!text || typeof text !== 'string') {
     throw new AppError('Réponse Anthropic Vision vide ou invalide', 502);

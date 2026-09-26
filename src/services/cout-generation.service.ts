@@ -17,26 +17,58 @@
  * difficile, n'est jamais coupée.
  */
 
-/** Tarifs fournisseurs, en dollars par million de tokens. */
-const TARIFS: Record<string, { entree: number; sortie: number }> = {
-  'grok-4.7': { entree: 2, sortie: 6 },
-  'grok-4.6': { entree: 2, sortie: 6 },
-  'grok-4.5': { entree: 2, sortie: 6 },
-  'grok-4.3': { entree: 1.25, sortie: 2.5 },
-  'grok-build-0.1': { entree: 1, sortie: 2 },
-  'claude-sonnet-5': { entree: 2, sortie: 10 },
-  'claude-opus-5': { entree: 5, sortie: 25 },
-  'claude-fable-5-1': { entree: 10, sortie: 50 },
-  'claude-haiku-4-5-20251001': { entree: 1, sortie: 5 },
+/**
+ * Tarifs fournisseurs, en dollars par million de tokens.
+ *
+ * `lectureCache` : prix d'un token d'entrée relu depuis le cache du
+ * fournisseur (consignes fixes de la Librairie). `ecritureCache` : prix
+ * d'un token mis en cache (Anthropic facture 1,25 × l'entrée pour une durée
+ * de 5 minutes ; xAI ne facture pas l'écriture).
+ * Sources : docs Anthropic « Prompt caching » et xAI « Pricing » (09/2026).
+ */
+const TARIFS: Record<string, { entree: number; sortie: number; lectureCache: number; ecritureCache: number }> = {
+  'grok-4.7': { entree: 2, sortie: 6, lectureCache: 0.5, ecritureCache: 2 },
+  'grok-4.6': { entree: 2, sortie: 6, lectureCache: 0.5, ecritureCache: 2 },
+  'grok-4.5': { entree: 2, sortie: 6, lectureCache: 0.3, ecritureCache: 2 },
+  'grok-4.3': { entree: 1.25, sortie: 2.5, lectureCache: 0.2, ecritureCache: 1.25 },
+  'grok-build-0.1': { entree: 1, sortie: 2, lectureCache: 0.2, ecritureCache: 1 },
+  'claude-sonnet-5': { entree: 2, sortie: 10, lectureCache: 0.2, ecritureCache: 2.5 },
+  'claude-opus-5-5': { entree: 4, sortie: 20, lectureCache: 0.2, ecritureCache: 5 },
+  // Ancien modèle, gardé pour chiffrer correctement l'historique.
+  'claude-opus-5': { entree: 5, sortie: 25, lectureCache: 0.5, ecritureCache: 6.25 },
+  'claude-fable-5-1': { entree: 10, sortie: 50, lectureCache: 0.25, ecritureCache: 12.5 },
+  'claude-haiku-4-5-20251001': { entree: 1, sortie: 5, lectureCache: 0.1, ecritureCache: 1.25 },
 };
 
-/** Coût en dollars d'un appel, d'après les tokens réellement consommés. */
-export function coutAppelUsd(modele: string, tokensEntree: number, tokensSortie: number): number {
+/** Tokens d'entrée passés par le cache du fournisseur. */
+export interface UsageCache {
+  /** Tokens relus depuis le cache (facturés au tarif réduit). */
+  lecture?: number;
+  /** Tokens écrits dans le cache (Anthropic : 1,25 × l'entrée). */
+  ecriture?: number;
+}
+
+/**
+ * Coût en dollars d'un appel, d'après les tokens réellement consommés.
+ * `tokensEntree` = tokens d'entrée HORS cache.
+ */
+export function coutAppelUsd(
+  modele: string,
+  tokensEntree: number,
+  tokensSortie: number,
+  cache?: UsageCache
+): number {
   const t = TARIFS[modele];
   // Modèle inconnu : on ne devine pas un tarif, on ne compte rien plutôt
   // que d'afficher un chiffre faux.
   if (!t) return 0;
-  return (tokensEntree * t.entree + tokensSortie * t.sortie) / 1e6;
+  return (
+    (tokensEntree * t.entree +
+      tokensSortie * t.sortie +
+      (cache?.lecture ?? 0) * t.lectureCache +
+      (cache?.ecriture ?? 0) * t.ecritureCache) /
+    1e6
+  );
 }
 
 export type TypeGeneration = 'essai' | 'normale' | 'premium';
@@ -46,13 +78,15 @@ export type TypeGeneration = 'essai' | 'normale' | 'premium';
  *
  * Au-delà, la génération s'arrête et l'administrateur est alerté. Ces
  * valeurs laissent 20 % au-dessus du pire cas légitime :
- *  · essai    : 0,49 $ au pire → plafond 0,60 $
- *  · normale  : 1,00 $ au pire → plafond 1,20 $ (marge plancher 45 %)
+ *  · essai    : plafond 0,90 $ — l'essai livre le site COMPLET (pages
+ *    intérieures jugées comprises) : 0,63 à 0,87 $ pour 3-4 pages
+ *  · normale  : plafond 1,50 $ (décision admin 26/09/2026 : la Librairie
+ *    complète et les pages intérieures jugées augmentent le pire cas)
  *  · premium  : 1,62 $ au pire → plafond 2,20 $ (marge plancher 52 %)
  */
 export const PLAFOND_DEPENSE_USD: Record<TypeGeneration, number> = {
-  essai: 0.6,
-  normale: 1.2,
+  essai: 0.9,
+  normale: 1.5,
   premium: 2.2,
 };
 
@@ -64,8 +98,8 @@ export class CompteurDepense {
   constructor(private readonly type: TypeGeneration) {}
 
   /** Enregistre un appel et renvoie son coût. */
-  ajouter(modele: string, tokensEntree: number, tokensSortie: number): number {
-    const usd = coutAppelUsd(modele, tokensEntree, tokensSortie);
+  ajouter(modele: string, tokensEntree: number, tokensSortie: number, cache?: UsageCache): number {
+    const usd = coutAppelUsd(modele, tokensEntree, tokensSortie, cache);
     this.total += usd;
     this.details.push({ modele, usd });
     return usd;

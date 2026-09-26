@@ -3,6 +3,7 @@ import { env } from '@/config/env';
 import { connectMongo } from '@/config/db';
 import { redisConnection } from '@/config/redis';
 import { autoSeedLibraryOnBoot } from '@/services/library-seed.service';
+import { assurerCatalogue } from '@/services/academy-programme.service';
 
 async function bootstrap() {
   await connectMongo();
@@ -11,6 +12,10 @@ async function bootstrap() {
   // vides (typiquement le tout premier déploiement) — ne touche à rien si
   // elle a déjà été initialisée ou modifiée à la main dans Mongo depuis.
   await autoSeedLibraryOnBoot();
+
+  // Académie : crée les 22 domaines et 60 formations du programme s'ils
+  // manquent (textes de base). Ne bloque jamais le démarrage.
+  assurerCatalogue().catch((e) => console.error('[academie] Programme non initialisé', e));
 
   // Vérifie que Redis répond avant de démarrer (utilisé par BullMQ)
   await redisConnection.ping();
