@@ -1,4 +1,5 @@
 import { controlerHebergement } from '@/services/hebergement.service';
+import { ecrireScript, fabriquerVideo } from '@/services/academy-video-generator.service';
 import { Worker, Job as BullJob, UnrecoverableError } from 'bullmq';
 import { redisConnection } from '@/config/redis';
 import { isRetryableApiError } from '@/services/ai-clients';
@@ -9,7 +10,7 @@ import {
   runDomainRenewalProvisioning,
   registerPurchasedDomain,
 } from '@/services/domain-renewal.service';
-import { processGeneration, processAiModify } from '@/services/ia-pipeline.service';
+import { processFinalisation, processGeneration, processAiModify } from '@/services/ia-pipeline.service';
 import { processVideoAd } from '@/services/video-pipeline.service';
 import { provisionSiteRuntime } from '@/services/site-runtime.service';
 import {
@@ -26,6 +27,7 @@ import {
 import { refundLaunchCharges, type LaunchCharges } from '@/services/credits.service';
 import { createZipBuffer } from '@/utils/zip';
 import { injectPublicBackendScript, injectPaymentLink } from '@/utils/injectBackend';
+import { retirerContenuExemple } from '@/utils/contenuExemple';
 import { generatePublicApiKey } from '@/utils/crypto';
 import { traiterAlertesEnAttente, livrerAlertesBloquees } from '@/services/fable-alerte.service';
 import { signalerIncident } from '@/services/platform-alert.service';
@@ -171,6 +173,10 @@ async function handleLaunch(data: PipelineJobData) {
   if (resolvedPaymentLink) {
     allPages = allPages.map((p) => ({ ...p, html: injectPaymentLink(p.html, resolvedPaymentLink) }));
   }
+
+  // Avis d'EXEMPLE de l'aperçu (data-origin="generated", badge « Exemple ») :
+  // retirés du HTML à la mise en ligne — jamais visibles par un visiteur.
+  allPages = allPages.map((p) => ({ ...p, html: retirerContenuExemple(p.html).html }));
 
   // Slug Netlify / sous-domaine
   const slug = (
@@ -370,6 +376,16 @@ async function processJob(job: BullJob<PipelineJobData>) {
         break;
       case 'launch_site':
         await handleLaunch(job.data);
+        break;
+      case 'finaliser_pages':
+        // « Finaliser mon site » : pages restantes de l'aperçu choisi.
+        // Une erreur ici ne doit JAMAIS marquer le site en échec : l'accueil
+        // reste valable, le client peut relancer « Finaliser mon site ».
+        try {
+          await processFinalisation(job.data.siteId, String((job.data as { versionId?: string }).versionId));
+        } catch (finErr) {
+          console.error(`[worker] Finalisation impossible site=${job.data.siteId}`, finErr);
+        }
         break;
       case 'video_ad':
         await handleVideoAd(job.data);
@@ -774,7 +790,23 @@ export async function startWorker() {
     }
   );
 
-  activeWorkers.push(worker, videoWorker, remindersWorker, qualityWorker);
+  // ── Académie : fabrication des vidéos IA (script puis voix + montage) ──
+  //
+  // Concurrence 1 : le montage ffmpeg sature un cœur, et l'admin fabrique ses
+  // vidéos une par une. File distincte : aucun impact sur les clients.
+  const academyWorker = new Worker<{ jobId: string; etape: 'script' | 'fabrication' }>(
+    'academy-video',
+    async (job) => {
+      if (job.data.etape === 'script') await ecrireScript(job.data.jobId);
+      else await fabriquerVideo(job.data.jobId);
+    },
+    { connection: redisConnection, concurrency: 1, lockDuration: 10 * 60 * 1000 }
+  );
+  academyWorker.on('failed', (job, err) => {
+    console.error(`[worker:academie] ❌ ${job?.data?.etape} ${job?.data?.jobId} — ${err.message}`);
+  });
+
+  activeWorkers.push(worker, videoWorker, remindersWorker, qualityWorker, academyWorker);
 
   console.log(
     '🔧 NexAI BullMQ worker démarré (queues: pipeline, pipeline-video, reminders, quality-agent)'

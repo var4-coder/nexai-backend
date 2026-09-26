@@ -25,6 +25,12 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     });
   }
 
+  // Identifiant mal formé (ex. « contact.html » à la place d'un id) : c'est
+  // une ressource introuvable, pas une panne. Jamais d'alerte incident.
+  if ((err as { name?: string }).name === 'CastError') {
+    return res.status(404).json({ error: { message: 'Ressource introuvable' } });
+  }
+
   const statusCode = err instanceof AppError ? err.statusCode : 500;
   console.error(err);
 

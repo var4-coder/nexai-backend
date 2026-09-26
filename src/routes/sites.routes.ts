@@ -12,6 +12,7 @@ import { Client } from '@/models/Client';
 import {
   enqueueSiteGeneration,
   chooseProposal,
+  enqueueFinalisation,
   enqueueLaunch,
   enqueueAiModify,
 } from '@/services/ia-pipeline.service';
@@ -46,6 +47,19 @@ const nicheEnum = z.enum([
   'restaurant_gastronomie',
   'education_formation',
 ]);
+
+/**
+ * Tout paramètre :id doit être un identifiant MongoDB valide. Sans ce garde,
+ * une adresse comme /sites/contact.html (lien relatif d'un site généré résolu
+ * sous NexAI, robot qui sonde les chemins) faisait planter Mongoose
+ * (CastError) et remontait en erreur serveur 500 au lieu d'un simple 404.
+ */
+sitesRouter.param('id', (_req: Request, _res: Response, next: NextFunction, id: string) => {
+  if (!Types.ObjectId.isValid(id) || String(new Types.ObjectId(id)) !== id) {
+    return next(new AppError('Site introuvable', 404));
+  }
+  next();
+});
 
 sitesRouter.post('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -130,24 +144,37 @@ sitesRouter.get('/', requireAuth, async (req: Request, res: Response, next: Next
  * propriétaire. Alimente les avertissements affichés dans l'espace NexAI.
  */
 /**
- * Page du site à éditer : la proposition CHOISIE par le client, ou la
- * première si aucun choix n'a encore été fait.
+ * Page du site à éditer.
+ *
+ * Le client peut choisir l'aperçu qu'il modifie (?proposition=0, 1, 2…) :
+ * avant, l'éditeur restait bloqué sur la proposition choisie, ou sur la
+ * première si aucun choix n'était fait — impossible de retoucher l'aperçu 2.
+ * Sans indice valide : la proposition choisie, sinon la première.
  */
-function propositionCourante(site: { proposals?: unknown[]; chosenProposalId?: string }) {
+type SiteEditable = { proposals?: unknown[]; chosenProposalId?: string; markModified?: (p: string) => void };
+
+function indicePropositionDemande(brut: unknown): number | null {
+  if (brut === undefined || brut === null || brut === '') return null;
+  const n = Number(brut);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+function propositionCourante(site: SiteEditable, indice: number | null = null) {
   const props = (site.proposals ?? []) as { id?: string; htmlDemo?: string }[];
-  if (props.length === 0) return null;
+  if (props.length === 0) return undefined;
+  if (indice !== null) {
+    if (indice >= props.length) throw new AppError('Cet aperçu n’existe pas.', 404);
+    return props[indice];
+  }
   return props.find((p) => p.id === site.chosenProposalId) ?? props[0];
 }
 
-function htmlDuSite(site: { proposals?: unknown[]; chosenProposalId?: string }): string | null {
-  return propositionCourante(site)?.htmlDemo ?? null;
+function htmlDuSite(site: SiteEditable, indice: number | null = null): string | null {
+  return propositionCourante(site, indice)?.htmlDemo ?? null;
 }
 
-function ecrireHtmlDuSite(
-  site: { proposals?: unknown[]; chosenProposalId?: string; markModified?: (p: string) => void },
-  html: string
-): void {
-  const prop = propositionCourante(site);
+function ecrireHtmlDuSite(site: SiteEditable, html: string, indice: number | null = null): void {
+  const prop = propositionCourante(site, indice);
   if (!prop) return;
   prop.htmlDemo = html;
   // Mongoose ne détecte pas seul la modification d'un objet imbriqué.
@@ -165,7 +192,7 @@ sitesRouter.get('/:id/textes', requireAuth, async (req: Request, res: Response, 
     const site = await Site.findOne({ _id: req.params.id, userId: req.auth!.userId });
     if (!site) throw new AppError('Site introuvable', 404);
 
-    const html = htmlDuSite(site);
+    const html = htmlDuSite(site, indicePropositionDemande(req.query.proposition));
     if (!html) throw new AppError("Ce site n'a pas encore de page à modifier.", 400);
 
     res.json({ textes: listerTextesEditables(html) });
@@ -220,7 +247,7 @@ sitesRouter.get('/:id/page-editable', requireAuth, async (req: Request, res: Res
     const site = await Site.findOne({ _id: req.params.id, userId: req.auth!.userId });
     if (!site) throw new AppError('Site introuvable', 404);
 
-    const html = htmlDuSite(site);
+    const html = htmlDuSite(site, indicePropositionDemande(req.query.proposition));
     if (!html) throw new AppError("Ce site n'a pas encore de page à modifier.", 400);
 
     res.json({ html: baliserTextesEditables(html) });
@@ -238,18 +265,23 @@ sitesRouter.get('/:id/page-editable', requireAuth, async (req: Request, res: Res
  */
 sitesRouter.put('/:id/textes', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { modifications } = z
-      .object({ modifications: z.record(z.string().max(600)) })
+    const { modifications, proposition } = z
+      .object({
+        modifications: z.record(z.string().max(600)),
+        // Aperçu modifié (0, 1, 2…). Absent : la proposition choisie.
+        proposition: z.coerce.number().int().min(0).optional(),
+      })
       .parse(req.body ?? {});
+    const indice = proposition ?? null;
 
     const site = await Site.findOne({ _id: req.params.id, userId: req.auth!.userId });
     if (!site) throw new AppError('Site introuvable', 404);
 
-    const html = htmlDuSite(site);
+    const html = htmlDuSite(site, indice);
     if (!html) throw new AppError("Ce site n'a pas encore de page à modifier.", 400);
 
     const nouveau = appliquerTextes(html, modifications);
-    ecrireHtmlDuSite(site, nouveau);
+    ecrireHtmlDuSite(site, nouveau, indice);
     await site.save();
 
     res.json({
@@ -325,7 +357,8 @@ sitesRouter.get('/:id', requireAuth, async (req: Request, res: Response, next: N
     // Estimation d'attente pendant une génération, pour un compte à rebours
     // réel côté client plutôt qu'un écran d'attente muet.
     if (site.status === 'generating') {
-      const ecoule = Math.floor((Date.now() - new Date(site.updatedAt).getTime()) / 1000);
+      const debut = site.generationStartedAt ?? site.updatedAt;
+      const ecoule = Math.floor((Date.now() - new Date(debut).getTime()) / 1000);
       const attente = await estimerAttente({
         kind: 'site',
         enCours: true,
@@ -371,6 +404,33 @@ sitesRouter.post('/:id/generate', requireAuth, async (req: Request, res: Respons
 
     const result = await enqueueSiteGeneration(req.params.id, req.auth!.userId, body.qualityTier);
     res.status(202).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// « Finaliser mon site » : le client garde un aperçu, les pages restantes
+// (menu, contact…) sont créées pour celui-ci avant la mise en ligne.
+sitesRouter.post('/:id/finaliser', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = z
+      .object({ versionId: z.string().optional(), proposalIndex: z.number().int().min(0).optional() })
+      .parse(req.body ?? {});
+    let versionId = body.versionId;
+    if (!versionId && body.proposalIndex !== undefined) {
+      const s = await Site.findById(req.params.id).select('proposals.versionId userId');
+      if (!s) throw new AppError('Site introuvable', 404);
+      if (String(s.userId) !== String(req.auth!.userId)) throw new AppError('Accès refusé', 403);
+      versionId = s.proposals[body.proposalIndex]?.versionId;
+    }
+    if (!versionId) throw new AppError('Proposition introuvable', 400);
+    const r = await enqueueFinalisation(req.params.id, req.auth!.userId, versionId);
+    res.status(r.lancee ? 202 : 200).json({
+      site: r.site,
+      message: r.lancee
+        ? 'C’est parti : nous créons les pages restantes de votre site. Cela prend quelques minutes.'
+        : 'Votre site est complet : vous pouvez le mettre en ligne.',
+    });
   } catch (err) {
     next(err);
   }

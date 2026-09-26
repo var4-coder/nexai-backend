@@ -30,8 +30,21 @@ export interface IAcademyPack {
   ordre: number;
   /** Illustration de la carte (Pexels ou upload admin) */
   imageUrl?: string;
-  /** Catégorie / niche, pour le classement côté client */
+  /** Catégorie / niche, pour le classement côté client (ancien champ) */
   category?: string;
+  /**
+   * Module de l'Académie auquel appartient cette formation (slug de
+   * data/academy-modules.ts). Un pack = une FORMATION ; ses contenus = ses séances.
+   */
+  module?: string;
+  /** Identifiant de la formation au programme (data/academy-modules.ts) */
+  slug?: string;
+  /** Phrase d'accroche de la carte formation */
+  accroche?: string;
+  /** Ce que la pratique apporte — texte de vente de la Partie 2 */
+  pratique?: string;
+  /** Crédit de la photo Pexels */
+  imagePhotographe?: string;
   /** Un pack en brouillon n'est jamais visible côté client */
   status: 'brouillon' | 'publié';
   createdAt: Date;
@@ -48,6 +61,11 @@ const academyPackSchema = new Schema<IAcademyPack>(
     ordre: { type: Number, default: 0, index: true },
     imageUrl: { type: String },
     category: { type: String },
+    module: { type: String, index: true },
+    slug: { type: String, index: { unique: true, sparse: true } },
+    accroche: { type: String },
+    pratique: { type: String },
+    imagePhotographe: { type: String },
     status: {
       type: String,
       enum: ['brouillon', 'publié'],

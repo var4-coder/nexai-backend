@@ -22,10 +22,8 @@ import { markPaiementPaye } from '@/services/chariow.service';
 import { creditCredits, PLAN_CREDITS } from '@/services/credits.service';
 import {
   uploadAcademyPdf,
-  uploadAcademyVideo,
   uploadVitrineVideo,
   uploadBoutiqueProduct,
-  deleteAcademyResource,
   deleteBoutiqueResource,
 } from '@/services/cloudinary.service';
 import { buildAutoDraft, regenerateTitleAndDescription } from '@/services/academy-boutique-automation.service';
@@ -36,6 +34,29 @@ import { Avis } from '@/models/Avis';
 import { PlatformAlert } from '@/models/PlatformAlert';
 import { BoutiquePack } from '@/models/BoutiquePack';
 import { AcademyPack } from '@/models/AcademyPack';
+import { AcademyCandidate } from '@/models/AcademyCandidate';
+import { stockerVideoAcademie, supprimerMediaAcademie, extraireIdYoutube } from '@/services/academy-media.service';
+import { bunnyConfigured, etatVideo } from '@/services/bunny-stream.service';
+import {
+  ACADEMY_MODULES,
+  ACADEMY_POLES,
+  ACADEMY_MODULE_SLUGS,
+  TOTAL_FORMATIONS_PREVUES,
+  trouverModule,
+} from '@/data/academy-modules';
+import {
+  rechercherCandidats,
+  evaluerCandidat,
+  demanderFichierAuteur,
+  deposerFichierCandidat,
+  importerDepuisPeertube,
+  rejeterCandidat,
+} from '@/services/academy-catalogue.service';
+import { AcademyDomaine } from '@/models/AcademyDomaine';
+import { AcademyVideoJob } from '@/models/AcademyVideoJob';
+import { assurerCatalogue, genererImages, regenererTextes } from '@/services/academy-programme.service';
+import { creerTravail, normaliserScript } from '@/services/academy-video-generator.service';
+import { academyVideoQueue } from '@/jobs/queue';
 import {
   estArchiveZip,
   extraireArchive,
@@ -66,6 +87,14 @@ import {
   marquerCommeReverse,
 } from '@/services/reversement.service';
 import { AppError } from '@/middleware/errorHandler';
+import {
+  apercuLibrairie,
+  listerLibrairie,
+  lireDocumentLibrairie,
+  modifierDocumentLibrairie,
+  retourArriereLibrairie,
+  versionLivreeLibrairie,
+} from '@/services/library-admin.service';
 import {
   listTicketsForAdmin,
   getTicketForAdmin,
@@ -697,12 +726,20 @@ adminRouter.post(
         throw new AppError('Le fichier doit être une vidéo', 400);
       }
 
-      const publicId =
+      // Vidéos → Bunny Stream dès qu'il est configuré (sinon Cloudinary).
+      // PDF → Cloudinary (filigrane nominatif à la lecture).
+      const stockage =
         type === 'pdf'
-          ? await uploadAcademyPdf(req.file.buffer, req.file.originalname)
-          : await uploadAcademyVideo(req.file.buffer, req.file.originalname);
+          ? { hosting: 'cloudinary' as const, sourceUrl: await uploadAcademyPdf(req.file.buffer, req.file.originalname) }
+          : await stockerVideoAcademie(req.file.buffer, req.file.originalname);
 
-      res.status(201).json({ cloudinaryPublicId: publicId, hosting: 'cloudinary', type });
+      res.status(201).json({
+        // cloudinaryPublicId conservé pour compatibilité : c'est le sourceUrl à réutiliser.
+        cloudinaryPublicId: stockage.sourceUrl,
+        sourceUrl: stockage.sourceUrl,
+        hosting: stockage.hosting,
+        type,
+      });
     } catch (err) {
       next(err);
     }
@@ -733,10 +770,31 @@ adminRouter.post(
           creditsCost: z.coerce.number().min(0).optional(),
           formationId: z.string().optional(),
           formationTitle: z.string().optional(),
+          module: z.enum(ACADEMY_MODULE_SLUGS).optional(),
+          packId: z.string().optional(),
+          ordre: z.coerce.number().min(0).optional(),
+          role: z.enum(['seance', 'apercu']).default('seance'),
+          // Structure Domaine → Formation → Leçons : partie de la formation,
+          // nature de la vidéo et fournisseur (suivi des licences).
+          partie: z.enum(['bases', 'complet', 'pratique', 'kit']).optional(),
+          genre: z.enum(['ia', 'pratique_ia', 'reelle', 'document']).optional(),
+          fournisseur: z.string().max(200).optional(),
         })
         .parse(req.body);
 
       if (!req.file) throw new AppError('Fichier manquant (champ "file")', 400);
+      if (body.type === 'pdf' && body.partie && body.partie !== 'kit') {
+        throw new AppError(
+          'Un PDF se dépose comme Kit Expert. Pour en faire une vidéo animée, utilisez le générateur « PDF → vidéo IA ».',
+          400
+        );
+      }
+      let moduleContenu = body.module;
+      if (body.packId) {
+        const pack = await AcademyPack.findById(body.packId).select('module');
+        if (!pack) throw new AppError('Formation (pack) introuvable', 404);
+        moduleContenu = moduleContenu || pack.module;
+      }
       if (body.type === 'pdf' && req.file.mimetype !== 'application/pdf') {
         throw new AppError('Le fichier doit être un PDF', 400);
       }
@@ -750,12 +808,21 @@ adminRouter.post(
         filename: req.file.originalname,
         fileType: body.type,
         buffer: req.file.buffer,
+        // Les leçons n'ont pas de photo : habillage dessiné par le frontend.
+        sansImage: Boolean(body.partie),
       });
 
-      const publicId =
+      const stockage =
         body.type === 'pdf'
-          ? await uploadAcademyPdf(req.file.buffer, req.file.originalname)
-          : await uploadAcademyVideo(req.file.buffer, req.file.originalname);
+          ? { hosting: 'cloudinary' as const, sourceUrl: await uploadAcademyPdf(req.file.buffer, req.file.originalname) }
+          : await stockerVideoAcademie(req.file.buffer, req.file.originalname);
+
+      const partie = body.partie ?? (body.type === 'pdf' && body.packId ? 'kit' : undefined);
+      const genre = body.genre ?? (body.type === 'pdf' ? 'document' : partie ? 'reelle' : undefined);
+      const ordreAuto = body.packId && partie
+        ? (await AcademyContent.countDocuments({ packId: body.packId, partie })) + 1
+        : 0;
+      const licenceTiers = body.fournisseur && !/nexai/i.test(body.fournisseur);
 
       const content = await AcademyContent.create({
         title: draft.title,
@@ -765,10 +832,19 @@ adminRouter.post(
         type: body.type,
         access: body.access,
         creditsCost: body.creditsCost,
-        hosting: 'cloudinary',
-        sourceUrl: publicId,
+        hosting: stockage.hosting,
+        sourceUrl: stockage.sourceUrl,
         formationId: body.formationId,
         formationTitle: body.formationTitle,
+        module: moduleContenu,
+        packId: body.packId,
+        ordre: body.ordre || ordreAuto,
+        role: body.role,
+        partie,
+        genre,
+        fournisseur: body.fournisseur,
+        // Vidéos de fournisseurs sous licence de revente = marque blanche : pas de crédit affiché.
+        attribution: { licence: licenceTiers ? 'fournisseur' : 'nexai' },
         status: 'brouillon',
       });
 
@@ -855,7 +931,14 @@ adminRouter.post(
         }
       }
 
-      res.json({ total: contents.length, updated: updated.length, failed });
+      res.json({
+        total: contents.length,
+        updated: updated.length,
+        failed,
+        // Champs lus par l'interface admin (message + misAJour)
+        misAJour: updated.length,
+        message: `${updated.length} titre(s) régénéré(s)${failed.length ? `, ${failed.length} échec(s)` : ''}.`,
+      });
     } catch (err) {
       next(err);
     }
@@ -873,19 +956,45 @@ adminRouter.post(
           type: z.enum(['video', 'pdf']),
           access: z.enum(['gratuit', 'payant']),
           creditsCost: z.number().min(0).optional(),
-          hosting: z.enum(['cloudinary', 'embed_externe']).default('cloudinary'),
+          hosting: z.enum(['cloudinary', 'bunny', 'youtube', 'embed_externe']).default('cloudinary'),
           sourceUrl: z.string().min(1),
           category: z.string().optional(),
           formationId: z.string().optional(),
           formationTitle: z.string().optional(),
           description: z.string().optional(),
+          module: z.enum(ACADEMY_MODULE_SLUGS).optional(),
+          packId: z.string().nullable().optional(),
+          ordre: z.coerce.number().min(0).optional(),
+          role: z.enum(['seance', 'apercu']).optional(),
+          partie: z.enum(['bases', 'complet', 'pratique', 'kit']).optional(),
+          genre: z.enum(['ia', 'pratique_ia', 'reelle', 'document']).optional(),
+          fournisseur: z.string().max(200).optional(),
+          duree: z.coerce.number().min(0).optional(),
+          imageUrl: z.string().url().optional(),
+          attribution: z
+            .object({
+              licence: z.enum(['cc-by', 'cc-by-sa', 'cc-by-nd', 'cc0', 'domaine-public', 'youtube-standard', 'fournisseur', 'nexai']),
+              auteur: z.string().max(200).optional(),
+              titreOriginal: z.string().max(300).optional(),
+              sourceUrl: z.string().max(500).optional(),
+              plateforme: z.string().max(120).optional(),
+            })
+            .optional(),
         })
-        .refine((b) => !(b.type === 'pdf' && b.hosting === 'embed_externe'), {
-          message: 'Un PDF doit obligatoirement être hébergé sur Cloudinary (pas d\'embed externe)',
+        .refine((b) => !(b.type === 'pdf' && b.hosting !== 'cloudinary'), {
+          message: 'Un PDF doit obligatoirement être hébergé sur Cloudinary',
         })
         .parse(req.body);
 
-      const content = await AcademyContent.create(body);
+      const donnees = { ...body, packId: body.packId || undefined };
+      if (donnees.hosting === 'youtube') {
+        const id = extraireIdYoutube(donnees.sourceUrl);
+        if (!id) throw new AppError('Lien YouTube invalide', 400);
+        donnees.sourceUrl = id;
+        // Règle YouTube : jamais de visionnage payant dans le lecteur intégré.
+        donnees.access = 'gratuit';
+      }
+      const content = await AcademyContent.create(donnees);
       res.status(201).json({ content });
     } catch (err) {
       next(err);
@@ -904,29 +1013,59 @@ adminRouter.patch(
           type: z.enum(['video', 'pdf']).optional(),
           access: z.enum(['gratuit', 'payant']).optional(),
           creditsCost: z.number().min(0).optional(),
-          hosting: z.enum(['cloudinary', 'embed_externe']).optional(),
+          hosting: z.enum(['cloudinary', 'bunny', 'youtube', 'embed_externe']).optional(),
           sourceUrl: z.string().min(1).optional(),
           category: z.string().optional(),
           formationId: z.string().optional(),
           formationTitle: z.string().optional(),
           description: z.string().optional(),
+          module: z.enum(ACADEMY_MODULE_SLUGS).optional(),
+          packId: z.string().nullable().optional(),
+          ordre: z.coerce.number().min(0).optional(),
+          role: z.enum(['seance', 'apercu']).optional(),
+          partie: z.enum(['bases', 'complet', 'pratique', 'kit']).optional(),
+          genre: z.enum(['ia', 'pratique_ia', 'reelle', 'document']).optional(),
+          fournisseur: z.string().max(200).optional(),
+          duree: z.coerce.number().min(0).optional(),
+          imageUrl: z.string().url().optional(),
+          attribution: z
+            .object({
+              licence: z.enum(['cc-by', 'cc-by-sa', 'cc-by-nd', 'cc0', 'domaine-public', 'youtube-standard', 'fournisseur', 'nexai']),
+              auteur: z.string().max(200).optional(),
+              titreOriginal: z.string().max(300).optional(),
+              sourceUrl: z.string().max(500).optional(),
+              plateforme: z.string().max(120).optional(),
+            })
+            .optional(),
         })
         .parse(req.body);
 
       const existing = await AcademyContent.findById(req.params.id).select('+sourceUrl');
       if (!existing) throw new AppError('Contenu introuvable', 404);
 
-      // Si on remplace le fichier Cloudinary par un autre, on nettoie l'ancien
-      // (best-effort, ne bloque jamais la mise à jour en cas d'échec).
-      if (
-        body.sourceUrl &&
-        body.sourceUrl !== existing.sourceUrl &&
-        existing.hosting === 'cloudinary'
-      ) {
-        void deleteAcademyResource(existing.sourceUrl, existing.type === 'video' ? 'video' : 'raw');
+      const maj: Record<string, unknown> = { ...body };
+      const hostingFinal = body.hosting ?? existing.hosting;
+      if (hostingFinal === 'youtube') {
+        if (body.sourceUrl) {
+          const id = extraireIdYoutube(body.sourceUrl);
+          if (!id) throw new AppError('Lien YouTube invalide', 400);
+          maj.sourceUrl = id;
+        }
+        // Règle YouTube : jamais de visionnage payant dans le lecteur intégré.
+        maj.access = 'gratuit';
+      }
+      if (body.packId === null) {
+        delete maj.packId;
+        maj.$unset = { packId: '' };
       }
 
-      const content = await AcademyContent.findByIdAndUpdate(req.params.id, body, {
+      // Si on remplace le fichier stocké par un autre, on nettoie l'ancien
+      // (best-effort, ne bloque jamais la mise à jour en cas d'échec).
+      if (maj.sourceUrl && maj.sourceUrl !== existing.sourceUrl) {
+        supprimerMediaAcademie(existing.hosting, existing.sourceUrl, existing.type);
+      }
+
+      const content = await AcademyContent.findByIdAndUpdate(req.params.id, maj, {
         new: true,
       }).select('+sourceUrl');
       if (!content) throw new AppError('Contenu introuvable', 404);
@@ -945,12 +1084,486 @@ adminRouter.delete(
       const deleted = await AcademyContent.findById(req.params.id).select('+sourceUrl');
       if (!deleted) throw new AppError('Contenu introuvable', 404);
 
-      if (deleted.hosting === 'cloudinary') {
-        void deleteAcademyResource(deleted.sourceUrl, deleted.type === 'video' ? 'video' : 'raw');
-      }
+      supprimerMediaAcademie(deleted.hosting, deleted.sourceUrl, deleted.type);
 
       await AcademyContent.findByIdAndDelete(req.params.id);
+      // Le candidat du catalogue qui avait produit ce contenu redevient disponible.
+      await AcademyCandidate.updateMany(
+        { apercuContentId: deleted._id, seanceContentId: { $exists: false } },
+        { $unset: { apercuContentId: '' }, $set: { status: 'evaluee' } }
+      );
+      await AcademyCandidate.updateMany({ apercuContentId: deleted._id }, { $unset: { apercuContentId: '' } });
+      await AcademyCandidate.updateMany(
+        { seanceContentId: deleted._id },
+        { $unset: { seanceContentId: '' }, $set: { status: 'evaluee' } }
+      );
       res.json({ deleted: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─── Académie : programme, textes, images, vidéos IA, catalogue PeerTube ──
+
+/**
+ * État des services + programme complet (22 domaines, 60 formations) avec ce
+ * qui est rempli, partie par partie. Sert à voir d'un coup d'œil ce qui manque.
+ */
+adminRouter.get(
+  '/academy/config',
+  requireRole('admin'),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      await assurerCatalogue();
+      const [domaines, packs, comptes] = await Promise.all([
+        AcademyDomaine.find().lean(),
+        AcademyPack.find({ module: { $exists: true } }).lean(),
+        AcademyContent.aggregate([
+          { $match: { packId: { $ne: null }, partie: { $ne: null } } },
+          { $group: { _id: { pack: '$packId', partie: '$partie', status: '$status', genre: '$genre' }, n: { $sum: 1 } } },
+        ]),
+      ]);
+      const lignes = comptes as { _id: { pack: unknown; partie: string; status: string; genre?: string }; n: number }[];
+      const compter = (packId: string, partie: string, status?: string, genre?: string) =>
+        lignes
+          .filter(
+            (r) =>
+              String(r._id.pack) === packId &&
+              r._id.partie === partie &&
+              (!status || r._id.status === status) &&
+              (!genre || r._id.genre === genre)
+          )
+          .reduce((t, r) => t + r.n, 0);
+      const textes = new Map(domaines.map((d) => [d.slug, d]));
+
+      res.json({
+        services: {
+          bunny: bunnyConfigured(),
+          gemini: Boolean(env.GEMINI_API_KEY),
+          elevenlabs: Boolean(env.ELEVENLABS_API_KEY),
+          claude: Boolean(env.ANTHROPIC_API_KEY),
+          pexels: Boolean(env.PEXELS_API_KEY),
+          voixGemini: env.GEMINI_TTS_VOICE,
+        },
+        totalFormationsPrevues: TOTAL_FORMATIONS_PREVUES,
+        poles: ACADEMY_POLES,
+        modules: ACADEMY_MODULES.map((m) => {
+          const d = textes.get(m.slug);
+          return {
+            slug: m.slug,
+            titre: m.titre,
+            emoji: m.emoji,
+            pole: m.pole,
+            ordre: m.ordre,
+            accroche: d?.accroche ?? m.accroche,
+            description: d?.description ?? m.description,
+            imageUrl: d?.imageUrl,
+            imagePhotographe: d?.imagePhotographe,
+            formations: packs
+              .filter((p) => p.module === m.slug)
+              .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
+              .map((p) => {
+                const id = String(p._id);
+                const parties = Object.fromEntries(
+                  (['bases', 'complet', 'pratique', 'kit'] as const).map((partie) => [
+                    partie,
+                    { publies: compter(id, partie, 'publié'), brouillons: compter(id, partie, 'brouillon') },
+                  ])
+                );
+                return {
+                  id,
+                  slug: p.slug,
+                  titre: p.titre,
+                  accroche: p.accroche,
+                  description: p.description,
+                  pratique: p.pratique,
+                  imageUrl: p.imageUrl,
+                  imagePhotographe: p.imagePhotographe,
+                  status: p.status,
+                  access: p.access,
+                  horsProgramme: !p.slug,
+                  parties,
+                  videosReelles: compter(id, 'pratique', 'publié', 'reelle'),
+                };
+              }),
+          };
+        }),
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** Modification manuelle des textes / de l'image d'un domaine. */
+adminRouter.patch(
+  '/academy/domaines/:slug',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!trouverModule(req.params.slug)) throw new AppError('Domaine inconnu', 404);
+      const body = z
+        .object({
+          accroche: z.string().min(1).max(200).optional(),
+          description: z.string().min(1).max(800).optional(),
+          imageUrl: z.string().url().optional(),
+        })
+        .parse(req.body ?? {});
+      await assurerCatalogue();
+      const domaine = await AcademyDomaine.findOneAndUpdate({ slug: req.params.slug }, body, { new: true });
+      res.json({ domaine });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** Réécriture des textes d'un domaine ou d'une formation par Sonnet (sur demande). */
+adminRouter.post(
+  '/academy/textes/regenerer',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z
+        .object({ type: z.enum(['domaine', 'formation']), slug: z.string().min(1) })
+        .parse(req.body ?? {});
+      res.json({ resultat: await regenererTextes(body) });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * Images Pexels des domaines et formations.
+ *  · sans cible : toutes celles qui manquent (ou toutes si « forcer ») ;
+ *  · avec cible : « Changer d'image » pour un domaine ou une formation.
+ */
+adminRouter.post(
+  '/academy/images/generer',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z
+        .object({
+          forcer: z.boolean().optional(),
+          cible: z.object({ type: z.enum(['domaine', 'formation']), slug: z.string().min(1) }).optional(),
+        })
+        .parse(req.body ?? {});
+      res.json(await genererImages(body));
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** État d'encodage d'une vidéo Bunny (après upload, l'encodage prend quelques minutes). */
+adminRouter.get(
+  '/academy/:id/etat-video',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const c = await AcademyContent.findById(req.params.id).select('+sourceUrl');
+      if (!c) throw new AppError('Contenu introuvable', 404);
+      if (c.hosting !== 'bunny') {
+        res.json({ hosting: c.hosting, pret: true });
+        return;
+      }
+      const etat = await etatVideo(c.sourceUrl);
+      if (etat.pret && etat.duree && !c.duree) {
+        c.duree = etat.duree;
+        await c.save();
+      }
+      res.json({ hosting: 'bunny', ...etat });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ── Générateur « PDF → vidéo IA » ──
+
+/** Dépôt d'un PDF (ou d'un résumé en .txt) → Claude écrit le script d'explication. */
+adminRouter.post(
+  '/academy/videos-ia',
+  requireRole('admin'),
+  upload.single('file'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z
+        .object({
+          packId: z.string().min(1),
+          partie: z.enum(['bases', 'complet', 'pratique']),
+          voix: z.enum(['gemini', 'elevenlabs']).default('gemini'),
+        })
+        .parse(req.body ?? {});
+      if (!req.file) throw new AppError('Fichier manquant (champ "file")', 400);
+      if (!/\.(pdf|txt|md)$/i.test(req.file.originalname)) {
+        throw new AppError('Déposez un PDF (ou un résumé en .txt).', 400);
+      }
+      const job = await creerTravail({
+        buffer: req.file.buffer,
+        nomFichier: req.file.originalname,
+        packId: body.packId,
+        partie: body.partie,
+        voix: body.voix,
+      });
+      await academyVideoQueue.add('script', { jobId: String(job._id), etape: 'script' });
+      res.status(201).json({ job });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.get(
+  '/academy/videos-ia',
+  requireRole('admin'),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const jobs = await AcademyVideoJob.find().sort({ createdAt: -1 }).limit(100);
+      res.json({ jobs });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** L'admin relit et corrige le script avant la voix (on ne paie la voix que pour un texte validé). */
+adminRouter.patch(
+  '/academy/videos-ia/:id/script',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const job = await AcademyVideoJob.findById(req.params.id);
+      if (!job) throw new AppError('Travail introuvable', 404);
+      if (job.statut === 'fabrication') throw new AppError('Vidéo en cours de fabrication : attendez la fin.', 409);
+      job.script = normaliserScript(req.body?.script);
+      if (job.statut === 'erreur' && job.etape === 'script') job.statut = 'script_pret';
+      await job.save();
+      res.json({ job });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** Lance la fabrication (voix + diapositives + montage + Bunny). */
+adminRouter.post(
+  '/academy/videos-ia/:id/fabriquer',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z.object({ voix: z.enum(['gemini', 'elevenlabs']).optional() }).parse(req.body ?? {});
+      const job = await AcademyVideoJob.findById(req.params.id);
+      if (!job) throw new AppError('Travail introuvable', 404);
+      if (!job.script) throw new AppError('Le script n’est pas encore prêt.', 409);
+      if (job.statut === 'fabrication') throw new AppError('Déjà en cours de fabrication.', 409);
+      if (!bunnyConfigured()) throw new AppError('Configurez Bunny Stream avant de fabriquer une vidéo.', 503);
+      if (body.voix) job.voix = body.voix;
+      job.statut = 'fabrication';
+      job.progression = 0;
+      job.erreur = undefined;
+      await job.save();
+      await academyVideoQueue.add('fabrication', { jobId: String(job._id), etape: 'fabrication' });
+      res.json({ job });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** Relance de l'écriture du script (après une erreur, ou pour une autre version). */
+adminRouter.post(
+  '/academy/videos-ia/:id/reecrire',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const job = await AcademyVideoJob.findById(req.params.id);
+      if (!job) throw new AppError('Travail introuvable', 404);
+      if (job.statut === 'fabrication' || job.statut === 'script_en_cours') {
+        throw new AppError('Travail déjà en cours.', 409);
+      }
+      job.statut = 'script_en_cours';
+      job.erreur = undefined;
+      await job.save();
+      await academyVideoQueue.add('script', { jobId: String(job._id), etape: 'script' });
+      res.json({ job });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.delete(
+  '/academy/videos-ia/:id',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const job = await AcademyVideoJob.findById(req.params.id);
+      if (!job) throw new AppError('Travail introuvable', 404);
+      if (job.statut === 'fabrication') throw new AppError('Vidéo en cours de fabrication : attendez la fin.', 409);
+      // La leçon éventuellement créée n'est PAS supprimée : elle se gère dans la liste des contenus.
+      await job.deleteOne();
+      res.json({ deleted: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ── Catalogue PeerTube (vraies vidéos pratiques sous licence libre) ──
+
+adminRouter.get(
+  '/academy/catalogue',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const q = z
+        .object({
+          module: z.string().optional(),
+          status: z.enum(['trouvee', 'evaluee', 'rejetee', 'fichier_a_obtenir', 'importee']).optional(),
+        })
+        .parse(req.query);
+      const filtre: Record<string, unknown> = { source: 'peertube' };
+      if (q.module) filtre.module = q.module;
+      filtre.status = q.status ?? { $ne: 'rejetee' };
+      const candidats = await AcademyCandidate.find(filtre)
+        .sort({ 'evaluation.global': -1, createdAt: -1 })
+        .limit(300);
+      res.json({ candidats });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.post(
+  '/academy/catalogue/recherche',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z
+        .object({
+          module: z.enum(ACADEMY_MODULE_SLUGS),
+          requete: z.string().max(200).optional(),
+          max: z.coerce.number().min(1).max(50).default(25),
+        })
+        .parse(req.body ?? {});
+      res.json(await rechercherCandidats(body));
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** Notation par lot (Claude), plafonnée à 10 vidéos par appel. */
+adminRouter.post(
+  '/academy/catalogue/evaluer-lot',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z
+        .object({ ids: z.array(z.string()).max(10).optional(), module: z.string().optional() })
+        .parse(req.body ?? {});
+      let ids = body.ids ?? [];
+      if (ids.length === 0) {
+        const filtre: Record<string, unknown> = { status: 'trouvee', source: 'peertube' };
+        if (body.module) filtre.module = body.module;
+        ids = (await AcademyCandidate.find(filtre).sort({ createdAt: 1 }).limit(10).select('_id')).map((c) =>
+          String(c._id)
+        );
+      }
+      const evalues: unknown[] = [];
+      const echecs: { id: string; erreur: string }[] = [];
+      for (const id of ids) {
+        try {
+          evalues.push(await evaluerCandidat(id));
+        } catch (e) {
+          echecs.push({ id, erreur: (e as Error).message });
+        }
+      }
+      const restants = await AcademyCandidate.countDocuments({
+        status: 'trouvee',
+        source: 'peertube',
+        ...(body.module ? { module: body.module } : {}),
+      });
+      res.json({ evalues, echecs, restants });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.post(
+  '/academy/catalogue/:id/evaluer',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({ candidat: await evaluerCandidat(req.params.id) });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+const placementSchema = z.object({
+  packId: z.string().min(1, 'Choisissez la formation qui recevra cette vidéo.'),
+  ordre: z.coerce.number().min(0).optional(),
+});
+
+adminRouter.post(
+  '/academy/catalogue/:id/demande-fichier',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await demanderFichierAuteur(req.params.id));
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.post(
+  '/academy/catalogue/:id/fichier',
+  requireRole('admin'),
+  upload.single('file'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file) throw new AppError('Fichier manquant (champ "file")', 400);
+      if (!req.file.mimetype.startsWith('video/')) throw new AppError('Le fichier doit être une vidéo', 400);
+      const content = await deposerFichierCandidat(
+        req.params.id,
+        { buffer: req.file.buffer, originalname: req.file.originalname },
+        placementSchema.parse(req.body ?? {})
+      );
+      res.status(201).json({ content });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.post(
+  '/academy/catalogue/:id/importer',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const content = await importerDepuisPeertube(req.params.id, placementSchema.parse(req.body ?? {}));
+      res.status(201).json({ content });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.post(
+  '/academy/catalogue/:id/rejeter',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({ candidat: await rejeterCandidat(req.params.id) });
     } catch (err) {
       next(err);
     }
@@ -1723,6 +2336,7 @@ adminRouter.post(
       // Relance du pipeline complet, sans re-débiter le client : il a déjà
       // payé cette génération, l'échec vient de nous.
       site.status = 'generating';
+      site.generationStartedAt = new Date();
       site.proposals = [];
       await site.save();
       const job = await pipelineQueue.add('generate-site', {
@@ -2488,7 +3102,9 @@ adminRouter.get(
       res.json({
         packs: packs.map((p: { _id: unknown }) => ({
           ...p,
+          id: String(p._id),
           contenus: parPack.get(String(p._id)) ?? 0,
+          nbContenus: parPack.get(String(p._id)) ?? 0,
         })),
       });
     } catch (err) {
@@ -2513,6 +3129,9 @@ adminRouter.post(
           ordre: z.coerce.number().default(0),
           imageUrl: z.string().url().optional(),
           category: z.string().max(120).optional(),
+          module: z.enum(ACADEMY_MODULE_SLUGS).optional(),
+          accroche: z.string().max(200).optional(),
+          pratique: z.string().max(300).optional(),
         })
         .parse(req.body ?? {});
 
@@ -2545,11 +3164,18 @@ adminRouter.patch(
           ordre: z.coerce.number().optional(),
           imageUrl: z.string().url().optional(),
           category: z.string().max(120).optional(),
+          module: z.enum(ACADEMY_MODULE_SLUGS).optional(),
+          accroche: z.string().max(200).optional(),
+          pratique: z.string().max(300).optional(),
           status: z.enum(['brouillon', 'publié']).optional(),
         })
         .parse(req.body ?? {});
 
       const pack = await AcademyPack.findByIdAndUpdate(req.params.id, body, { new: true });
+      // Les séances suivent le module de leur formation.
+      if (pack && body.module) {
+        await AcademyContent.updateMany({ packId: pack._id }, { $set: { module: body.module } });
+      }
       if (!pack) throw new AppError('Pack introuvable.', 404);
       res.json({ pack });
     } catch (err) {
@@ -2617,6 +3243,10 @@ adminRouter.post(
           creditsCost: z.coerce.number().min(0).optional(),
           access: z.enum(['gratuit', 'payant']).optional(),
           niche: z.string().max(120).optional(),
+          // Partie de la formation qui reçoit les VIDÉOS (les PDF vont toujours dans le kit).
+          partie: z.enum(['bases', 'complet', 'pratique']).default('pratique'),
+          genre: z.enum(['ia', 'pratique_ia', 'reelle']).default('reelle'),
+          fournisseur: z.string().max(200).optional(),
         })
         .parse(req.body ?? {});
 
@@ -2642,23 +3272,40 @@ adminRouter.post(
 
       const crees: string[] = [];
       const echecs: string[] = [];
+      // Les séances importées se rangent à la suite des séances existantes,
+      // dans l'ordre alphabétique des noms de fichiers (01-intro, 02-…).
+      retenus.sort((a, b) => a.filename.localeCompare(b.filename, 'fr', { numeric: true }));
+      const licenceTiers = body.fournisseur && !/nexai/i.test(body.fournisseur);
+      const ordres: Record<string, number> = {
+        [body.partie]: await AcademyContent.countDocuments({ packId: pack._id, partie: body.partie }),
+        kit: await AcademyContent.countDocuments({ packId: pack._id, partie: 'kit' }),
+      };
       for (const item of retenus) {
         try {
-          const publicId =
+          const stockage =
             item.type === 'pdf'
-              ? await uploadAcademyPdf(item.buffer, item.filename)
-              : await uploadAcademyVideo(item.buffer, item.filename);
+              ? { hosting: 'cloudinary' as const, sourceUrl: await uploadAcademyPdf(item.buffer, item.filename) }
+              : await stockerVideoAcademie(item.buffer, item.filename);
 
+          const partieItem = item.type === 'pdf' ? 'kit' : body.partie;
+          ordres[partieItem] = (ordres[partieItem] ?? 0) + 1;
           await AcademyContent.create({
             packId: pack._id,
+            module: pack.module,
+            ordre: ordres[partieItem],
+            role: 'seance',
+            partie: partieItem,
+            genre: item.type === 'pdf' ? 'document' : body.genre,
+            fournisseur: body.fournisseur,
+            attribution: { licence: licenceTiers ? 'fournisseur' : 'nexai' },
             title: titreDepuisNomFichier(item.filename).slice(0, 160),
             type: item.type,
             access: accesPack,
             creditsCost: accesPack === 'payant' ? coutPack : 0,
             status: 'brouillon',
             niche: body.niche,
-            hosting: 'cloudinary',
-            sourceUrl: publicId,
+            hosting: stockage.hosting,
+            sourceUrl: stockage.sourceUrl,
           });
           crees.push(item.filename);
         } catch {
@@ -2708,6 +3355,116 @@ adminRouter.post(
       await pack.save();
 
       res.json({ ok: true, statut, contenus: modifiedCount });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ══════════════════════════════════════════════════════════════════
+// LIBRAIRIE DESIGN — IA & qualité → Librairie
+// Voir / modifier les règles lues par le codeur et les juges, historique,
+// retour arrière, retour à la version livrée, aperçu par niche.
+// ══════════════════════════════════════════════════════════════════
+
+adminRouter.get('/librairie', requireRole('admin'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json(await listerLibrairie());
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.get(
+  '/librairie/apercu/:niche',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await apercuLibrairie(req.params.niche));
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.get(
+  '/librairie/:collection/:id',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await lireDocumentLibrairie(req.params.collection, req.params.id));
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.put(
+  '/librairie/:collection/:id',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z
+        .object({
+          texte: z.string().max(200_000).optional(),
+          donnees: z.record(z.unknown()).optional(),
+          commentaire: z.string().max(500).optional(),
+        })
+        .parse(req.body);
+      const auteur = req.auth!.email ?? 'admin';
+      const r = await modifierDocumentLibrairie(
+        req.params.collection,
+        req.params.id,
+        { texte: body.texte, donnees: body.donnees },
+        auteur,
+        body.commentaire
+      );
+      await logEvent({
+        categorie: 'action_admin',
+        niveau: 'info',
+        message: `Librairie modifiée : ${req.params.collection}/${req.params.id} (v${r.version})${
+          body.commentaire ? ` — ${body.commentaire}` : ''
+        }`,
+      });
+      res.json(r);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.post(
+  '/librairie/:collection/:id/retour/:version',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const version = Number(req.params.version);
+      if (!Number.isInteger(version) || version < 0) throw new AppError('Version invalide.', 400);
+      const r = await retourArriereLibrairie(req.params.collection, req.params.id, version, req.auth!.email ?? 'admin');
+      await logEvent({
+        categorie: 'action_admin',
+        niveau: 'info',
+        message: `Librairie : retour arrière ${req.params.collection}/${req.params.id} → version ${version}`,
+      });
+      res.json(r);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.post(
+  '/librairie/:collection/:id/version-livree',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const r = await versionLivreeLibrairie(req.params.collection, req.params.id, req.auth!.email ?? 'admin');
+      await logEvent({
+        categorie: 'action_admin',
+        niveau: 'info',
+        message: `Librairie : ${req.params.collection}/${req.params.id} remis à la version livrée`,
+      });
+      res.json(r);
     } catch (err) {
       next(err);
     }

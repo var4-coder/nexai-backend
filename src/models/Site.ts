@@ -68,6 +68,10 @@ export interface ISiteProposalPage {
   title: string;
   description?: string;
   html: string;
+  /** Note du juge code (/100, plafonnée à 59 si un veto reste). */
+  score?: number;
+  /** Règles de la Librairie encore violées (VETO). */
+  vetos?: string[];
 }
 
 export interface ISiteProposal {
@@ -83,6 +87,19 @@ export interface ISiteProposal {
    */
   judgeReasons?: string[];
   judgeAdvice?: string[];
+  /**
+   * Numéros des règles de la Librairie encore violées (VETO) à la fin de la
+   * génération — vide si la page est acceptée. Voir JUDGES.md.
+   */
+  vetos?: string[];
+  /**
+   * Pages intérieures de CETTE proposition (sites multi-pages) :
+   *  · 'a_finaliser' : aperçu d'accueil prêt ; les pages restantes seront
+   *    créées quand le client choisira cet aperçu (« Finaliser mon site ») ;
+   *  · 'en_cours' / 'pretes' / 'echec'.
+   * Absent = site d'une seule page, ou pages créées d'emblée (historique).
+   */
+  pagesStatut?: 'a_finaliser' | 'en_cours' | 'pretes' | 'echec';
   htmlDemo?: string; // page d'accueil (toujours présente, comportement historique inchangé)
   /**
    * Pages additionnelles générées pour les sites multi-pages (voir
@@ -122,6 +139,12 @@ export interface ISite {
   name?: string;
   brief: Record<string, unknown>;
   status: SiteStatus;
+  /**
+   * Début réel de la génération en cours. Sert à reprendre la barre de
+   * progression là où elle en est quand le client quitte puis revient sur la
+   * page (updatedAt ne convient pas : il bouge à chaque tentative/relance).
+   */
+  generationStartedAt?: Date;
   /** Qualité choisie lors de la dernière génération lancée (défaut 'normal') */
   qualityTier?: SiteQualityTier;
   /** 'static' (défaut) ou 'nextjs' pour les sites complexes nécessitant un vrai backend applicatif */
@@ -188,6 +211,12 @@ export interface ISite {
   creditsChargedForGeneration?: number;
   /** Dépense fournisseur cumulée sur CETTE commande, jamais remise à zéro entre reprises. */
   depenseCumuleeUsd?: number;
+  /**
+   * Version (empreinte du contenu) de la Librairie design utilisée pour
+   * générer et juger ce site : permet de comparer avant/après un
+   * enrichissement de la Librairie et d'interpréter un test A/B.
+   */
+  libraryVersion?: string;
   /** La reprise automatique BullMQ a déjà été consommée. */
   autoRetryUsed?: boolean;
   /** Le client a droit à une relance gratuite (1 seule). */
@@ -209,6 +238,7 @@ const siteSchema = new Schema<ISite>(
     niche: { type: String, required: true },
     name: { type: String, trim: true },
     brief: { type: Schema.Types.Mixed, default: {} },
+    generationStartedAt: { type: Date },
     status: {
       type: String,
       enum: [
@@ -231,6 +261,8 @@ const siteSchema = new Schema<ISite>(
         score: Number,
         judgeReasons: [{ type: String }],
         judgeAdvice: [{ type: String }],
+        vetos: [{ type: String }],
+        pagesStatut: { type: String, enum: ['a_finaliser', 'en_cours', 'pretes', 'echec'] },
         htmlDemo: String,
         pages: [
           {
@@ -238,6 +270,8 @@ const siteSchema = new Schema<ISite>(
             title: String,
             description: String,
             html: String,
+            score: Number,
+            vetos: [{ type: String }],
           },
         ],
         pagesMeta: [{ slug: String, title: String, description: String }],
@@ -276,6 +310,7 @@ const siteSchema = new Schema<ISite>(
     clientMessage: { type: String },
     creditsChargedForGeneration: { type: Number },
     depenseCumuleeUsd: { type: Number, default: 0 },
+    libraryVersion: { type: String },
     autoRetryUsed: { type: Boolean, default: false },
     freeRelaunchAvailable: { type: Boolean, default: false },
     freeRelaunchUsed: { type: Boolean, default: false },

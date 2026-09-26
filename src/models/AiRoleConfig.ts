@@ -17,6 +17,8 @@ export type AiRole =
   | 'codeur_normale'
   | 'codeur_normale_apercu2'
   | 'codeur_premium'
+  | 'codeur_pages_premium'
+  | 'codeur_pages_normale'
   | 'juge_code'
   | 'reparateur_code'
   | 'juge_visuel'

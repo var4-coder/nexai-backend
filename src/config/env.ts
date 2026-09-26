@@ -93,6 +93,32 @@ const envSchema = z.object({
   ALEXYA_API_KEY: z.string().optional().default(''),
   PEXELS_API_KEY: z.string().optional().default(''),
 
+  // ── Académie : hébergement vidéo Bunny Stream ──
+  // Tant que ces trois valeurs ne sont pas renseignées, les vidéos Académie
+  // continuent d'être envoyées sur Cloudinary (rien ne casse). Dès qu'elles
+  // le sont, tout nouvel upload vidéo part sur Bunny. Les PDF restent sur
+  // Cloudinary (filigrane nominatif déjà en place).
+  //  · BUNNY_STREAM_LIBRARY_ID : identifiant numérique de la bibliothèque vidéo
+  //  · BUNNY_STREAM_API_KEY    : clé API de CETTE bibliothèque (onglet API)
+  //  · BUNNY_STREAM_TOKEN_KEY  : clé « Token Authentication » de la bibliothèque
+  //    (onglet Security, avec « Embed view token authentication » activé)
+  BUNNY_STREAM_LIBRARY_ID: z.string().optional().default(''),
+  BUNNY_STREAM_API_KEY: z.string().optional().default(''),
+  BUNNY_STREAM_TOKEN_KEY: z.string().optional().default(''),
+  /** Durée de validité d'un lien de lecture Bunny signé (secondes). 4 h par défaut. */
+  BUNNY_STREAM_TOKEN_TTL: z.coerce.number().min(60).default(4 * 3600),
+
+  // ── Académie : générateur « PDF → vidéo IA » (voix off) ──
+  /** Clé Google AI Studio (Gemini) : voix off des vidéos IA de l'Académie. */
+  GEMINI_API_KEY: z.string().optional().default(''),
+  /** Modèle de voix Gemini. Modifiable sans redéployer le code. */
+  GEMINI_TTS_MODEL: z.string().optional().default('gemini-3.8-flash-tts'),
+  /** Voix Gemini du formateur NexAI (ex. Kore, Charon, Puck…). Toujours la même sur toute l'Académie. */
+  GEMINI_TTS_VOICE: z.string().optional().default('Kore'),
+  // ── Académie : catalogue PeerTube (vidéos pratiques sous licence libre) ──
+  /** Moteur de recherche PeerTube (fédération). SepiaSearch par défaut. */
+  PEERTUBE_SEARCH_URL: z.string().optional().default('https://sepiasearch.org'),
+
   XAI_API_KEY: z.string().optional().default(''),
   ANTHROPIC_API_KEY: z.string().optional().default(''),
 

@@ -71,3 +71,20 @@ export const qualityQueue = new Queue('quality-agent', {
     removeOnFail: 200,
   },
 });
+
+/**
+ * File ACADÉMIE : fabrication des vidéos IA (PDF → script → voix → montage).
+ *
+ * Séparée des vidéos publicitaires : l'admin qui fabrique ses cours ne doit
+ * jamais ralentir les commandes des clients. Une seule tentative : une erreur
+ * est affichée dans l'admin, qui relance lui-même (le script déjà écrit et
+ * validé n'est jamais perdu).
+ */
+export const academyVideoQueue = new Queue('academy-video', {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 1,
+    removeOnComplete: 200,
+    removeOnFail: 500,
+  },
+});
