@@ -88,6 +88,19 @@ RECRAFT_API_KEY=…
 ALEXYA_API_KEY=…
 PEXELS_API_KEY=…
 
+# Académie — hébergement des vidéos (Bunny Stream). Sans ces valeurs, les
+# vidéos continuent de partir sur Cloudinary.
+BUNNY_STREAM_LIBRARY_ID=…      (numéro de la bibliothèque vidéo)
+BUNNY_STREAM_API_KEY=…         (clé API de la bibliothèque, onglet « API »)
+BUNNY_STREAM_TOKEN_KEY=…       (onglet « Security » → Token Authentication)
+
+# Académie — voix off des vidéos IA (générateur « PDF → vidéo »)
+GEMINI_API_KEY=…               (Google AI Studio → « Get API key »)
+GEMINI_TTS_VOICE=Kore          (facultatif : voix du formateur NexAI)
+GEMINI_TTS_MODEL=gemini-3.8-flash-tts  (facultatif)
+# ELEVENLABS_API_KEY (déjà présente) sert de voix alternative.
+# YOUTUBE_API_KEY n'est plus utilisée : vous pouvez la supprimer.
+
 # Jeton de votre agent de maintenance externe (chaîne aléatoire longue).
 # JAMAIS votre JWT : si ce jeton fuite, votre compte admin reste intact.
 PLATFORM_AGENT_TOKEN=…
@@ -95,6 +108,38 @@ PLATFORM_AGENT_TOKEN=…
 
 > **Le premier build prend 5 à 10 minutes** : Docker installe Chromium et
 > ffmpeg. Les déploiements suivants sont bien plus rapides grâce au cache.
+
+---
+
+### Académie : mise en place de Bunny Stream (10 minutes)
+
+1. Créez un compte sur bunny.net → **Stream** → **Add Video Library**
+   (nom : « NexAI Académie », régions : Europe + Afrique si proposées).
+2. Onglet **API** de la bibliothèque : notez le **Library ID** et l'**API Key**
+   → `BUNNY_STREAM_LIBRARY_ID` et `BUNNY_STREAM_API_KEY`.
+3. Onglet **Security** : activez **Embed view token authentication**, copiez la
+   **Token authentication key** → `BUNNY_STREAM_TOKEN_KEY`. Ajoutez votre domaine
+   Netlify dans **Allowed domains** (lecture bloquée ailleurs).
+4. Onglet **Player** : couleur principale `#1D4ED8` (bleu NexAI), logo NexAI en
+   filigrane si souhaité. Ne cochez pas **MediaCage DRM** : les vidéos sous licence
+   Creative Commons ne doivent pas recevoir de DRM (règle Creative Commons).
+5. Redéployez l'API : l'admin Académie affiche « Vidéos → Bunny ».
+
+Bunny est obligatoire pour l'Académie : les vidéos IA fabriquées par le
+générateur et les vidéos PeerTube importées y sont hébergées.
+
+### Académie : premier démarrage
+
+Au premier démarrage, l'API crée toute seule les 22 domaines et les 60
+formations du programme avec leurs textes de base. Dans l'admin → Académie :
+1. « Générer les images manquantes (Pexels) » : une image par domaine et par formation.
+2. Générateur « PDF → vidéo IA » : déposez un résumé ou un PDF, relisez le
+   script, puis « Valider et fabriquer la vidéo ».
+3. Publiez les leçons dans « Contenus ». Une formation n'apparaît aux clients
+   que lorsqu'elle a au moins une leçon publiée.
+
+Les PDF restent sur Cloudinary. Les vidéos déjà envoyées sur Cloudinary
+continuent de fonctionner ; seules les nouvelles partent sur Bunny.
 
 ---
 
@@ -187,9 +232,12 @@ En production, un webhook non signé est systématiquement rejeté.
 
 **2. La librairie s'est chargée** — dans les logs du service web :
 ```
-📚 Librairie NexAI — auto-seed initial : 13 collection(s) créée(s)
+📚 Librairie NexAI — 59 document(s) ajouté(s), 0 mis à jour, 0 protégé(s) (modifiés dans l'admin).
 ```
-Sinon, lancez `npm run seed:library` depuis le shell Render.
+Aux déploiements suivants, les documents livrés plus récents (`seed_version`)
+remplacent automatiquement les anciens, SAUF ceux modifiés dans l'admin
+(« protégés »). `npm run seed:library` remplace TOUT, modifications admin
+comprises : à n'utiliser que volontairement.
 
 **3. Le worker tourne** — dans ses logs :
 ```

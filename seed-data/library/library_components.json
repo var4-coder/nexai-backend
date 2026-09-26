@@ -13,7 +13,8 @@
     "structure": "2 photos réelles côte-à-côte, jamais de montage stock",
     "niches": [
       "services"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "avis-google",
@@ -30,7 +31,8 @@
     "niches": [
       "services",
       "immobilier"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "button",
@@ -40,7 +42,8 @@
     "covers": [],
     "data_nexai_ids": [],
     "structure": null,
-    "niches": []
+    "niches": [],
+    "seed_version": 4
   },
   {
     "_id": "card",
@@ -50,7 +53,8 @@
     "covers": [],
     "data_nexai_ids": [],
     "structure": null,
-    "niches": []
+    "niches": [],
+    "seed_version": 4
   },
   {
     "_id": "cas-clients",
@@ -66,7 +70,8 @@
     "structure": "2 col ou liste, résultat chiffré/factuel, pattern BAB",
     "niches": [
       "business"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "cta-bandeau",
@@ -89,7 +94,8 @@
     "structure": "1 seul CTA primary, verbe d'action de niche, pas d'urgence factice",
     "niches": [
       "toutes"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "ecommerce",
@@ -113,7 +119,8 @@
     "structure": "Grille role=list, PDP avec CTA sticky 48px, Schema Product+Offer",
     "niches": [
       "mode"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "equipe",
@@ -132,7 +139,8 @@
     "niches": [
       "business",
       "sante"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "faq",
@@ -151,7 +159,8 @@
       "saas",
       "education",
       "sante"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "featured-listing",
@@ -170,7 +179,8 @@
     "niches": [
       "immobilier",
       "hotellerie"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "footer",
@@ -180,7 +190,8 @@
     "covers": [],
     "data_nexai_ids": [],
     "structure": null,
-    "niches": []
+    "niches": [],
+    "seed_version": 4
   },
   {
     "_id": "form",
@@ -190,7 +201,8 @@
     "covers": [],
     "data_nexai_ids": [],
     "structure": null,
-    "niches": []
+    "niches": [],
+    "seed_version": 4
   },
   {
     "_id": "hero",
@@ -200,7 +212,8 @@
     "covers": [],
     "data_nexai_ids": [],
     "structure": null,
-    "niches": []
+    "niches": [],
+    "seed_version": 4
   },
   {
     "_id": "logo-cloud",
@@ -223,7 +236,8 @@
       "business",
       "hotellerie",
       "education"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "menu-preview",
@@ -239,7 +253,8 @@
     "structure": "HTML sémantique par catégorie, jamais menu en image/PDF seul",
     "niches": [
       "restaurant"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "nav",
@@ -249,7 +264,8 @@
     "covers": [],
     "data_nexai_ids": [],
     "structure": null,
-    "niches": []
+    "niches": [],
+    "seed_version": 4
   },
   {
     "_id": "pricing",
@@ -267,7 +283,8 @@
     "niches": [
       "saas",
       "education"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "process-steps",
@@ -287,7 +304,8 @@
       "immobilier",
       "sante",
       "education"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "programmes",
@@ -303,7 +321,8 @@
     "structure": "Titre + durée + niveau + CTA, Schema Course",
     "niches": [
       "education"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "section",
@@ -313,7 +332,8 @@
     "covers": [],
     "data_nexai_ids": [],
     "structure": null,
-    "niches": []
+    "niches": [],
+    "seed_version": 4
   },
   {
     "_id": "skip-link",
@@ -329,7 +349,8 @@
     "structure": "Premier enfant du body, visible au focus clavier uniquement",
     "niches": [
       "toutes"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "split-content",
@@ -351,7 +372,8 @@
       "saas",
       "services",
       "mode"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "stats-bandeau",
@@ -368,7 +390,8 @@
     "niches": [
       "education",
       "saas"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "testimonial",
@@ -389,7 +412,8 @@
       "hotellerie",
       "saas",
       "education"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "work-grid",
@@ -405,7 +429,8 @@
     "structure": "1 travail large + grille inégale, filtres aria-pressed",
     "niches": [
       "portfolio"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "zone-horaires",
@@ -427,6 +452,7 @@
       "services",
       "immobilier",
       "restaurant"
-    ]
+    ],
+    "seed_version": 4
   }
 ]

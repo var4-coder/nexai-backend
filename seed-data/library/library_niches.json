@@ -94,7 +94,8 @@
       "3 cards expertise identiques",
       "illustration générique cabinet"
     ],
-    "_id": "business"
+    "_id": "business",
+    "seed_version": 4
   },
   {
     "id": "education",
@@ -177,7 +178,8 @@
       "violet sur violet",
       "stats inventées"
     ],
-    "_id": "education"
+    "_id": "education",
+    "seed_version": 4
   },
   {
     "id": "hotellerie",
@@ -308,7 +310,8 @@
       "plus de 1 overlay texte",
       "bleus froids"
     ],
-    "_id": "hotellerie"
+    "_id": "hotellerie",
+    "seed_version": 4
   },
   {
     "id": "immobilier",
@@ -405,7 +408,8 @@
       "3 biens en cards égales sans hiérarchie",
       "hero 100% centré"
     ],
-    "_id": "immobilier"
+    "_id": "immobilier",
+    "seed_version": 4
   },
   {
     "id": "mode",
@@ -512,7 +516,8 @@
       "accent rose pâle illisible",
       "plus de 2 CTA égaux sur PDP"
     ],
-    "_id": "mode"
+    "_id": "mode",
+    "seed_version": 4
   },
   {
     "id": "portfolio",
@@ -594,7 +599,8 @@
       "Person",
       "CreativeWork"
     ],
-    "_id": "portfolio"
+    "_id": "portfolio",
+    "seed_version": 4
   },
   {
     "id": "restaurant",
@@ -693,7 +699,8 @@
         "assiette stock générique"
       ]
     },
-    "_id": "restaurant"
+    "_id": "restaurant",
+    "seed_version": 4
   },
   {
     "id": "saas",
@@ -801,7 +808,8 @@
       "gradient arc-en-ciel",
       "gradient violet/indigo en hero ou H1"
     ],
-    "_id": "saas"
+    "_id": "saas",
+    "seed_version": 4
   },
   {
     "id": "sante",
@@ -905,7 +913,8 @@
       "offre avant preuve",
       "3 icon-cards services"
     ],
-    "_id": "sante"
+    "_id": "sante",
+    "seed_version": 4
   },
   {
     "id": "services",
@@ -1001,6 +1010,7 @@
       "3 services en icon-cards identiques",
       "offre avant preuve"
     ],
-    "_id": "services"
+    "_id": "services",
+    "seed_version": 4
   }
 ]

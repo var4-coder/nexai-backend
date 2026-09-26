@@ -3,8 +3,10 @@
  *
  * Usage : npm run seed:library
  *
- * À utiliser volontairement quand une mise à jour de contenu de la
- * Librairie doit être appliquée (écrase le contenu existant par upsert).
+ * ATTENTION : remplace TOUT, y compris les modifications faites dans l'admin.
+ * Les mises à jour normales de contenu n'en ont pas besoin : le serveur les
+ * applique seul au démarrage (seed_version), sans toucher aux documents
+ * modifiés dans l'admin.
  * Au tout premier déploiement, ce n'est pas nécessaire : le serveur
  * peuple automatiquement la Librairie tout seul au démarrage si les
  * collections sont vides (voir autoSeedLibraryOnBoot dans server.ts).
@@ -32,11 +34,11 @@ async function main() {
     if (r.skipped) {
       console.log(`⚠️  ${r.name} — ${r.reason}`);
     } else {
-      console.log(`✔ ${r.name} — ${r.count} document(s)`);
+      console.log(`✔ ${r.name} — ${r.ajoutes} document(s)`);
     }
   }
 
-  const total = results.reduce((sum, r) => sum + r.count, 0);
+  const total = results.reduce((sum, r) => sum + r.ajoutes, 0);
   console.log(`\nTerminé — ${total} documents écrits au total.`);
 
   await mongoose.disconnect();

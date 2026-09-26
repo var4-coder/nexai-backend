@@ -9,6 +9,16 @@ Backend Express + MongoDB + Redis/BullMQ (TypeScript).
 - Paiements utilisateur : PATCH /users/me/payments, defaultPaymentMode, personalPaymentLink, compteReversement (Mobile Money / crypto)
 - User model étendu (logosUsed, payment fields)
 
+## Académie (version 3 — 25/09/2026)
+- Structure Domaine (22) → Formation (60) → Leçons ; programme et textes de base dans `src/data/academy-modules.ts`, créés en base au démarrage (`assurerCatalogue`), jamais écrasés ensuite
+- Parties : bases (Partie 1), complet / pratique / kit (Partie 2 : Comprendre, Pratiquer, Outils)
+- Accès (option C) : essai 7 jours = vidéos IA bases + complet ; pratique et kit PDF verrouillés ; après l'essai tout est visible mais verrouillé ; Starter = tout (`academy-programme.service.ts`)
+- Rien de vide n'est envoyé au client ; chiffres publics réels via `GET /academy/stats`
+- Générateur « PDF → vidéo IA » (`academy-video-generator.service.ts`, file BullMQ `academy-video`) : script d'explication par Claude, relecture admin, diapositives Chromium, voix Gemini (ou ElevenLabs), montage ffmpeg, envoi Bunny
+- Kit PDF téléchargeable avec filigrane (`GET /academy/:id/telecharger`), abonnés uniquement
+- Catalogue PeerTube (vraies vidéos pratiques CC) noté par Claude, import direct sur Bunny ; YouTube retiré de l'Académie
+- Textes Sonnet et images Pexels des domaines et formations régénérables depuis l'admin
+
 ## Playwright (capture réelle du site)
 `npm install` déclenche automatiquement `playwright install --with-deps chromium`
 (script `postinstall`) pour télécharger le binaire Chromium nécessaire à

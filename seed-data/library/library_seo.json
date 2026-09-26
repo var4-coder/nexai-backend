@@ -37,6 +37,7 @@
         "sitemap": "auto-généré, toutes pages format production",
         "robots": "autorise tout, référence sitemap, pas de blocage par défaut"
       }
-    }
+    },
+    "seed_version": 4
   }
 ]

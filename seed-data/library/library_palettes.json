@@ -16,7 +16,8 @@
       "text-muted": "#475569",
       "border": "#E2E8F0"
     },
-    "forbidden": []
+    "forbidden": [],
+    "seed_version": 4
   },
   {
     "_id": "education",
@@ -34,7 +35,8 @@
       "text-muted": "#57534E",
       "border": "#E7E5E4"
     },
-    "forbidden": []
+    "forbidden": [],
+    "seed_version": 4
   },
   {
     "_id": "hotellerie",
@@ -60,7 +62,8 @@
         "on-accent": "#1C1917"
       }
     },
-    "forbidden": []
+    "forbidden": [],
+    "seed_version": 4
   },
   {
     "_id": "immobilier",
@@ -79,7 +82,8 @@
       "text-muted": "#475569",
       "border": "#E2E8F0"
     },
-    "forbidden": []
+    "forbidden": [],
+    "seed_version": 4
   },
   {
     "_id": "mode",
@@ -97,7 +101,8 @@
       "border": "#E7E5E4",
       "sale": "#BE185D"
     },
-    "forbidden": []
+    "forbidden": [],
+    "seed_version": 4
   },
   {
     "_id": "portfolio",
@@ -114,7 +119,8 @@
       "text-muted": "#525252",
       "border": "#E5E5E5"
     },
-    "forbidden": []
+    "forbidden": [],
+    "seed_version": 4
   },
   {
     "_id": "restaurant",
@@ -137,7 +143,8 @@
       "#3B82F6",
       "#0EA5E9",
       "tout bleu hue 180-250°"
-    ]
+    ],
+    "seed_version": 4
   },
   {
     "_id": "saas",
@@ -156,7 +163,8 @@
       "border": "#E2E8F0",
       "code-bg": "#0B1F3A"
     },
-    "forbidden": []
+    "forbidden": [],
+    "seed_version": 4
   },
   {
     "_id": "sante",
@@ -176,7 +184,8 @@
       "border": "#D9E2C8",
       "info": "#3F7D22"
     },
-    "forbidden": []
+    "forbidden": [],
+    "seed_version": 4
   },
   {
     "_id": "services",
@@ -195,6 +204,7 @@
       "text-muted": "#475569",
       "border": "#E2E8F0"
     },
-    "forbidden": []
+    "forbidden": [],
+    "seed_version": 4
   }
 ]
