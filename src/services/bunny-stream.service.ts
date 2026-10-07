@@ -64,7 +64,10 @@ export async function creerVideo(titre: string): Promise<string> {
  * Paramètres d'envoi : sous-titres français générés automatiquement par
  * Bunny (utile pour l'accessibilité et pour les vidéos sans sous-titres).
  */
-const PARAMS_UPLOAD = 'transcribeEnabled=true&transcribeLanguages=fr&sourceLanguage=fr';
+function paramsUpload(langue: 'fr' | 'en' = 'fr'): string {
+  return `transcribeEnabled=true&transcribeLanguages=${langue}&sourceLanguage=${langue}`;
+}
+const PARAMS_UPLOAD = paramsUpload('fr');
 
 /** Envoie un fichier déjà en mémoire (upload admin). Renvoie le GUID Bunny. */
 export async function envoyerVideoBuffer(buffer: Buffer, titre: string): Promise<string> {
@@ -88,7 +91,7 @@ export async function envoyerVideoBuffer(buffer: Buffer, titre: string): Promise
  * Envoie un fichier vidéo du disque (vidéos IA fabriquées par le serveur), en
  * flux : le fichier n'est jamais chargé entièrement en mémoire.
  */
-export async function envoyerVideoFichier(chemin: string, titre: string): Promise<string> {
+export async function envoyerVideoFichier(chemin: string, titre: string, langue: 'fr' | 'en' = 'fr'): Promise<string> {
   const { createReadStream, promises: fsp } = await import('fs');
   const { Readable } = await import('stream');
   const taille = (await fsp.stat(chemin)).size;
@@ -99,7 +102,7 @@ export async function envoyerVideoFichier(chemin: string, titre: string): Promis
     body: Readable.toWeb(createReadStream(chemin)) as unknown as RequestInit['body'],
     duplex: 'half',
   };
-  const res = await fetch(`${API_BASE}/library/${env.BUNNY_STREAM_LIBRARY_ID}/videos/${guid}?${PARAMS_UPLOAD}`, init);
+  const res = await fetch(`${API_BASE}/library/${env.BUNNY_STREAM_LIBRARY_ID}/videos/${guid}?${paramsUpload(langue)}`, init);
   if (!res.ok) {
     void supprimerVideo(guid);
     throw new AppError(`Bunny : envoi de la vidéo impossible (${res.status}) ${await lireErreur(res)}`, 502);

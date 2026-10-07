@@ -114,6 +114,10 @@ export interface IAcademyContent {
   genre?: AcademyGenre;
   /** Fournisseur / licence (ex. « Profitdigit », « PeerTube — Jean Dupont ») — suivi des droits */
   fournisseur?: string;
+  /** fr = leçon d'origine. en = version anglaise liée par jumeauDe. */
+  langue?: 'fr' | 'en';
+  /** Leçon française dont cette version anglaise est la jumelle. */
+  jumeauDe?: Types.ObjectId;
   /** Dernier contrôle de disponibilité (vidéos YouTube intégrées) */
   verificationLien?: { ok: boolean; raison?: string; verifieLe: Date };
   createdAt: Date;
@@ -147,6 +151,8 @@ const academyContentSchema = new Schema<IAcademyContent>(
     partie: { type: String, enum: ['bases', 'complet', 'pratique', 'kit'], index: true },
     genre: { type: String, enum: ['ia', 'pratique_ia', 'reelle', 'document'] },
     fournisseur: { type: String, trim: true, maxlength: 200 },
+    langue: { type: String, enum: ['fr', 'en'], default: 'fr', index: true },
+    jumeauDe: { type: Schema.Types.ObjectId, ref: 'AcademyContent', index: true },
     duree: { type: Number, min: 0 },
     attribution: {
       licence: {

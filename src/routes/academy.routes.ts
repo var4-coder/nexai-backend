@@ -70,7 +70,7 @@ function creditDe(c: Pick<IAcademyContent, 'attribution'>) {
 }
 
 async function chargerLecteur(userId: string) {
-  const user = await User.findById(userId).select('plan planExpiresAt trialEndsAt role email');
+  const user = await User.findById(userId).select('plan planExpiresAt trialEndsAt role email langue');
   if (!user) throw new AppError('Utilisateur introuvable', 404);
   return { user, statut: statutAcademie(user) };
 }
@@ -99,11 +99,20 @@ academyRouter.get('/', requireAuth, async (req: Request, res: Response, next: Ne
     await assurerCatalogue();
     const { user, statut } = await chargerLecteur(req.auth!.userId);
 
-    const [lecons, packs, domainesDb] = await Promise.all([
+    const [leconsToutes, packs, domainesDb] = await Promise.all([
       AcademyContent.find(FILTRE_LECONS).sort({ ordre: 1, createdAt: 1 }),
       AcademyPack.find({ status: 'publié' }).lean(),
       AcademyDomaine.find().lean(),
     ]);
+    const veutAnglais = user.langue && user.langue !== 'fr';
+    const jumelles = new Map(
+      leconsToutes
+        .filter((l) => l.langue === 'en' && l.jumeauDe)
+        .map((l) => [String(l.jumeauDe), l])
+    );
+    const lecons = leconsToutes
+      .filter((l) => l.langue !== 'en')
+      .map((l) => (veutAnglais ? jumelles.get(String(l._id)) ?? l : l));
 
     const packsParId = new Map(packs.map((p) => [String(p._id), p]));
     const leconsParFormation = new Map<string, typeof lecons>();

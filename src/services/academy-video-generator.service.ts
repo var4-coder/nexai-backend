@@ -528,11 +528,72 @@ export async function fabriquerVideo(jobId: string): Promise<void> {
       niveau: 'info',
       message: `Académie : vidéo IA « ${script.titre} » fabriquée (${Math.round(dureeTotale / 60)} min, ≈ ${job.coutUsd.toFixed(2)} $) — brouillon à publier`,
     });
+    await fabriquerVersionAnglaise(content._id, script, job.voix, job.partie, domaine).catch((err) => {
+      void logEvent({
+        categorie: 'action_admin',
+        niveau: 'warn',
+        message: `Académie : version anglaise non fabriquée (${(err as Error).message.slice(0, 180)})`,
+      });
+    });
   } catch (e) {
     job.statut = 'erreur';
     job.erreur = (e as Error).message.slice(0, 500);
     await job.save();
     throw e;
+  } finally {
+    await fs.rm(dossier, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+
+/** Réécrit le script français en anglais, voix anglaise, vidéo Bunny séparée. */
+async function fabriquerVersionAnglaise(
+  sourceId: unknown,
+  scriptFr: IScript,
+  voix: VideoJobVoix,
+  partie: VideoJobPartie,
+  domaine: string
+): Promise<void> {
+  const brut = await callClaude(
+    'claude-sonnet-5-5',
+    'You are the NexAI academy trainer. Rewrite this lesson script into natural spoken English for a beginner. Keep the same number of scenes, the same teaching points, and the JSON shape {titre, description, scenes:[{titre, narration, points}]}. Narration must be spoken English, not French.',
+    [{ role: 'user', content: JSON.stringify(scriptFr) }],
+    { maxTokens: 16000, timeoutMs: 300_000 }
+  );
+  const script = normaliserScript(lireJson(brut));
+  const dossier = await fs.mkdtemp(path.join(os.tmpdir(), 'nexai-academie-en-'));
+  try {
+    const { fichier, dureeTotale } = await produireVideo({
+      script,
+      domaine,
+      partie,
+      dossier,
+      voix: (texte) => genererVoix(texte, voix),
+      progression: async () => undefined,
+    });
+    const guid = await envoyerVideoFichier(fichier, script.titre, 'en');
+    const source = await AcademyContent.findById(sourceId);
+    if (!source) return;
+    await AcademyContent.create({
+      title: script.titre,
+      description: script.description,
+      type: 'video',
+      access: source.access,
+      status: 'brouillon',
+      hosting: 'bunny',
+      sourceUrl: guid,
+      module: source.module,
+      packId: source.packId,
+      partie: source.partie,
+      genre: source.genre,
+      role: 'seance',
+      ordre: source.ordre,
+      duree: Math.round(dureeTotale),
+      fournisseur: 'NexAI — English version',
+      langue: 'en',
+      jumeauDe: source._id,
+      attribution: { licence: 'nexai' },
+    });
   } finally {
     await fs.rm(dossier, { recursive: true, force: true }).catch(() => undefined);
   }

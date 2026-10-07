@@ -905,6 +905,7 @@ adminRouter.patch(
         { new: true }
       );
       if (!content) throw new AppError('Contenu introuvable', 404);
+      await AcademyContent.updateMany({ jumeauDe: content._id }, { status: 'publié' });
       res.json({ content });
     } catch (err) {
       next(err);
