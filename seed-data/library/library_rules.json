@@ -2,25 +2,879 @@
   {
     "_id": "ai_rules",
     "source_file": "AI_RULES.md",
-    "content_md": "# AI_RULES — NexAI Design Library v3.0 (merge v2 + v2.1)\n\nVersion: 3.0.0\nStatut: PROD — consommée par le Codeur, le Juge code, le Juge visuel (modèles réglés dans l'admin, Équipe IA) et les fournisseurs d'images.\n\nConsommation OBLIGATOIRE, dans cet ordre, avant toute génération:\n1. Ce fichier (AI_RULES.md) + REGLES_GENERATION.md\n2. tokens/global.json\n3. niches/{slug}.json\n4. CONTRAST.md\n5. components/*.meta.md\n6. LAYOUTS.md\n7. COPY.md\n8. SCHEMA.md + PERF.md + MEDIA.md\n9. SLOP.md (interdits pendant toute la génération, pas relu après)\n\n## Ce qui a fusionné (v2 + v2.1) — pour ne pas re-débattre\n\n| Domaine | Source qui gagne |\n|---|---|\n| Atmosphere, fonts, palette primary/surface, voice, photo.style, pages, schema @type | v2 (niches d'origine) |\n| Couleur d'action (bouton), usage accent, silhouettes hero, homeSections, gates, slop | v2.1 (patché) |\n\nAucune niche n'a été réécrite from scratch. Seuls les champs `action`, `on-action`,\n`accentUsage`, `hero` (silhouette) et `homeSections` ont été patchés dans chaque\nniches/{slug}.json. Le reste (atmosphere, fonts, ramp, voice, photo) est inchangé.\n\n## Interdits (hard block — génération refusée si présents)\n\n- Hex / rgb / px magiques hors tokens.css et niches/*.json\n- Plus de 1 accent chromatique dominant par viewport (photo exceptée)\n- Body < 16px desktop et mobile (sauf caption 13–14px)\n- Contraste texte < 4.5:1 (AA) — 7:1 pour mentions légales\n- Cibles cliquables < 44×44px (on vise AAA 2.5.5 / Apple HIG, pas le plancher AA 2.5.8 = 24px)\n- Images non WebP/AVIF, sans width/height, sans lazy hors LCP\n- Plus de 2 familles de polices (+1 mono optionnel SaaS)\n- Plus de 2 poids chargés par famille (400 + 600/700)\n- Animations si `prefers-reduced-motion: reduce` non respecté\n- Bleus froids (hue 180–250°) sur Restaurant\n- Radius > 2px sur Portfolio créatif\n- CTA panier faible contraste sur E-commerce mode\n- Grille de 3 icon-cards identiques (icône + titre + 2 lignes) utilisée comme section \"offre\"\n  — voir SLOP.md S3/S4 pour la définition exacte. Ceci n'est PAS une interdiction du chiffre 3 :\n  `pricing-3` (SaaS), `featured-1-plus-2` (hôtel) restent autorisés, ce sont des patterns\n  marché différents (voir LAYOUTS.md).\n- Sections décoratives sans job (chaque bloc = clarté, preuve ou action)\n- Tout tell listé dans SLOP.md marqué ★ VETO\n\n## Performance (budget non négociable)\n\n- LCP ≤ 2.5s | CLS ≤ 0.1 | INP ≤ 200ms (seuils Core Web Vitals officiels Google)\n- Hero image: 1 fichier, AVIF/WebP, max 1600px, `fetchpriority=\"high\"`, jamais lazy\n- Fonts: `font-display: swap`, preload 1 woff2 (subset latin)\n- JS critique minimal ; images below-fold `loading=\"lazy\"`\n\n## Génération — étapes obligatoires\n\n1. Identifier la niche → charger `niches/{slug}.json`\n2. Appliquer les tokens sémantiques (jamais les primitifs directement)\n3. Choisir le hero LOCKÉ de la niche (LAYOUTS.md) — pas de choix libre\n4. Composer UNIQUEMENT des recipes de `components/*.meta.md`\n5. Injecter le schema.org de la niche (SCHEMA.md)\n6. Vérifier la checklist a11y + perf en fin de génération\n7. Lire MEDIA.md avant tout appel à Pexels/Imagine/Alexya\n\n## Hiérarchie visuelle (Stripe/Linear)\n\n- 1 H1, ≤ 12 mots, testé name-swap (COPY.md)\n- 1 CTA primaire visible above-the-fold, desktop ET mobile\n- Preuve (logo, note, NAP, avis, diplôme) dans les 2 premiers écrans\n- Whitespace = token `space-5` à `space-7` entre sections\n\n## Ce que l'IA n'a pas le droit d'inventer\n\nSi un choix n'est pas dans la librairie (couleur, hero, section, composant),\nl'IA prend le default de la niche. Elle n'invente jamais.\n",
-    "seed_version": 4
+    "content_md": "# AI_RULES — Librairie NexAI v8\n\nStatut : PROD. Lue par le Codeur, le Juge code et le Juge visuel (mêmes textes, mêmes numéros).\n\n## Modèle\nChaque site = UNE **FAMILLE** imposée par le backend = un **STYLE** (structure, composants, 2 polices, rayons) × une **PALETTE** (couleurs verrouillées). La recette de la famille est envoyée avec la fiche de la niche. Le codeur ne connaît pas les autres familles.\n\n## Qui gagne en cas de conflit\n1. **FAMILLES.md** (loi des familles) et la recette de la famille : couleurs, polices, graisses, rayons, ouverture (hero), nav, densité.\n2. **Fiche de la niche** : contenu, pages, sections, preuves, ton, CTA, schema.\n3. Règles communes (ce bloc). Un chiffre de la recette (taille, interligne, espacement) prime sur une valeur générique des TOKENS.\n\n## Ordre de lecture\nAI_RULES → REGLES_GENERATION → TOKENS → FAMILLES + recette de la famille → CONTRAST → LAYOUTS → COPY → SCHEMA / SEO / LEGAL / PERF / MEDIA → SLOP (interdits pendant toute la génération).\n\n## Interdits absolus (la page est refusée)\n- Couleur écrite hors des variables de la famille ; `--decor` en texte.\n- Contraste texte < 4,5:1 (grands titres ≥ 24 px : 3:1) ; texte principal < 7:1 sur fond et surface (garanti par les palettes : ne pas mélanger les paires).\n- Texte qui touche, chevauche ou passe sous un autre élément ; débordement horizontal à 360 px.\n- Corps < 16 px (légendes 13–14 px) ; cibles cliquables < 44 × 44 px.\n- Plus de 2 familles de polices (+ la mono prévue par le style Plan), graisses hors recette.\n- Plus d'un bouton de style principal par écran ; plus d'un accent chromatique par écran (photo exceptée).\n- Tout tell ★ de SLOP.md ; chiffre, avis, prix, client ou diplôme inventé (R2).\n\n## Hiérarchie visuelle\n1 H1 ≤ 12 mots propre au client · 1 CTA principal visible sans défiler (téléphone ET ordinateur) · une preuve réelle dans les 2 premiers écrans · écarts internes nettement plus petits que les écarts entre sections.\n\n## Auto-contrôle du codeur (avant de répondre)\n1. `<html>` porte `data-theme`, `data-style`, `data-palette`, `data-hero`, `data-nav`, `data-density`, `data-env=\"preview\"` (K1).\n2. `:root` ne contient QUE les variables de la famille ; aucun hex ailleurs.\n3. Polices = les 2 de la recette, graisses listées, lien Google Fonts `display=swap`.\n4. À 360 px : rien ne déborde, menu replié, CTA visible, barre mobile ne cache rien.\n5. Titres : interligne ≥ minimum de la recette ; prix et horaires en `nowrap`.\n6. Texte sur photo : voile ≥ 55 % ; bouton sur photo = `--btn-photo-bg` / `--btn-photo-ink`.\n7. Accent en texte = `--accent-text` ; `--decor` jamais en texte.\n8. Un seul `h1`, titres sans saut, `data-nexai-id` unique sur chaque texte modifiable.\n9. Aucun avis ni donnée inventée (R2) ; R4 concerne uniquement les aperçus internes du backend.\n10. JSON-LD de la niche, NAP identique partout (N1, N2) ; mentions légales en pied de page.\n\n## Ce que l'IA n'invente jamais\nCouleur, police, composant, section ou mise en page hors famille et fiche niche. Si un choix manque : valeur par défaut de la recette.\n\n## Mouvement, photos, formulaires (apports V10 testés)\n- **Un seul geste de mouvement par page** : celui de `allowlist.geste_motion[niche]` (SEULE source ; les fiches métier ne fixent plus de mouvement), coupé si `prefers-reduced-motion`. Mise en œuvre : `kit/motion.js` + `<html data-geste=\"entree|parallax|mots|aucun\">` (testé : 0 défaut avec et sans JS). « aucun geste lourd » = `aucun` (ne pas charger GSAP). Les gestes « aperçu image au survol » (portfolio), « lookbook défilement horizontal » (mode) et « démo produit » (SaaS) sont portés par leur composant, en CSS, sans GSAP.\n- **GSAP autorisé** (gratuit, usage commercial compris, depuis la version 3.13) sous contrat strict : (1) fichiers GSAP servis par NexAI (même domaine), jamais un CDN tiers ; chargés en `defer` ; seulement `gsap` + `ScrollTrigger` (+ `SplitText` pour le seul titre du hero) ; pas de Lenis, pas de curseur personnalisé, pas de boutons magnétiques. (2) **Amélioration progressive** : la page est complète et lisible sans JS ; l'état caché initial n'est posé QUE par le script (classe `js` ajoutée sur `<html>`), jamais dans le CSS de base. (3) GSAP n'anime que `opacity` et `transform` ; il ne touche jamais aux couleurs, polices, tailles ni marges de la famille. (4) Durées 0,4–0,9 s, déclenchement une seule fois, rien sur le texte courant ; seule exception : `parallax`, lié au défilement, qui ne déplace que la PHOTO du haut de page (translation ±6 %, photo agrandie à 1,12 pour ne jamais montrer de bord ; c'est la seule mise à l'échelle permise). (5) L'état final animé doit être identique à la page testée : le juge code mesure la page APRÈS les animations et SANS JS ; un écart = VETO.\n- Sans GSAP (sites statiques légers), le même geste se fait en CSS (`@keyframes`, ou `animation-timeline: view()` en amélioration progressive).\n- Photos : URL de la liste « PHOTOS AUTORISÉES » seulement (client → galerie Pexels NexAI → collecte Pexels automatique, remplie par le backend). Jamais d'emplacement vide visible : sans photo, variante de section sans photo (MEDIA.md).\n- Formulaires : composant `formulaire` (NexaiForm), libellés du brief.\n- Stack : `allowlist.stack` (Next.js pour mode, hôtellerie, immobilier ; HTML statique ailleurs) — même design system, même familles.\n\n## Règles V10 ajoutées (02/10)\n- SaaS : l'interface montrée doit paraître utilisée : états visibles (survol, focus, progression, valeur saisie), jamais un écran vide.\n- Réparateur : corrige UNIQUEMENT les violations citées par les juges ; ne change jamais la famille, le style ni le type de hero.\n- Aucun texte d'exemple : tout texte vient du brief client ; ne jamais copier la structure d'un site existant (suivre la fiche métier).\n- Haut de page : type = style de la famille, contenu = fiche métier (regles_themes).\n\n## Précisions issues de l'audit du 02/10 (3 sites codés depuis la librairie seule)\n- **Priorités en cas de doute** : brief client (textes, promesse, H1) > recette du style (structure, tailles, rayons, espacements, ratio de la photo du haut de page) > fiche métier (sections, contenu du haut de page) > jetons génériques (TOKENS). La promesse du brief sert de H1 même si elle ne suit pas une formule de COPY.\n- **Données absentes = section retirée** : une section ou un `must` qui exige des données réelles absentes du brief (avis, distinctions, logos clients, cas clients, LinkedIn, chiffres) est retiré, jamais inventé ni simulé.\n- **Sans aucune photo autorisée** : ouverture `type-only` si le style la propose ; sinon variante texte de chaque section photo. Jamais un bloc vide.\n- **Photo qui contredit le brief** (ex. un cuisinier alors que la cheffe est nommée) : ne pas l'utiliser comme portrait ; la signaler au backend.\n- **Formulaire** : les messages d'erreur sont rédigés par le codeur s'ils ne sont pas dans le brief (courts, précis : « Indiquez une date »), seulement pour les types de champs présents. Sous le formulaire : `<noscript>` avec téléphone / WhatsApp cliquables (le formulaire a besoin de JS).\n- **SCHEMA** : `\"url\": \"__SITE_URL__\"` (remplacé par le backend à la publication) ; ne jamais inventer de domaine.\n- **Variables** : `:root` = variables de la famille + jetons de forme du kit (espacements, durées, `--radius`, `--radius-btn`) ; aucune autre couleur.\n- **Fiches métier** : `signature-1-plus-list` et `menu-preview` peuvent être fusionnées en une seule section carte.\n\n## Précisions (2e passe d'audit, 02/10)\n- **Accents** : `--decor` est un ornement, il ne compte pas comme 2ᵉ accent (« 1 accent par écran » = `--accent` / `--accent-text`).\n- **Textes** : le codeur peut reformuler les FAITS du brief selon COPY (titres, phrases d'accroche), jamais en ajouter. Libellés d'action : ceux du brief priment sur ceux de COPY.\n- **Preuve (V6)** : un fait vérifiable du brief suffit (adresse complète, diplôme, ordre, années, prix). Sans avis réels, la section avis est retirée.\n- **Pages et liens** : ne lier que des pages du plan (`allowlist.pages`) ou des ancres de la page. Mentions légales et confidentialité : `/mentions-legales` et `/confidentialite` (créées par le backend). Adresse incomplète dans le brief : `PostalAddress` avec ce qui est fourni, rien d'inventé.\n- **Densité** : celle envoyée par le backend (`data-density`) ; à défaut, la première de la liste de la famille.\n- **Largeurs** : conteneur = celui de la recette, sinon `--container` (1 200 px) ; gouttières LAYOUTS = minimum (16 px téléphone, 24 px ordinateur), `--gutter` peut aller au-delà. Points de rupture : ceux de la recette priment.\n- **Photos qui contredisent le brief** (lieu, personnes, plat absent de la carte) : ne pas les utiliser ; si un emplacement reste vide, variante sans photo, et signaler au backend.\n- **Ordre des scripts** : `gsap.min.js` et `ScrollTrigger.min.js` en `defer`, puis `motion.js` EN LIGNE : il attend `DOMContentLoaded`, qui a lieu après les scripts `defer`.\n- **Repère du haut de page** : `data-nexai-id=\"hero\"` sur la section du haut de page, `nav` sur la navigation, `footer` sur le pied (motion.js et les juges s'y fient).\n- **Mentions légales** : petits textes en `--muted` (≥ 4,5:1) autorisés ; le 7:1 vaut pour le texte courant `--ink`.",
+    "seed_version": 10
   },
   {
     "_id": "regles_generation",
     "source_file": "REGLES_GENERATION.md",
-    "content_md": "# REGLES_GENERATION.md — fabrication d'un site NexAI (codeur ET juges)\n\nCes règles valent pour toutes les niches. Chaque règle porte un numéro : le\njuge cite ce numéro quand il la trouve violée, le réparateur corrige à partir\nde ce numéro. Le codeur et les juges lisent EXACTEMENT le même texte.\n\n## M — Mobile d'abord (la majorité des visiteurs sont sur téléphone)\n\n- M1. `<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">` dans le `<head>`. **VETO** si absent.\n- M2. Mise en page conçue pour 360 px de large, puis élargie avec `@media (min-width: 768px)` et `(min-width: 1024px)`.\n- M3. Aucun débordement horizontal à 360 px : jamais de largeur fixe en px sur un conteneur, images en `max-width:100%`, tableaux et blocs de code dans un conteneur `overflow-x:auto`. **VETO** si la page déborde.\n- M4. Unités relatives (%, rem, vw, `clamp()`) plutôt que des px figés ; grilles flex/grid qui repassent sur une colonne sous 768 px.\n- M5. Zones tactiles ≥ 44×44 px (voir C2) et corps de texte ≥ 16 px.\n- M6. Navigation utilisable au pouce : menu replié (bouton accessible avec `aria-expanded`) au-delà de 4 entrées.\n- M7. Barre d'action fixe en bas d'écran sur mobile autorisée pour les niches locales (Appeler / WhatsApp / Itinéraire / Réserver) : 64 px de haut, cibles 44 px, ne cache aucun contenu (`padding-bottom` du body).\n\n## H — Structure du document\n\n- H1. Un document HTML autonome ; CSS dans `<style>`, JavaScript minimal sans dépendance externe.\n- H2. Couleurs, espacements, rayons, ombres et polices passent UNIQUEMENT par les variables CSS déclarées dans `:root` à partir des tokens et de la palette de la niche (voir T1–T3).\n- H3. Un seul `h1` par page, titres sans saut de niveau (voir C5).\n- H4. WCAG 2.2 AA minimum (voir CONTRAST.md et C1–C6).\n\n## R — Rédaction\n\n- R1. Textes spécifiques au brief du client (structure PAS ou BAB, voir COPY.md) ; les formules vides sont interdites (voir COPY.md et S10).\n- R2. Aucun chiffre, avis, note, diplôme, partenaire ou client inventé. Si l'information n'est pas dans le brief, le bloc n'est pas affiché, ou une AUTRE preuve réelle du brief le remplace. **VETO**.\n- R3. Langue du site = langue du client (consigne de langue donnée en fin de consigne) ; vouvoiement par défaut (voir COPY.md).\n\n- R4. Avis d'EXEMPLE (aperçu seulement) : si le brief ne fournit AUCUN avis réel, la section avis peut montrer 2 ou 3 avis d'exemple pour que le client voie son site complet. Chaque avis d'exemple : attribut `data-origin=\"generated\"` sur son bloc, badge visible « Exemple », signature « prénom · aperçu seulement », AUCUNE note chiffrée ni étoile. Ajouter dans le CSS : `html[data-env=\"production\"] [data-origin=\"generated\"]{display:none!important}`. Ces blocs sont retirés automatiquement à la mise en ligne. Un avis réel fourni par le client n'a jamais `data-origin`.\n\n## PAY — Paiement selon la clientèle visée (`brief.clientele`)\n\nS'applique seulement si le brief indique une vente, une réservation payante, un don ou un abonnement.\n\n- PAY1. `locale` (clients dans sa ville ou son pays) : bouton principal « Payer par Mobile Money » ou « Commander » (lien Chariow ou Maketou du client : Orange Money, MTN MoMo, Moov Money, Wave…), commande WhatsApp si un numéro est fourni, « paiement à la livraison / sur place » seulement si le brief le dit. Prix en FCFA (ou la devise locale du brief).\n- PAY2. `digitale` (clients partout en Afrique ou dans le monde) : bouton principal « Payer par carte » (carte bancaire, PayPal… via le lien du client) ; prix en FCFA avec l'équivalent en euro ou en dollar si le brief le donne ; moyens acceptés écrits en clair.\n- PAY3. `mixte` : les deux — Mobile Money d'abord pour les clients locaux, carte ensuite.\n- PAY4. Clientèle non précisée : bouton neutre « Payer en ligne » + « Commander sur WhatsApp » si un numéro WhatsApp est fourni.\n- PAY5. Les moyens de paiement sont écrits en texte : jamais de logo d'opérateur dessiné ou inventé.\n",
-    "seed_version": 5
+    "content_md": "# REGLES_GENERATION.md — fabrication d'un site NexAI (codeur ET juges)\n\nChaque règle porte un numéro ; le juge cite ce numéro, le réparateur corrige à partir de lui.\n\n## M — Mobile d'abord\n- M1. `<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">`. **VETO** si absent.\n- M2. Conçu pour 360 px, élargi avec `@media (min-width: 768px)` et `(min-width: 1024px)`.\n- M3. Aucun débordement horizontal à 360 px (`scrollWidth ≤ largeur`) : pas de largeur fixe en px sur un conteneur, images `max-width:100%`, grilles en `minmax(0,1fr)`, défilements horizontaux voulus DANS leur conteneur (`overflow-x:auto`). **VETO**.\n- M4. Unités relatives et `clamp()` ; grilles qui passent sur une colonne sous 768 px (sauf grilles 2 colonnes prévues par le style).\n- M5. Cibles ≥ 44 × 44 px (C2) ; exception : liens à l'intérieur d'une phrase (WCAG 2.5.8). Corps ≥ 16 px. Anneau de focus : `--accent` ; sur un fond `--accent`, anneau `--on-accent`.\n- M6. Menu replié sous 768 px (bouton avec `aria-expanded`), 5 liens max.\n- M7. Barre fixe mobile (3 liens max parmi Appeler / WhatsApp / Itinéraire / Réserver, jamais un bouton plein — K3 ; c'est elle qui satisfait les `must` « CTA sticky mobile ») autorisée pour les niches locales : 64 px, cibles 44 px, `padding-bottom` du body égal.\n- M8b. Adresses e-mail et URL affichées : `overflow-wrap:anywhere` (elles ne peuvent pas se couper autrement).\n- M8. Prix, horaires, téléphones et montants ne se coupent jamais (`white-space:nowrap` ; « 9 000 F » reste sur une ligne). **MAJEUR**.\n- M9. H1 : 4 lignes max à 1 280 px (5 pour Affiche et Couverture), 6 max à 390 px. Sinon élargir la colonne ou réduire la taille.\n- M10. Aucun texte ne touche, ne chevauche ou ne passe sous un autre texte, une image, un bouton ou une barre fixe, à 390 et 1 280 px. **VETO**.\n\n## TY — Typographie\n- TY1. Interligne minimal des titres : police condensée en capitales (Anton, Oswald) **≥ 1.16** (mesuré : la virgule d'une ligne touche le « À » de la suivante à 1.14) ; autres capitales avec accents (À, É) **≥ 1.12** ; autres titres display **≥ 1.02** ; texte courant 1.5–1.7. **VETO** si les lettres se touchent.\n- TY2. Espacement des lettres des titres : jamais < −0.03em ; sous 600 px jamais < −0.01em.\n- TY3. Police machine (mono) : étiquettes, références, prix, coordonnées seulement ; jamais un paragraphe.\n- TY4. Tailles minimales : **paragraphes ≥ 16 px**. Textes secondaires COURTS (≤ 2 lignes : description sous un plat ou une chambre, légende, étiquette) : 13–14 px en `--muted` (≥ 4,5:1). Capitales espacées ≥ 0.08em : 12 px. Jamais < 12 px.\n- TY5. Graisses = celles de la recette (2 par famille de police). Pas de faux gras.\n- TY6. **Titre principal (H1) posé SUR une photo** : `max-width:16ch` (unité CSS `ch` = largeur du chiffre 0 ; 16ch ≈ 18 à 20 caractères français, c'est pourquoi la V10 écrivait aussi « 18 caractères »). Taille = recette du style, **aucun plafond fixe de 48 px**. Zone de texte ≤ 42 % de la largeur à 1 280 px. Lignes : règle M9. Mesuré le 02/10 sur les 6 familles Luxe : 16ch = 0 défaut, titre ≤ 36 % de la largeur, ≤ 4 lignes.\n- TY7. H1 sans photo dessous (titre seul, écran partagé) : largeur de la recette du style (de 11ch à 26ch selon le style, toutes mesurées).\n- TY9. Titres H1 et H2 : `text-wrap:balance` (évite un mot seul sur la dernière ligne ; défaut vu sur le site test hôtel : « bruit. » seul).\n- TY8. Espacement des lettres des titres en bas de casse : 0 ou négatif, jamais positif. Les capitales espacées (Luxe, sur-titres) restent permises.\n\n## CO — Couleur\n- CO1. Accent utilisé comme texte (lien, prix, repère, sur-titre) = `--accent-text` (≥ 4,5:1 sur `--bg` ET `--surface`).\n- CO2. `--decor` = ornement, filet, motif, ombre pleine, fond de surlignage sous `--ink` si la palette le permet ; **jamais** couleur de texte.\n- CO3. Texte sur photo : **voile ≥ 55 % sous le texte** (valeur unique pour tout le système : composants, médias, fiches métier), contraste mesuré sur le rendu. **Exception de couleur, seulement sur une photo** : le voile peut être noir transparent `rgba(0,0,0,a)` (ou `--bg` si la famille est sombre) et le texte est la couleur claire de la famille (`--bg` si la famille est claire, `--ink` si elle est sombre) ou `#FFFFFF`. Ce sont les deux seules valeurs hors variables permises, et uniquement dans `texte-sur-photo`. Légendes photo : fond sombre 55 % derrière.\n- CO4. Bouton posé sur une photo = `--btn-photo-bg` / `--btn-photo-ink` (définis par la palette). Jamais un blanc improvisé.\n- CO5. Aucune `opacity` < 1 sur un texte ; les nuances viennent de `--muted`.\n\n## H — Structure du document\n- H1. Un document HTML autonome ; CSS dans `<style>`, JavaScript minimal sans dépendance externe.\n- H2. Couleurs, polices, rayons et espacements UNIQUEMENT par les variables `:root` de la famille et des TOKENS.\n- H3. Un seul `h1`, titres sans saut de niveau (C5).\n- H4. WCAG 2.2 AA minimum (CONTRAST.md, C1–C6).\n\n## R — Rédaction\n- R1. Textes propres au brief (PAS ou BAB, COPY.md) ; formules vides interdites (S10).\n- R2. Aucun chiffre, avis, note, diplôme, partenaire, prix ou client inventé. Information absente = bloc non affiché ou remplacé par une AUTRE preuve réelle. **VETO**.\n- R3. Langue du client ; vouvoiement par défaut, tutoiement seulement si la famille ou le brief le prévoit.\n- R4. (Backend seulement — le codeur ne génère jamais d'avis, même d'exemple.) Avis d'EXEMPLE (aperçu seulement, si aucun avis réel) : 2 ou 3 maximum, `data-origin=\"generated\"`, badge visible « Exemple », signature « prénom · aperçu seulement », aucune note ni étoile. CSS : `html[data-env=\"production\"] [data-origin=\"generated\"]{display:none!important}`.\n\n## PAY — Paiement selon `brief.clientele`\nS'applique seulement si le brief indique vente, réservation payante, don ou abonnement.\n- PAY1. `locale` : bouton « Payer par Mobile Money » ou « Commander » (lien Chariow / Maketou : Orange Money, MTN MoMo, Moov Money, Wave…), commande WhatsApp si numéro fourni, paiement à la livraison seulement si le brief le dit. Prix en FCFA (format « 1 000 FCFA »).\n- PAY2. `digitale` : « Payer par carte » (carte, PayPal via le lien du client) ; FCFA + équivalent €/$ si fourni ; moyens écrits en clair.\n- PAY3. `mixte` : Mobile Money d'abord, carte ensuite.\n- PAY4. Non précisée : « Payer en ligne » + « Commander sur WhatsApp » si numéro.\n- PAY5. Moyens de paiement en texte, jamais de logo d'opérateur dessiné.",
+    "seed_version": 10
   },
   {
     "_id": "perf",
     "source_file": "PERF.md",
-    "content_md": "# PERF.md — Core Web Vitals (seuils officiels Google)\n\nBudgets : LCP ≤ 2.5s | INP ≤ 200ms | CLS ≤ 0.1\n\n## LCP\n\n- 1 image hero AVIF/WebP, max 1600px\n- `fetchpriority=\"high\"` `loading=\"eager\"`\n- NE PAS lazy-load le LCP\n- `preload` `as=\"image\"` du hero\n- `width` + `height` obligatoires (cause n°1 de CLS)\n\n## Fonts\n\n- ≤ 2 familles, 2 poids, subset latin\n- `preload` 1 woff2 + `crossorigin`\n- `font-display: swap`\n- Pas de Google Fonts CSS render-blocking (self-host ou fontsource)\n\n## JS\n\n- Pas de carousel auto\n- Pas d'animation si `prefers-reduced-motion: reduce`\n- Stagger ≤ 50ms × 6 items max\n\n## Images\n\n- Below-fold : `loading=\"lazy\"` `decoding=\"async\"`\n- `aspect-ratio` CSS = token media (voir global.json → `media`)\n\n## Note sur l'automatisation (voir JUDGES.md)\n\nCes vérifications sont des attributs DOM/HTML (`fetchpriority`, `loading`,\n`width`/`height`, `font-display`), pas du texte CSS/JSON pur comme les tokens.\n`lint-tokens.mjs` ne les couvre pas (il fait du regex sur CSS/JSON). Elles\nrestent donc évaluées par le Juge code (LLM) tant qu'un second script DOM\n(type `node-html-parser`) n'est pas justifié par le volume de génération.\n",
-    "seed_version": 4
+    "content_md": "# PERF.md — Core Web Vitals (seuils Google)\n\nBudgets : LCP ≤ 2,5 s | INP ≤ 200 ms | CLS ≤ 0,1\n\n## LCP\n1 image d'ouverture AVIF/WebP ≤ 1 600 px, `fetchpriority=\"high\"`, `loading=\"eager\"`, `width` + `height`, `preload as=\"image\"`. Ouverture `type-only` : le H1 est le LCP.\n\n## Polices\nLien Google Fonts unique (`<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">` + `fonts.gstatic.com crossorigin`), `display=swap`, seulement les familles et graisses de la recette (2 familles, + mono du style Plan).\n\n## JS\nPas de carrousel automatique · animations coupées si `prefers-reduced-motion: reduce` (bandeau défilant compris) · décalage ≤ 50 ms × 6 éléments.\n\n## Images\nSous la ligne de flottaison : `loading=\"lazy\"` `decoding=\"async\"` · `aspect-ratio` = celui du composant.",
+    "seed_version": 5
   },
   {
     "_id": "schema",
     "source_file": "SCHEMA.md",
     "content_md": "# SCHEMA.md — JSON-LD par niche\n\n1 seul `<script type=\"application/ld+json\">` métier sur Home. Pas de doublon header+footer.\n\n| niche | @type |\n|---|---|\n| hotellerie | Hotel ou LodgingBusiness (+ EventVenue si mariage/salle) |\n| restaurant | Restaurant |\n| sante | Physician / MedicalBusiness / HealthAndBeautyBusiness |\n| immobilier | RealEstateAgent (+ Architect si applicable) |\n| services | LocalBusiness sous-type (Plumber, HairSalon, AutoRepair…) |\n| business | LegalService / AccountingService / ProfessionalService |\n| mode | Store + Product sur PDP |\n| portfolio | Person + CreativeWork |\n| saas | SoftwareApplication + Organization |\n| education | EducationalOrganization + Course |\n\n## Champs requis\n\n- Local requis : `name`, `address.PostalAddress`, `telephone`, `url`\n- Reco : `geo`, `openingHoursSpecification`, `image`, `sameAs`, `priceRange`\n- Restaurant + : `servesCuisine`, `acceptsReservations`, `menu`\n- Hôtel + : `checkinTime`, `checkoutTime`\n- Product : `Offer.priceCurrency` (EUR ou devise locale), `price`, `availability`\n\n## Règles\n\n- NAP visuel = NAP schema (VETO si divergence entre header/footer/schema)\n- FAQ : `FAQPage` uniquement si une FAQ réelle est visible sur la page\n- Jamais de schema pour un contenu absent visuellement de la page\n",
     "seed_version": 4
+  },
+  {
+    "_id": "regles_themes",
+    "source_file": "FAMILLES.md",
+    "content_md": "# FAMILLES.md — loi des familles NexAI (v8, décision finale designer)\n\nFAMILLE = STYLE × PALETTE, testée et notée **≥ 70/100** (rendu réel 390 / 768 / 1 280 px, gabarits NexAI corrigés). Aucune famille sous 70 n'existe dans la Librairie. En cas de conflit avec un autre document, CE TEXTE GAGNE.\n\n## Pipeline\n- TH1. Le backend choisit UNE famille active du métier (`familles_par_niche`) et envoie au codeur : cette loi + la recette du style + la palette. Rien d'autre.\n- TH2. Verrouillé avant le premier pixel : variables de couleur, 2 polices et leurs graisses, rayons, 1 CTA principal.\n- TH3. Le backend impose DANS la famille : 1 ouverture (`hero`), 1 nav, 1 densité, parmi celles listées par la famille (bloc « COMBINAISON IMPOSÉE »). Le codeur ne les change jamais.\n- TH4. Déclaration sur `<html>` : `lang`, `data-theme=\"{famille_id}\"`, `data-style`, `data-palette`, `data-hero`, `data-nav`, `data-density`, `data-env=\"preview\"`.\n- TH5. Anti-clone : une combinaison `famille + hero + nav + densité` déjà utilisée dans un métier n'est plus réutilisée tant que toutes les combinaisons de ce métier n'ont pas été utilisées (le cycle reprend alors à zéro). Une relance reçoit toujours une nouvelle combinaison. Une commande = un seul aperçu.\n- TH6. Pages intérieures : même famille, mêmes variables, même nav, même densité. Changer une couleur = créer une palette nommée dans l'admin, jamais pendant une génération.\n\n## Variables (seules couleurs autorisées)\n`--bg` fond · `--ink` texte (≥ 7:1) · `--muted` secondaire (≥ 4,5:1 sur fond ET surface) · `--accent` bouton principal (≥ 3:1 sur fond) · `--on-accent` texte du bouton (≥ 4,5:1) · `--accent-text` accent utilisé en texte (≥ 4,5:1) · `--surface` bloc alterné · `--line` filets · `--decor` ornement (jamais texte) · `--btn-photo-bg` / `--btn-photo-ink` bouton sur photo.\nPolices : `--font-d` titres, `--font-u` texte (+ `--font-m` mono si le style Plan). Lien Google Fonts : familles et graisses de la recette seulement, `display=swap`, `preconnect`.\nRythme : `data-density=\"air\"` → `--section-y: clamp(88px,12vw,168px)` ; `\"medium\"` → `clamp(56px,8vw,104px)`.\n\n## FIGÉ / LIBRE / INTERDIT\n- **FIGÉ** : variables, polices, graisses, rayons et composants propres du style ; 1 bouton principal (`--accent` / `--on-accent`).\n- **LIBRE** : textes (COPY + brief), photos du client, pages du palier, ouverture / nav / densité parmi celles de la famille.\n- **INTERDIT (VETO)** : mélanger deux palettes ou deux styles ; hex hors variables ; composant d'un autre style ; police hors recette ; recopier un site de référence ; noms internes visibles (OFFER-STACK, S04, P11…).\n\n## Ouvertures (kit)\n- `fullbleed` : photo/vidéo du client plein écran (≥ 80 svh téléphone), voile ≥ 55 %, 1 CTA.\n- `split` : deux colonnes (texte / image), empilées sous 768 px, visages jamais recadrés.\n- `type-only` : pas d'image au-dessus de la ligne de flottaison, titre très grand, 1 CTA ; image dans la section suivante.\nHero **centré** autorisé seulement pour les styles Luxe, Carte imprimée et Tunnel de vente.\n\n## Matière par métier\nLe nombre de pages dépend du métier (2 ou 3), pas du palier : plan envoyé par le backend (`allowlist.pages`). Premium : mêmes pages, sections plus riches (histoire / équipe / privatisation, études de cas). Jamais plus de 3 pages.\n\n## Contrôles des juges\n- K1 (VETO) déclaration TH4 présente et conforme à la famille imposée.\n- K2 (VETO) aucune couleur hors variables (seule exception : voile et texte sur photo, CO3) ; `--decor` jamais en texte.\n- K3 (VETO) un seul bouton PLEIN visible par écran (fenêtre). La même action répétée ailleurs (nav, barre mobile, pied de page) = lien texte ou numéro cliquable, jamais un 2ᵉ bouton plein. Le bouton d'envoi d'un formulaire est le bouton plein de son écran : aucun autre bouton plein dans la même fenêtre. Barre mobile fixe : liens (Appeler · WhatsApp · Réserver), pas de bouton plein.\n- K4 (VETO) polices = celles de la recette.\n- K5 (VETO) combinaison anti-clone interdite non utilisée.\n- K6 (VETO) composants propres du style présents (au moins 3 de la recette) ; aucun composant d'un autre style.\n- K7 (MAJEUR) chiffres de la recette respectés (interlignes, tailles minimales, rayons).\n\n## Réservation / paiement\nPlateformes (Zenchef, TheFork, OpenTable, Resy, Tock) = boutons de réservation, jamais des styles. Sinon WhatsApp pré-rempli ou téléphone. Paiement : PAY1–PAY5.\n\n## Haut de page : une seule source\n- Le **type** de haut de page = `ouvertures` du style de la famille (fichier du style). Jamais celui de la fiche métier.\n- La fiche métier donne le **contenu** : quoi mettre dans le haut de page (bouton Réserver + téléphone, preuve, recherche…).\n- Si le contenu exigé par le métier ne tient pas dans le type du style, le backend choisit une autre famille du métier ; le codeur ne change jamais de type de hero.",
+    "seed_version": 11
+  },
+  {
+    "_id": "allowlist",
+    "source_file": "allowlist.json",
+    "structured": {
+      "version": 8,
+      "kit": {
+        "heroes": [
+          "fullbleed",
+          "split",
+          "type-only"
+        ],
+        "navs": [
+          "wordmark-left",
+          "centered"
+        ],
+        "densities": [
+          "air",
+          "medium"
+        ],
+        "note": "chaque famille restreint ce kit (champ kit de library_familles)"
+      },
+      "polices": {
+        "Anton": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400",
+          "url": "https://fonts.googleapis.com/css2?family=Anton:wght@400&display=swap"
+        },
+        "Archivo": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "800",
+          "url": "https://fonts.googleapis.com/css2?family=Archivo:wght@800&display=swap"
+        },
+        "Bodoni Moda": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400",
+          "url": "https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400&display=swap"
+        },
+        "Bricolage Grotesque": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "700",
+          "url": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700&display=swap"
+        },
+        "Cormorant Garamond": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;500",
+          "url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&display=swap"
+        },
+        "DM Sans": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;600",
+          "url": "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&display=swap"
+        },
+        "DM Serif Display": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400",
+          "url": "https://fonts.googleapis.com/css2?family=DM+Serif+Display:wght@400&display=swap"
+        },
+        "EB Garamond": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400",
+          "url": "https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400&display=swap"
+        },
+        "Figtree": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;600;800",
+          "url": "https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&display=swap"
+        },
+        "Fraunces": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;500",
+          "url": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500&display=swap"
+        },
+        "IBM Plex Mono": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400",
+          "url": "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&display=swap"
+        },
+        "IBM Plex Sans": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;600",
+          "url": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap"
+        },
+        "Instrument Serif": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400",
+          "url": "https://fonts.googleapis.com/css2?family=Instrument+Serif:wght@400&display=swap"
+        },
+        "Inter": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;500;600",
+          "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+        },
+        "Inter Tight": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "700",
+          "url": "https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&display=swap"
+        },
+        "Jost": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;600",
+          "url": "https://fonts.googleapis.com/css2?family=Jost:wght@400;600&display=swap"
+        },
+        "Karla": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;600",
+          "url": "https://fonts.googleapis.com/css2?family=Karla:wght@400;600&display=swap"
+        },
+        "Manrope": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;600",
+          "url": "https://fonts.googleapis.com/css2?family=Manrope:wght@400;600&display=swap"
+        },
+        "Newsreader": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400",
+          "url": "https://fonts.googleapis.com/css2?family=Newsreader:wght@400&display=swap"
+        },
+        "Outfit": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;600",
+          "url": "https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap"
+        },
+        "Schibsted Grotesk": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;700",
+          "url": "https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;700&display=swap"
+        },
+        "Syne": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "600;800",
+          "url": "https://fonts.googleapis.com/css2?family=Syne:wght@600;800&display=swap"
+        },
+        "Work Sans": {
+          "source": "Google Fonts (OFL, gratuite)",
+          "graisses": "400;600",
+          "url": "https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600&display=swap"
+        }
+      },
+      "polices_interdites": [
+        "Lyon Display",
+        "Whitney SSm",
+        "Brandon Text",
+        "Söhne",
+        "Sohne",
+        "Futura",
+        "Futura PTT",
+        "Helvetica Neue",
+        "Helvetica LT",
+        "GT Alpina",
+        "Geomanist",
+        "Matrix II",
+        "Neue Haas Grotesk",
+        "Orpheus Pro",
+        "Freight",
+        "GT Sectra",
+        "Avenir",
+        "Berkeley Mono",
+        "Proxima Nova"
+      ],
+      "fournisseurs": {
+        "reservation": [
+          "zenchef",
+          "thefork",
+          "opentable",
+          "resy",
+          "tock",
+          "whatsapp",
+          "tel",
+          "formulaire"
+        ],
+        "paiement": [
+          "chariow",
+          "maketou",
+          "stripe",
+          "paypal",
+          "lien_client"
+        ]
+      },
+      "pages": {
+        "regle": "Jamais plus de 3 pages. Le nombre de pages dépend du MÉTIER (nombre_par_niche), pas du palier : 3 pages = liste « standard » du métier ; 2 pages = liste « essai » du métier. Premium = mêmes pages, sections plus riches (hero cinématique, histoire, privatisation/équipe), même thème.",
+        "restaurant": {
+          "essai": [
+            "index",
+            "menu"
+          ],
+          "standard": [
+            "index",
+            "menu",
+            "reserver"
+          ],
+          "premium": [
+            "index",
+            "menu",
+            "reserver"
+          ]
+        },
+        "hotellerie": {
+          "essai": [
+            "index",
+            "chambres"
+          ],
+          "standard": [
+            "index",
+            "chambres",
+            "reserver"
+          ],
+          "premium": [
+            "index",
+            "chambres",
+            "reserver"
+          ]
+        },
+        "sante": {
+          "essai": [
+            "index",
+            "soins"
+          ],
+          "standard": [
+            "index",
+            "soins",
+            "rendez-vous"
+          ],
+          "premium": [
+            "index",
+            "soins",
+            "rendez-vous"
+          ]
+        },
+        "immobilier": {
+          "essai": [
+            "index",
+            "projets"
+          ],
+          "standard": [
+            "index",
+            "projets",
+            "contact"
+          ],
+          "premium": [
+            "index",
+            "projets",
+            "contact"
+          ]
+        },
+        "services": {
+          "essai": [
+            "index",
+            "tarifs"
+          ],
+          "standard": [
+            "index",
+            "tarifs",
+            "reserver"
+          ],
+          "premium": [
+            "index",
+            "tarifs",
+            "reserver"
+          ]
+        },
+        "business": {
+          "essai": [
+            "index",
+            "expertises"
+          ],
+          "standard": [
+            "index",
+            "expertises",
+            "contact"
+          ],
+          "premium": [
+            "index",
+            "expertises",
+            "contact"
+          ]
+        },
+        "mode": {
+          "essai": [
+            "index",
+            "boutique"
+          ],
+          "standard": [
+            "index",
+            "boutique",
+            "contact"
+          ],
+          "premium": [
+            "index",
+            "boutique",
+            "maison"
+          ]
+        },
+        "portfolio": {
+          "essai": [
+            "index",
+            "a-propos"
+          ],
+          "standard": [
+            "index",
+            "projet",
+            "a-propos"
+          ],
+          "premium": [
+            "index",
+            "projet",
+            "a-propos"
+          ]
+        },
+        "saas": {
+          "essai": [
+            "index",
+            "tarifs"
+          ],
+          "standard": [
+            "index",
+            "tarifs",
+            "contact"
+          ],
+          "premium": [
+            "index",
+            "tarifs",
+            "contact"
+          ]
+        },
+        "education": {
+          "essai": [
+            "index",
+            "programmes"
+          ],
+          "standard": [
+            "index",
+            "programmes",
+            "candidater"
+          ],
+          "premium": [
+            "index",
+            "programmes",
+            "candidater"
+          ]
+        },
+        "titres": {
+          "index": "Accueil",
+          "menu": "La carte",
+          "reserver": "Réserver",
+          "chambres": "Chambres & séjours",
+          "soins": "Soins & spécialités",
+          "rendez-vous": "Rendez-vous",
+          "projets": "Projets",
+          "contact": "Contact",
+          "tarifs": "Prestations & tarifs",
+          "expertises": "Expertises",
+          "boutique": "Boutique",
+          "maison": "La maison",
+          "a-propos": "À propos",
+          "projet": "Projet",
+          "programmes": "Programmes",
+          "candidater": "Candidater"
+        },
+        "nombre_par_niche": {
+          "restaurant": 3,
+          "hotellerie": 3,
+          "sante": 3,
+          "immobilier": 3,
+          "business": 3,
+          "mode": 3,
+          "education": 3,
+          "services": 2,
+          "portfolio": 2,
+          "saas": 2
+        }
+      },
+      "max_pages": 3,
+      "familles_actives": [
+        "editorial-nuit-dambre",
+        "editorial-nappe-blanche",
+        "editorial-carnet",
+        "editorial-jardin",
+        "editorial-sable",
+        "editorial-canopee",
+        "editorial-lagune",
+        "editorial-tisane",
+        "editorial-lin",
+        "editorial-marbre",
+        "editorial-laterite",
+        "editorial-tableau",
+        "editorial-etude-papier",
+        "galerie-carnet",
+        "galerie-sable",
+        "galerie-laiton",
+        "galerie-couture",
+        "galerie-argile",
+        "galerie-planches-photo",
+        "luxe-nuit-dambre",
+        "luxe-lagune",
+        "luxe-laiton",
+        "luxe-lin",
+        "luxe-marbre",
+        "luxe-indigo",
+        "affiche-feu-de-rue",
+        "affiche-atelier-noir",
+        "affiche-chantier",
+        "affiche-soleil",
+        "affiche-bogolan",
+        "affiche-elan",
+        "affiche-atelier-affiche",
+        "bento-etabli",
+        "bento-ligne",
+        "bento-flux",
+        "bento-agora",
+        "bento-tableau",
+        "cinema-nuit-dambre",
+        "cinema-laiton",
+        "cinema-couture",
+        "catalogue-terre-cuite",
+        "catalogue-tresse",
+        "catalogue-argile",
+        "catalogue-indigo",
+        "catalogue-bogolan",
+        "doux-jardin",
+        "doux-tisane",
+        "doux-lin",
+        "doux-tresse",
+        "doux-tableau",
+        "local-clarte",
+        "local-etabli",
+        "local-atelier-noir",
+        "local-chantier",
+        "suisse-carnet",
+        "suisse-laiton",
+        "suisse-laterite",
+        "suisse-horizon",
+        "suisse-ligne",
+        "suisse-signal",
+        "suisse-agora",
+        "suisse-tableau",
+        "wax-nuit-dambre",
+        "wax-terre-cuite",
+        "wax-kora",
+        "wax-tresse",
+        "wax-indigo",
+        "wax-bogolan",
+        "wax-elan",
+        "wax-tableau",
+        "plan-laterite",
+        "plan-horizon",
+        "plan-ligne",
+        "plan-couture",
+        "plan-signal",
+        "plan-agora",
+        "plan-registre-plan",
+        "collage-indigo",
+        "collage-signal",
+        "carte-carnet",
+        "carte-lagune",
+        "partage-jardin",
+        "partage-lagune",
+        "partage-laiton",
+        "partage-horizon",
+        "partage-indigo",
+        "brutal-chantier",
+        "brutal-agora",
+        "couverture-carnet",
+        "tunnel-nuit-dambre",
+        "tunnel-etabli",
+        "tunnel-ligne",
+        "tunnel-agora",
+        "tunnel-elan",
+        "tunnel-tableau"
+      ],
+      "familles_par_niche": {
+        "restaurant": [
+          "wax-terre-cuite",
+          "luxe-nuit-dambre",
+          "editorial-carnet",
+          "affiche-feu-de-rue",
+          "cinema-nuit-dambre",
+          "carte-carnet",
+          "galerie-carnet",
+          "doux-jardin",
+          "editorial-nappe-blanche",
+          "partage-jardin",
+          "editorial-jardin",
+          "catalogue-terre-cuite"
+        ],
+        "hotellerie": [
+          "luxe-laiton",
+          "partage-lagune",
+          "luxe-lagune",
+          "cinema-laiton",
+          "wax-kora",
+          "galerie-sable",
+          "carte-lagune",
+          "partage-laiton",
+          "editorial-sable",
+          "editorial-canopee",
+          "galerie-laiton",
+          "editorial-lagune"
+        ],
+        "sante": [
+          "doux-tisane",
+          "doux-lin",
+          "local-clarte",
+          "editorial-tisane",
+          "editorial-lin",
+          "luxe-lin"
+        ],
+        "immobilier": [
+          "galerie-planches-photo",
+          "editorial-carnet",
+          "partage-horizon",
+          "plan-horizon",
+          "editorial-marbre",
+          "luxe-marbre",
+          "plan-laterite",
+          "editorial-laterite",
+          "suisse-horizon",
+          "suisse-laterite",
+          "suisse-carnet"
+        ],
+        "services": [
+          "local-etabli",
+          "local-chantier",
+          "affiche-chantier",
+          "affiche-atelier-affiche",
+          "affiche-atelier-noir",
+          "brutal-chantier",
+          "bento-etabli",
+          "local-atelier-noir",
+          "tunnel-etabli",
+          "doux-tresse",
+          "catalogue-tresse",
+          "wax-tresse"
+        ],
+        "business": [
+          "editorial-etude-papier",
+          "suisse-ligne",
+          "editorial-marbre",
+          "plan-ligne",
+          "editorial-tableau",
+          "suisse-laiton",
+          "suisse-tableau",
+          "plan-registre-plan"
+        ],
+        "mode": [
+          "wax-bogolan",
+          "catalogue-argile",
+          "galerie-couture",
+          "galerie-argile",
+          "affiche-soleil",
+          "catalogue-indigo",
+          "catalogue-bogolan",
+          "partage-indigo",
+          "collage-indigo",
+          "wax-indigo",
+          "affiche-bogolan",
+          "luxe-indigo"
+        ],
+        "portfolio": [
+          "galerie-couture",
+          "galerie-carnet",
+          "suisse-signal",
+          "couverture-carnet",
+          "cinema-couture",
+          "plan-signal",
+          "collage-signal",
+          "plan-couture"
+        ],
+        "saas": [
+          "bento-ligne",
+          "bento-flux",
+          "plan-ligne",
+          "bento-agora",
+          "suisse-ligne",
+          "brutal-agora",
+          "tunnel-ligne",
+          "tunnel-agora",
+          "plan-agora",
+          "suisse-agora"
+        ],
+        "education": [
+          "cinema-nuit-dambre",
+          "affiche-elan",
+          "doux-tableau",
+          "tunnel-tableau",
+          "tunnel-nuit-dambre",
+          "tunnel-elan",
+          "editorial-tableau",
+          "bento-tableau",
+          "wax-nuit-dambre",
+          "editorial-nuit-dambre",
+          "wax-tableau",
+          "wax-elan"
+        ]
+      },
+      "famille_par_defaut": {
+        "restaurant": "wax-terre-cuite",
+        "hotellerie": "luxe-laiton",
+        "sante": "doux-tisane",
+        "immobilier": "galerie-planches-photo",
+        "services": "local-etabli",
+        "business": "editorial-etude-papier",
+        "mode": "wax-bogolan",
+        "portfolio": "galerie-couture",
+        "saas": "bento-ligne",
+        "education": "cinema-nuit-dambre"
+      },
+      "styles_actifs": [
+        "editorial",
+        "galerie",
+        "luxe",
+        "affiche",
+        "bento",
+        "cinema",
+        "catalogue",
+        "doux",
+        "local",
+        "suisse",
+        "wax",
+        "plan",
+        "collage",
+        "carte",
+        "partage",
+        "brutal",
+        "couverture",
+        "tunnel"
+      ],
+      "palettes_actives": [
+        "nuit-dambre",
+        "nappe-blanche",
+        "feu-de-rue",
+        "carnet",
+        "terre-cuite",
+        "jardin",
+        "sable",
+        "lagune",
+        "kora",
+        "laiton",
+        "clarte",
+        "tisane",
+        "lin",
+        "marbre",
+        "horizon",
+        "etabli",
+        "atelier-noir",
+        "tresse",
+        "chantier",
+        "ligne",
+        "couture",
+        "soleil",
+        "argile",
+        "indigo",
+        "bogolan",
+        "signal",
+        "agora",
+        "elan",
+        "tableau",
+        "canopee",
+        "laterite",
+        "etude-papier",
+        "flux",
+        "planches-photo",
+        "atelier-affiche",
+        "registre-plan"
+      ],
+      "stack": {
+        "nextjs": [
+          "mode",
+          "hotellerie",
+          "immobilier"
+        ],
+        "static": "toutes les autres niches",
+        "source": "V10 (lu par la 2e IA dans backend/src/models/Site.ts le 28/09/2026) — à confirmer côté backend",
+        "tailwind": false
+      },
+      "photo_slots": {
+        "restaurant": {
+          "a_choisir": 2,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Salle / service"
+            },
+            {
+              "slot": "plat",
+              "ratio": "4:5",
+              "label": "Plat"
+            }
+          ]
+        },
+        "hotellerie": {
+          "a_choisir": 2,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Façade / vue"
+            },
+            {
+              "slot": "chambre",
+              "ratio": "4:3",
+              "label": "Chambre"
+            }
+          ]
+        },
+        "mode": {
+          "a_choisir": 2,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Look"
+            },
+            {
+              "slot": "piece",
+              "ratio": "3:4",
+              "label": "Pièce"
+            }
+          ]
+        },
+        "immobilier": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Façade"
+            }
+          ]
+        },
+        "sante": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "accueil",
+              "ratio": "4:3",
+              "label": "Salle d'attente"
+            }
+          ]
+        },
+        "services": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "21:9",
+              "label": "Chantier / local"
+            }
+          ]
+        },
+        "education": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Plateau / salle"
+            }
+          ]
+        },
+        "business": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Local / vitrine"
+            }
+          ]
+        },
+        "portfolio": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "4:3",
+              "label": "Atelier / œuvre"
+            }
+          ]
+        },
+        "saas": {
+          "a_choisir": 0,
+          "slots": []
+        }
+      },
+      "formulaires": {
+        "immobilier": [
+          "contact"
+        ],
+        "hotellerie": [
+          "reservation"
+        ],
+        "sante": [
+          "reservation"
+        ],
+        "restaurant": [
+          "reservation"
+        ],
+        "education": [
+          "contact"
+        ],
+        "portfolio": [
+          "contact"
+        ],
+        "business": [
+          "contact"
+        ],
+        "services": [
+          "contact"
+        ],
+        "mode": [
+          "contact"
+        ],
+        "saas": [
+          "contact"
+        ]
+      },
+      "geste_motion": {
+        "immobilier": "parallax photo du hero",
+        "hotellerie": "parallax photo du hero",
+        "sante": "révélation titres mot par mot",
+        "restaurant": "parallax photo du hero",
+        "education": "révélation titres mot par mot",
+        "portfolio": "aperçu image au survol de la liste",
+        "business": "révélation titres mot par mot",
+        "services": "aucun geste lourd (vitesse)",
+        "mode": "lookbook défilement horizontal",
+        "saas": "démo produit interactive (états visibles)"
+      },
+      "hero_h1_sur_photo": {
+        "max_width_ch": 16,
+        "zone_texte_max": 0.42,
+        "taille": "recette du style (pas de plafond fixe)",
+        "lignes": "M9"
+      },
+      "hero_type": "style de la famille (jamais la fiche métier)",
+      "gestes_motion_kit": {
+        "parallax photo du hero": "parallax",
+        "révélation titres mot par mot": "mots",
+        "aucun geste lourd (vitesse)": "aucun",
+        "aperçu image au survol de la liste": "composant (CSS)",
+        "lookbook défilement horizontal": "composant (CSS)",
+        "démo produit interactive (états visibles)": "composant (CSS)",
+        "défaut": "entree"
+      }
+    },
+    "seed_version": 11
   }
 ]

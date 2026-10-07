@@ -47,6 +47,9 @@ const envSchema = z.object({
   NETLIFY_ACCESS_TOKEN: z.string().optional().default(''),
   GODADDY_API_KEY: z.string().optional().default(''),
   GODADDY_API_SECRET: z.string().optional().default(''),
+  /** Porkbun — vendeur alternatif, activé seulement depuis l'admin. */
+  PORKBUN_API_KEY: z.string().optional().default(''),
+  PORKBUN_SECRET_API_KEY: z.string().optional().default(''),
 
   /**
    * Coordonnées utilisées comme registrant/admin/tech/billing pour tout
@@ -92,6 +95,13 @@ const envSchema = z.object({
   RECRAFT_API_KEY: z.string().optional().default(''),
   ALEXYA_API_KEY: z.string().optional().default(''),
   PEXELS_API_KEY: z.string().optional().default(''),
+  /**
+   * Filtre de netteté des photos de la galerie (MEDIA.md) : variance du
+   * Laplacien minimale. 0 = mesure désactivée (seuil à étalonner sur ~50
+   * photos de la galerie avant de l'activer : les valeurs mesurées sont
+   * enregistrées sur chaque photo, champ `nettete`).
+   */
+  PHOTO_NETTETE_MIN: z.coerce.number().optional().default(0),
 
   // ── Académie : hébergement vidéo Bunny Stream ──
   // Tant que ces trois valeurs ne sont pas renseignées, les vidéos Académie
@@ -121,6 +131,10 @@ const envSchema = z.object({
 
   XAI_API_KEY: z.string().optional().default(''),
   ANTHROPIC_API_KEY: z.string().optional().default(''),
+  /** Atelier Skills (admin) : rédacteur GPT-6 Astra et modèles OpenAI réglables. Facultative. */
+  OPENAI_API_KEY: z.string().optional().default(''),
+  /** Atelier Skills (admin) : modèle de test « léger » DeepSeek. Facultative. */
+  DEEPSEEK_API_KEY: z.string().optional().default(''),
 
   // ── Vidéo IA — Option 2 "Avatar" (Mode Standard + Mode Scénario) ──
   // FalAI héberge Kling AI Avatar v2 (Standard $0.0562/s, Pro $0.115/s pour le

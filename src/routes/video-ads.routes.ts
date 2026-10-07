@@ -362,7 +362,19 @@ videoAdsRouter.get('/', requireAuth, async (req: Request, res: Response, next: N
       .sort({ createdAt: -1 })
       .limit(50)
       .select('-scenes.prompt');
-    res.json({ videos: list });
+    // Les vidéos de l'essai gratuit se regardent en streaming uniquement : leur
+    // URL ne doit jamais sortir, sinon le client pourrait les télécharger sans
+    // s'abonner (même règle que GET /:id).
+    const videos = list.map((v) => {
+      const objet = v.toObject() as unknown as Record<string, unknown>;
+      if ((v.brief as Record<string, unknown> | undefined)?.isTrialTest === true) {
+        delete objet.outputUrl;
+        delete objet.finalVideoUrl;
+        objet.telechargementAutorise = false;
+      }
+      return objet;
+    });
+    res.json({ videos });
   } catch (err) {
     next(err);
   }

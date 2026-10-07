@@ -57,6 +57,22 @@ textesRouter.get('/', (_req: Request, res: Response) => {
       fileTitre: T.ATTENTE_FILE_TITRE,
       fileMessage: T.ATTENTE_FILE_MESSAGE,
       seuilFileMinutes: T.ATTENTE_SEUIL_FILE_MINUTES,
+      videoQuitterPage: T.VIDEO_QUITTER_PAGE,
+      siteQuitterPage: T.SITE_QUITTER_PAGE,
+    },
+    videoEchec: {
+      titre: T.VIDEO_ECHEC_TITRE,
+      message: T.VIDEO_ECHEC_MESSAGE,
+    },
+    skill: {
+      attenteTitre: T.SKILL_ATTENTE_TITRE,
+      attenteMessage: T.SKILL_ATTENTE_MESSAGE,
+      pretAide: T.SKILL_PRET_AIDE,
+      relanceTitre: T.SKILL_RELANCE_TITRE,
+      relancePrete: T.SKILL_RELANCE_PRETE,
+      relanceAttente: T.SKILL_RELANCE_ATTENTE,
+      assistanceTitre: T.SKILL_ASSISTANCE_TITRE,
+      assistanceMessage: T.SKILL_ASSISTANCE_MESSAGE,
     },
   });
 });

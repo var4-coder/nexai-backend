@@ -80,7 +80,7 @@ export async function genererAvis(nombre: number): Promise<{ crees: number; avis
     : '';
 
   const brut = await callClaude(
-    'claude-sonnet-5',
+    'claude-sonnet-5-5',
     SYSTEME,
     [{ role: 'user', content: `Rédige exactement ${n} témoignages clients NexAI.${aEviter}` }],
     { maxTokens: 3000, temperature: 0.95 }

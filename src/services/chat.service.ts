@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { Types } from 'mongoose';
+import { Types, type HydratedDocument } from 'mongoose';
 import { callClaude, ClaudeModel } from './ai-clients';
 import { consigneLangue, type Langue } from '@/constants/pays';
 import { getModelForRole } from './ai-role-registry';
-import { ChatSession, IChatMessage, IChatAttachment, ChatHubMode } from '@/models/ChatSession';
+import { ChatSession, IChatSession, IChatMessage, IChatAttachment, ChatHubMode } from '@/models/ChatSession';
 import { Site, SiteNiche, resolveSiteType } from '@/models/Site';
 import { Client } from '@/models/Client';
 import { User, UserPlan } from '@/models/User';
@@ -20,9 +20,12 @@ import {
   debitCredits,
   creditCredits,
   CREDIT_COSTS,
-  getLogoQuotaInfo,
+  reserverLogoInclus,
+  restituerLogoInclus,
   assertLogoGenerationPlanAllowed,
+  assertSkillPlanAllowed,
 } from './credits.service';
+import { briefSkillSchema, commanderSkill } from './skill-nexai.service';
 
 /**
  * Chat IA de guidage — Claude (Haiku par défaut, bascule Sonnet 5 possible
@@ -40,7 +43,7 @@ import {
  * jamais codé en dur.
  */
 async function resolveChatModel(hubMode: ChatHubMode): Promise<ClaudeModel> {
-  const role = hubMode === 'site' ? 'chat_creation_site' : 'chat_autres_modes';
+  const role = hubMode === 'site' ? 'chat_creation_site' : hubMode === 'skill' ? 'chat_skill' : 'chat_autres_modes';
   return (await getModelForRole(role)) as ClaudeModel;
 }
 
@@ -243,7 +246,7 @@ const dialogueTurnSchema = z
     options: z.array(z.string().min(1).max(120)).min(2).max(10).optional(),
     readyForExtraction: z.boolean().optional().default(false),
     /** Suggestion de bascule de mode (cross-promo) — le frontend peut proposer le switch */
-    suggestMode: z.enum(['site', 'logo', 'edit', 'business']).optional(),
+    suggestMode: z.enum(['site', 'logo', 'edit', 'business', 'skill']).optional(),
   })
   .refine((v) => v.mode !== 'choices' || (v.options && v.options.length >= 2), {
     message: "mode='choices' exige au moins 2 options",
@@ -279,6 +282,14 @@ const extractionSchema = z.object({
   appelAction: z.string().optional(),
   /** Où sont les clients du client : pilote le bloc paiement (règles PAY de la Librairie). */
   clientele: z.string().optional(),
+  /** Images du site : ses propres images, galerie NexAI, ou les deux (décision du 02/10/2026). */
+  photosChoix: z.string().optional(),
+  /** Preuve réelle (années d'existence, nombre de clients, diplômes, avis réels) — facultative. */
+  preuve: z.string().optional(),
+  /** Conditions de vente données par le client (boutique) — facultatives : page CGV seulement si fournies. */
+  cgv: z.string().optional(),
+  /** Image de l'activité avec le logo intégré (oui / non) — décision du 03/10/2026. */
+  imageLogo: z.union([z.boolean(), z.string()]).optional(),
 });
 
 // ─── Instructions admin ────────────────────────────────────
@@ -306,6 +317,46 @@ ${adminText}`;
 const OPT_CLIENTELE_LOCALE = 'Dans ma ville ou mon pays';
 const OPT_CLIENTELE_DIGITALE = 'Partout, en ligne (Afrique ou monde)';
 const OPT_CLIENTELE_MIXTE = 'Les deux';
+
+// Images du site — 3 options exactes. Ne JAMAIS citer le fournisseur des
+// images de la galerie au client : « galerie NexAI » seulement.
+const OPT_PHOTOS_CLIENT = 'Mes propres images (produits / services)';
+const OPT_PHOTOS_GALERIE = 'Images de notre galerie NexAI';
+const OPT_PHOTOS_MIXTE = 'Les deux (mes images + galerie NexAI)';
+
+// Image avec le logo (décision du 03/10/2026) : proposée seulement au client
+// qui a (ou va avoir) un logo et dont le site utilise la galerie NexAI.
+const OPT_IMAGE_LOGO_OUI = 'Oui, ajoutez une image pro avec mon logo';
+const OPT_IMAGE_LOGO_NON = 'Non merci';
+
+/** Réponse à la question « image avec mon logo » ramenée à oui / non. */
+export function normaliserImageLogo(valeur: unknown): boolean | undefined {
+  if (typeof valeur === 'boolean') return valeur;
+  const v = String(valeur ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  if (!v) return undefined;
+  if (v === 'oui' || v === 'true' || v.startsWith('oui')) return true;
+  if (v === 'non' || v === 'false' || v.startsWith('non')) return false;
+  return undefined;
+}
+
+/** Choix d'images ramené à 3 valeurs : client, galerie ou mixte. */
+export function normaliserPhotosChoix(valeur: unknown): 'client' | 'galerie' | 'mixte' | undefined {
+  const v = String(valeur ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  if (!v) return undefined;
+  if (v === 'client' || v === 'galerie' || v === 'mixte') return v;
+  if (v.includes('deux') || v.includes('mixte') || (v.includes('mes') && v.includes('galerie'))) return 'mixte';
+  if (v.includes('galerie') || v.includes('nexai')) return 'galerie';
+  if (v.includes('mes ') || v.includes('propre') || v.includes('mes images') || v.includes('mes photos')) return 'client';
+  return undefined;
+}
 
 /**
  * Clientèle visée, ramenée à 3 valeurs : `locale` (Mobile Money, WhatsApp,
@@ -351,10 +402,16 @@ Règles de conversation :
   8. Style / ambiance
   9. Préférence de logo, options exactes : ${logoOptions}
   10. Où se trouvent ses clients (décide des moyens de paiement affichés), options exactes : "${OPT_CLIENTELE_LOCALE}", "${OPT_CLIENTELE_DIGITALE}", "${OPT_CLIENTELE_MIXTE}"
-- Champs OPTIONNELS, une question max si le rythme le permet, jamais bloquants : zone / horaires, ordre de prix, réseaux, action attendue (appeler, commander, réserver).
+  11. Les images de son site, "mode":"choices", options exactes : "${OPT_PHOTOS_CLIENT}", "${OPT_PHOTOS_GALERIE}", "${OPT_PHOTOS_MIXTE}". Puis la suite correspondant à SON choix :
+     · "${OPT_PHOTOS_CLIENT}" ou "${OPT_PHOTOS_MIXTE}" → "mode":"input" : demande-lui d'envoyer maintenant ses photos (ses produits, ses réalisations, son local, son équipe) avec le bouton pièce jointe, 1 à 8 photos nettes, en précisant ce que montre chacune s'il le souhaite. S'il n'en envoie aucune après une relance, dis-lui simplement : « Pas de souci, nous utiliserons des images de notre galerie NexAI ; vous pourrez les remplacer à tout moment. »
+     · "${OPT_PHOTOS_GALERIE}" → confirme en une phrase que nous choisirons dans notre galerie NexAI des images adaptées à son activité, qu'il pourra remplacer plus tard.
+     · Ne cite JAMAIS le nom d'un fournisseur d'images ou d'une banque d'images : dis uniquement « galerie NexAI ».
+  12. SEULEMENT si le client a un logo (déjà possédé, déjà créé ici ou à créer) ET a choisi "${OPT_PHOTOS_GALERIE}" ou "${OPT_PHOTOS_MIXTE}" : "mode":"choices", propose-lui une « image pro avec son logo » : une image réaliste de style publicitaire, faite pour son activité, où sa marque apparaît naturellement (sur une enseigne, une tenue, un véhicule, un emballage, un produit…). Elle prend la place d'une des images de la galerie. Options exactes : "${OPT_IMAGE_LOGO_OUI}", "${OPT_IMAGE_LOGO_NON}". Ne cite JAMAIS l'outil, le fournisseur ni le modèle qui crée l'image : parle seulement d'« image pro avec votre logo » ou d'« image réaliste avec votre logo ». Sans logo, ou avec seulement ses propres images, ne pose pas cette question.
+- Champs OPTIONNELS, une question max si le rythme le permet, jamais bloquants : zone / horaires, ordre de prix, réseaux, action attendue (appeler, commander, réserver), une PREUVE réelle de sérieux (années d'existence, nombre de clients servis, diplôme ou certification, avis réels) — s'il n'en a pas, on passe sans insister.
+- Boutique (mode / e-commerce) seulement, OPTIONNEL : ses conditions de vente (livraison, délais, retours, échanges). S'il ne les donne pas, on passe : jamais bloquant.
 - DESCRIPTION : refuse le vague (« coaching », « business », « vente en ligne » seul). Relance une fois, sans readyForExtraction.
 - NE pose PAS encore la question des textes du site, NI le choix Standard / Premium : le backend s'en charge ensuite.
-- Quand les 10 points obligatoires sont couverts → "readyForExtraction": true.
+- Quand les 11 points obligatoires (et le point 12 s'il s'applique) sont couverts → "readyForExtraction": true.
 - Cross-promo : pas de logo → suggestMode:"logo" possible. Idée floue → suggestMode:"business".
 ${niche ? `- Niche déjà choisie : ${NICHE_LABELS[niche]}. Ne redemande pas la niche.` : `- La première question doit être le choix de la niche, options exactes : ${Object.values(NICHE_LABELS).join(', ')}.`}`;
 }
@@ -368,6 +425,31 @@ Format JSON exact : {"message": string, "mode": "choices"|"input", "options": st
 - Si créer : demande nom de marque, niche/activité, style (avec précisions entre parenthèses), couleurs éventuelles.
 - Quand assez d'infos pour une génération → readyForExtraction: true.
 - En fin de flux, propose de créer un site : suggestMode:"site" et un message du type "On crée ton site autour de ce logo ?".`;
+}
+
+/** Nombre maximal de messages d'une conversation Skill NexAI (borne le coût du dialogue). */
+const SKILL_MAX_MESSAGES = 40;
+
+function buildSkillModeGuidance(): string {
+  return `Tu es l'assistant « Skill NexAI ». Ta mission : conduire le client, étape par étape, jusqu'à un brief complet pour fabriquer SON skill sur mesure. Un skill est un mode d'emploi expert, testé, que le client charge dans son assistant IA (Claude, ChatGPT…) pour réussir une tâche précise de son métier, toujours de la même façon. L'équipe IA de NexAI le conçoit, le teste puis le livre dans « Mes skills ».
+
+Format JSON exact : {"message": string, "mode": "choices"|"input", "options": string[] optionnel, "readyForExtraction": boolean}
+
+Tu suis CE script, dans l'ordre, UNE question à la fois, sans bavardage ni discussion hors sujet. Si le client s'écarte, réponds en une phrase puis reviens à la question en cours.
+1. Accueil (2 phrases max : ce qu'est un skill, ce que le client va recevoir) puis question 1 — « Dans quel domaine ou métier ce skill va-t-il servir ? » — "mode":"input".
+2. Question 2 — « Décris la tâche précise que le skill doit accomplir. Donne un exemple concret de ce que tu demanderais à ton assistant. » — "mode":"input". Si la réponse est vague (moins d'une vraie phrase, ou plusieurs tâches différentes), demande de choisir UNE tâche précise et de donner un exemple.
+3. Question 3 — « Pour qui est le résultat ? » (client final, équipe, lecteurs…) — "mode":"input".
+4. Question 4 — la langue du résultat — "mode":"choices", options exactes : "Français", "Anglais", "Autre langue".
+5. Question 5, OPTIONNELLE — contexte utile (pays, devise, canal de diffusion…) — "mode":"choices", options exactes : "Je précise le contexte", "Passer cette étape". Si le client veut préciser : "mode":"input".
+6. Question 6, OPTIONNELLE — à quoi ressemble un très bon résultat, et ce qu'il faut éviter — "mode":"choices", options exactes : "Je décris", "Passer cette étape". Si le client veut décrire : "mode":"input".
+7. Récapitulatif — message court listant : domaine, tâche, public, langue, contexte. Précise que la création coûte ${CREDIT_COSTS.SKILL_NEXAI} crédits, qu'elle prend en général quelques dizaines de minutes et que le skill sera dans « Mes skills » à la fin. Si le premier essai n'aboutit pas, une relance gratuite est proposée après 30 minutes. Ne promets JAMAIS de remboursement. Termine par « On lance la création ? ». "mode":"input", "readyForExtraction": true.
+
+Règles :
+- Ne passe à l'étape suivante qu'une fois l'étape en cours réellement renseignée. Ne mets "readyForExtraction": true qu'à l'étape 7.
+- Tu ne rédiges JAMAIS le skill toi-même, tu ne donnes pas son contenu : tu collectes le brief.
+- Tu ne promets aucun résultat chiffré (revenus, ventes…). Tu ne cites ni modèles d'IA ni fournisseurs.
+- Un skill ne peut servir qu'une activité légale ; sinon applique la règle de refus ci-dessus.
+- Messages courts, tutoiement ou vouvoiement selon le client, ton chaleureux et direct.`;
 }
 
 function buildEditModeGuidance(siteName?: string): string {
@@ -449,6 +531,9 @@ async function buildDialogueSystemPrompt(
     case 'business':
       guidance = buildBusinessModeGuidance(opts.plan);
       break;
+    case 'skill':
+      guidance = buildSkillModeGuidance();
+      break;
     case 'site':
     default:
       guidance = buildSiteModeGuidance(opts.niche, opts.hasLibraryLogos);
@@ -466,11 +551,15 @@ ${consigneLangue(opts.langue ?? 'fr')}`;
 const EXTRACTION_SYSTEM_PROMPT = `Tu relis une conversation complète entre NexAI et un client qui veut un site web. Extrais UNIQUEMENT les informations réellement données par le client (n'invente rien, ne déduis pas au-delà de ce qui est dit).
 
 Réponds UNIQUEMENT en JSON valide, rien d'autre :
-{"niche": one of [hotellerie_evenementiel, sante_bienetre, immobilier_architecture, services_locaux, business_vitrine, ecommerce_mode, portfolio_creatif, tech_startup_saas, restaurant_gastronomie, education_formation], "brandName": string, "description": string, "cible": string, "tone": string optionnel, "capacites": string[] optionnel, "extraFields": objet clé/valeur optionnel, "logoPreference": "has_logo"|"create_logo"|"no_logo"|"library_logo" optionnel, "offre": string optionnel, "contact": string optionnel, "differenciateur": string optionnel, "zone": string optionnel, "horaires": string optionnel, "prix": string optionnel, "reseaux": string optionnel, "appelAction": string optionnel, "clientele": "locale"|"digitale"|"mixte" optionnel}
+{"niche": one of [hotellerie_evenementiel, sante_bienetre, immobilier_architecture, services_locaux, business_vitrine, ecommerce_mode, portfolio_creatif, tech_startup_saas, restaurant_gastronomie, education_formation], "brandName": string, "description": string, "cible": string, "tone": string optionnel, "capacites": string[] optionnel, "extraFields": objet clé/valeur optionnel, "logoPreference": "has_logo"|"create_logo"|"no_logo"|"library_logo" optionnel, "offre": string optionnel, "contact": string optionnel, "differenciateur": string optionnel, "zone": string optionnel, "horaires": string optionnel, "prix": string optionnel, "reseaux": string optionnel, "appelAction": string optionnel, "clientele": "locale"|"digitale"|"mixte" optionnel, "photosChoix": "client"|"galerie"|"mixte" optionnel, "preuve": string optionnel, "cgv": string optionnel, "imageLogo": "oui"|"non" optionnel}
 
 - "clientele" : "locale" si ses clients sont dans sa ville ou son pays, "digitale" s'ils sont partout (en ligne, Afrique, monde), "mixte" pour les deux ; "" si non dit.
 - "description" doit être une vraie phrase (au moins 20 caractères) qui résume l'activité, pas juste un mot.
 - "offre" = produits / services / prestations cités. "contact" = moyen d'être joint. "differenciateur" = ce qui le distingue.
+- "photosChoix" : "client" s'il veut ses propres images, "galerie" pour les images de la galerie NexAI, "mixte" pour les deux ; "" si non dit.
+- "preuve" : preuve réelle de sérieux donnée par le client (années d'existence, nombre de clients, diplômes, avis réels), mot pour mot ; "" sinon.
+- "cgv" : conditions de vente données par le client (livraison, délais, retours), mot pour mot ; "" sinon.
+- "imageLogo" : "oui" si le client a accepté une image avec son logo intégré, "non" s'il l'a refusée ; "" si la question n'a pas été posée.
 - Si une information n'a pas été donnée, mets une chaîne vide "" (ne l'invente pas).`;
 
 // ─── Utilitaires ────────────────────────────────────────────
@@ -539,7 +628,8 @@ function parseJsonLoose<T>(raw: string, schema: z.ZodType<T, z.ZodTypeDef, unkno
           p.suggestMode === 'site' ||
           p.suggestMode === 'logo' ||
           p.suggestMode === 'edit' ||
-          p.suggestMode === 'business'
+          p.suggestMode === 'business' ||
+          p.suggestMode === 'skill'
             ? p.suggestMode
             : undefined,
       };
@@ -632,6 +722,29 @@ async function callDialogueTurn(session: InstanceType<typeof ChatSession>) {
 
 type ExtractionResult = z.infer<typeof extractionSchema>;
 
+const EXTRACTION_SKILL_PROMPT = `Tu relis une conversation entre NexAI et un client qui commande un skill sur mesure. Extrais UNIQUEMENT ce que le client a réellement dit. Réponds avec un JSON strict, sans texte autour :
+{"domaine": string (2-120 car.), "tache": string (la tâche précise + l'exemple donné + le résultat attendu / ce qu'il faut éviter s'ils ont été décrits, 10-2000 car.), "public": string (≤ 500 car.), "langue": "fr"|"en"|nom de la langue, "contexte": {"pays"?: string, "devise"?: string, "canal"?: string, "autre"?: string}}
+Les champs facultatifs absents sont omis. N'invente rien.`;
+
+async function callSkillExtraction(session: InstanceType<typeof ChatSession>) {
+  const transcript = session.messages
+    .map((m) => `${m.role === 'assistant' ? 'NexAI' : 'Client'}: ${m.content}`)
+    .join('\n');
+  const model = (await getModelForRole('chat_skill')) as ClaudeModel;
+  for (let attempt = 0; attempt <= MAX_DIALOGUE_RETRIES; attempt++) {
+    const raw = await callClaude(
+      model,
+      EXTRACTION_SKILL_PROMPT,
+      [{ role: 'user', content: attempt === 0 ? transcript : `${transcript}\n\n[Système] Réponds UNIQUEMENT avec le JSON demandé.` }],
+      { maxTokens: 900, temperature: 0 }
+    );
+    const parsed = parseJsonLoose(raw, briefSkillSchema);
+    if (parsed) return parsed;
+    console.warn(`[chat] JSON extraction skill invalide (tentative ${attempt + 1}/${MAX_DIALOGUE_RETRIES + 1}) session=${session._id}`);
+  }
+  return null;
+}
+
 async function callExtraction(session: InstanceType<typeof ChatSession>): Promise<ExtractionResult | null> {
   const transcript = session.messages
     .map((m) => `${m.role === 'assistant' ? 'NexAI' : 'Client'}: ${withAttachmentNote(m.content, m.attachments)}`)
@@ -692,18 +805,61 @@ function buildReviewSummary(brief: z.infer<typeof extractionSchema>): string {
     } as const;
     lines.push(libelles[clientele]);
   }
+  const photosChoix = normaliserPhotosChoix(brief.photosChoix);
+  if (photosChoix) {
+    const libellesPhotos = {
+      client: 'Images : vos propres images',
+      galerie: 'Images : galerie NexAI',
+      mixte: 'Images : vos images et la galerie NexAI',
+    } as const;
+    lines.push(libellesPhotos[photosChoix]);
+  }
+  if (brief.preuve) lines.push(`Preuve de sérieux : ${brief.preuve}`);
+  if (brief.cgv) lines.push(`Conditions de vente : ${brief.cgv}`);
+  if (normaliserImageLogo(brief.imageLogo) === true) lines.push('Image pro avec votre logo : oui');
   return `Voici ce que j'ai compris :\n${lines.join('\n')}\n\nC'est correct ?`;
 }
 
-/** Cherche la dernière pièce jointe image envoyée par le client (pour import auto du logo — correctif §1) */
-function findLastUserImageAttachment(messages: IChatMessage[]): IChatAttachment | undefined {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
+/**
+ * Répartit les images envoyées par le client entre LOGO et PHOTOS DU SITE.
+ *
+ * Avant, le logo était « la dernière image envoyée » : dès que le client
+ * envoie aussi des photos de ses produits, une photo devenait son logo.
+ * Chaque image est désormais rattachée à la question à laquelle elle répond
+ * (dernière question de NexAI qui parle de logo, ou de photos / images).
+ */
+function repartirImagesClient(
+  messages: IChatMessage[],
+  photosChoix: 'client' | 'galerie' | 'mixte' | undefined
+): { logo?: IChatAttachment; photos: string[] } {
+  let sujet: 'logo' | 'photos' | 'autre' = 'autre';
+  const parSujet: Record<'logo' | 'photos' | 'autre', IChatAttachment[]> = { logo: [], photos: [], autre: [] };
+  const optionsPhotos = [OPT_PHOTOS_CLIENT, OPT_PHOTOS_GALERIE, OPT_PHOTOS_MIXTE];
+  for (const m of messages) {
+    if (m.role === 'assistant') {
+      const texte = `${m.content ?? ''} ${(m.options ?? []).join(' ')}`;
+      if ((m.options ?? []).some((o) => optionsPhotos.includes(o)) || (/\b(photos?|images?)\b/i.test(texte) && !/\blogo\b/i.test(texte))) {
+        sujet = 'photos';
+      } else if (/\blogo\b/i.test(texte)) {
+        sujet = 'logo';
+      } else {
+        sujet = 'autre';
+      }
+      continue;
+    }
     if (m.role !== 'user' || !m.attachments?.length) continue;
-    const img = m.attachments.find((a) => a.type === 'image');
-    if (img) return img;
+    for (const a of m.attachments) if (a.type === 'image') parSujet[sujet].push(a);
   }
-  return undefined;
+  const veutSesPhotos = photosChoix === 'client' || photosChoix === 'mixte';
+  // Image envoyée hors de ces deux questions : logo si aucune photo n'est
+  // attendue, photo sinon (le logo répond toujours à la question du logo).
+  const logo =
+    parSujet.logo[parSujet.logo.length - 1] ??
+    (!veutSesPhotos ? parSujet.autre[parSujet.autre.length - 1] : undefined);
+  const photos = veutSesPhotos
+    ? [...parSujet.photos, ...parSujet.autre].map((a) => a.url)
+    : [];
+  return { logo, photos: Array.from(new Set(photos)).slice(0, 8) };
 }
 
 function briefFromExtraction(brief: z.infer<typeof extractionSchema>): Record<string, unknown> {
@@ -724,6 +880,10 @@ function briefFromExtraction(brief: z.infer<typeof extractionSchema>): Record<st
     ...(brief.appelAction ? { appelAction: brief.appelAction } : {}),
     ...(brief.extraFields || {}),
     ...(normaliserClientele(brief.clientele) ? { clientele: normaliserClientele(brief.clientele) } : {}),
+    ...(normaliserPhotosChoix(brief.photosChoix) ? { photosChoix: normaliserPhotosChoix(brief.photosChoix) } : {}),
+    ...(brief.preuve ? { preuve: brief.preuve } : {}),
+    ...(brief.cgv ? { cgv: brief.cgv } : {}),
+    ...(normaliserImageLogo(brief.imageLogo) !== undefined ? { imageLogo: normaliserImageLogo(brief.imageLogo) } : {}),
   };
 }
 
@@ -736,7 +896,7 @@ const OPT_PREM = 'Qualité Premium — 25 crédits';
 
 async function proposerTextesSite(brief: Record<string, unknown>): Promise<string> {
   const raw = await callClaude(
-    'claude-sonnet-5',
+    'claude-sonnet-5-5',
     'Tu rédiges les textes d’un site vitrine pour un commerçant. Français simple, concret, sans jargon, sans formules vides. Pas de markdown décoratif hors titres courts.',
     [
       {
@@ -757,7 +917,7 @@ function messageChoixQualite(): string {
   return (
     'Dernière étape : choisissez la qualité de création.\n\n' +
     'Standard (12 crédits) — un site professionnel, pensé pour le téléphone, prêt à recevoir vos clients.\n\n' +
-    'Premium (25 crédits) — notre meilleure IA, Fable 5.1 : design plus travaillé, textes plus justes, image de marque plus forte. C’est le choix de ceux qui veulent un site au niveau d’une agence.\n\n' +
+    'Premium (25 crédits) — notre meilleure IA : design plus travaillé, textes plus justes, image de marque plus forte. C’est le choix de ceux qui veulent un site au niveau d’une agence.\n\n' +
     'La mise en ligne, ensuite, coûte 15 crédits (abonnés).'
   );
 }
@@ -837,8 +997,15 @@ export async function startChatSession(
   const starterCheckUser = await User.findById(userId);
   if (!starterCheckUser) throw new AppError('Utilisateur introuvable', 404);
 
+  // Skill NexAI : Créateur+ et au-delà. Essai gratuit et Starter voient l'option
+  // mais n'entrent pas (aucune session créée, donc aucun coût IA).
+  if (mode === 'skill') {
+    assertSkillPlanAllowed(starterCheckUser.plan, starterCheckUser.role);
+    if (clientId) throw new AppError('Skill NexAI ne se rattache pas à un client.', 400);
+  }
+
   // Starter : Académie uniquement — sauf mode business (coach) qui reste accessible
-  if (starterCheckUser.plan === 'starter' && mode !== 'business') {
+  if (starterCheckUser.plan === 'starter' && mode !== 'business' && mode !== 'skill') {
     throw new AppError(
       mode === 'logo'
         ? "La création de logo est réservée aux abonnements Créateur+, Agence et Pro Max. Passez à Créateur+ pour créer votre logo et lancer votre site dans la foulée."
@@ -908,14 +1075,26 @@ export async function startChatSession(
     editModeSite = site;
   }
 
-  const session = await ChatSession.create({
-    userId,
-    clientId: validatedClientId,
-    mode,
-    editSiteId: validatedEditSiteId,
-    status: 'collecting',
-    messages: [],
-  });
+  let session: HydratedDocument<IChatSession>;
+  try {
+    session = await ChatSession.create({
+      userId,
+      clientId: validatedClientId,
+      mode,
+      editSiteId: validatedEditSiteId,
+      status: 'collecting',
+      messages: [],
+    });
+  } catch (err) {
+    // Les 3 crédits du coach ont été débités avant la création de la session :
+    // si elle échoue, le client n'a rien reçu, on les lui rend.
+    if (mode === 'business') {
+      await creditCredits(userId, CREDIT_COSTS.BUSINESS_COACH, 'ajustement_admin', {
+        note: 'Remboursement — session coach non créée',
+      }).catch((e) => console.error(`[chat] ALERTE : remboursement coach impossible user=${userId}`, e));
+    }
+    throw err;
+  }
 
   const turn = await callDialogueTurn(session);
   session.messages.push({
@@ -968,7 +1147,7 @@ export async function switchChatMode(
 
   const fromMode = (session.mode || 'site') as ChatHubMode;
 
-  // Correctif : un compte Starter ne doit jamais atteindre réellement les
+  // Un compte Starter ne doit jamais atteindre réellement les
   // modes 'site'/'logo' (créations payantes), même en arrivant par bascule
   // depuis un autre mode (ex. Coach business) — même règle que startChatSession,
   // ré-appliquée ici pour ne pas laisser filer une conversation qui échouera
@@ -979,6 +1158,12 @@ export async function switchChatMode(
     if (user.plan === 'starter') {
       throw new AppError(buildStarterUpgradeMessage(newMode, fromMode), 403);
     }
+  }
+
+  if (newMode === 'skill') {
+    const user = await User.findById(userId).select('plan role');
+    if (!user) throw new AppError('Utilisateur introuvable', 404);
+    assertSkillPlanAllowed(user.plan, user.role);
   }
 
   if (newMode === 'edit') {
@@ -1001,7 +1186,7 @@ export async function switchChatMode(
   session.missingFields = [];
   session.messages.push({
     role: 'assistant',
-    content: `On passe en mode ${newMode === 'site' ? 'Créer un site' : newMode === 'logo' ? 'Créer un logo' : newMode === 'edit' ? 'Modifier un site' : 'Coach business'}.`,
+    content: `On passe en mode ${newMode === 'site' ? 'Créer un site' : newMode === 'logo' ? 'Créer un logo' : newMode === 'edit' ? 'Modifier un site' : newMode === 'skill' ? 'Skill NexAI' : 'Coach business'}.`,
     mode: 'input',
     createdAt: new Date(),
   });
@@ -1147,6 +1332,13 @@ export async function postChatMessage(
     throw new AppError('Cette conversation est déjà terminée.', 400);
   }
 
+  if (session.mode === 'skill' && session.messages.length >= SKILL_MAX_MESSAGES) {
+    throw new AppError(
+      'Cette conversation est arrivée à sa limite. Relancez une nouvelle conversation Skill NexAI pour décrire votre skill.',
+      400
+    );
+  }
+
   session.messages.push({
     role: 'user',
     content: reply.trim().slice(0, 2000),
@@ -1186,7 +1378,23 @@ export async function postChatMessage(
   // (sauf site). On marque ready côté message ; le frontend gère la suite
   // (génération logo, page site, CTA bascule).
   if (hubMode !== 'site') {
-    if (turn.readyForExtraction) {
+    if (turn.readyForExtraction && hubMode === 'skill') {
+      // Brief structuré extrait AVANT de proposer la confirmation : si la
+      // conversation n'a pas donné de quoi lancer la création, on poursuit.
+      const brief = await callSkillExtraction(session);
+      if (!brief) {
+        session.messages.push({
+          role: 'assistant',
+          content: "Il me manque encore un détail pour lancer la création : peux-tu me redire en une phrase la tâche précise que ton skill doit accomplir ?",
+          mode: 'input',
+          createdAt: new Date(),
+        });
+      } else {
+        session.collectedBrief = brief;
+        session.status = 'reviewing';
+        session.reviewSummary = turn.message;
+      }
+    } else if (turn.readyForExtraction) {
       session.status = 'reviewing';
       session.reviewSummary = turn.message;
     }
@@ -1270,6 +1478,36 @@ export async function confirmChatSession(sessionId: string, userId: string, conf
   }
 
   const hubMode = (session.mode || 'site') as ChatHubMode;
+  if (hubMode === 'skill') {
+    // Skill NexAI : débit + envoi du brief à l'équipe IA de l'Atelier Skills.
+    const brief = briefSkillSchema.safeParse(session.collectedBrief);
+    if (!brief.success) {
+      session.status = 'collecting';
+      session.messages.push({
+        role: 'assistant',
+        content: "Le brief n'est pas encore complet. Redis-moi la tâche précise que ton skill doit accomplir.",
+        mode: 'input',
+        createdAt: new Date(),
+      });
+      await session.save();
+      return { session, site: null, pendingLogoAction: null };
+    }
+    // Verrou atomique : un double clic ne peut jamais débiter deux fois.
+    const verrou = await ChatSession.findOneAndUpdate(
+      { _id: session._id, status: 'reviewing' },
+      { $set: { status: 'confirmed' } }
+    );
+    if (!verrou) throw new AppError('Cette commande est déjà en cours de traitement.', 409);
+    try {
+      const commande = await commanderSkill(userId, String(session._id), brief.data);
+      await ChatSession.updateOne({ _id: session._id }, { $set: { skillRequestId: new Types.ObjectId(commande.requestId) } });
+    } catch (err) {
+      await ChatSession.updateOne({ _id: session._id }, { $set: { status: 'reviewing' } });
+      throw err;
+    }
+    const finale = await ChatSession.findById(session._id);
+    return { session: finale ?? session, site: null, pendingLogoAction: null };
+  }
   if (hubMode !== 'site') {
     // Logo / business / edit : confirmation = fin de conversation, pas de Site auto
     session.status = 'confirmed';
@@ -1284,6 +1522,19 @@ export async function confirmChatSession(sessionId: string, userId: string, conf
       "La création de site est réservée aux abonnements Créateur+, Agence et Pro Max. L'abonnement Starter donne accès à l'Académie — passez à Créateur+ pour créer concrètement votre site.",
       403
     );
+  }
+
+  // Images du site (3 options) : photos envoyées par le client rattachées au
+  // brief ; sans photo reçue, la galerie NexAI prend le relais (le client en
+  // a été prévenu dans la conversation).
+  const photosChoix = normaliserPhotosChoix(session.collectedBrief?.photosChoix);
+  const images = repartirImagesClient(session.messages, photosChoix);
+  if (photosChoix === 'client' || photosChoix === 'mixte') {
+    session.collectedBrief = {
+      ...session.collectedBrief,
+      photosChoix: images.photos.length > 0 ? photosChoix : 'galerie',
+      photosClient: images.photos,
+    };
   }
 
   const site = await Site.create({
@@ -1305,16 +1556,11 @@ export async function confirmChatSession(sessionId: string, userId: string, conf
     capacites: [],
   });
 
-  // ── Correctif §1 : poser le logo sur le site AVANT de lancer la génération ──
+  // ── Logo posé sur le site AVANT de lancer la génération ──
   //
-  // Avant ce correctif, la génération était enqueue immédiatement après la
-  // création du Site, alors que chosenLogoUrl/logoProposals (lus par le
-  // pipeline, voir ia-pipeline.service.ts) ne pouvaient être posés qu'après —
-  // via un aller-retour frontend séparé. Selon la rapidité du worker, le
-  // pipeline pouvait démarrer sans le logo demandé par le client.
-  //
-  // Résolution : on essaie de régler le logo tout de suite, ici, avant
-  // d'enqueue quoi que ce soit :
+  // chosenLogoUrl/logoProposals sont lus par le pipeline (voir
+  // ia-pipeline.service.ts) : on règle donc le logo ici, avant d'enqueue
+  // quoi que ce soit :
   //  - "no_logo" (ou rien)  → rien à faire, on continue.
   //  - "has_logo"           → si le client a déjà envoyé l'image en pièce
   //                           jointe pendant la conversation, on l'importe
@@ -1341,7 +1587,7 @@ export async function confirmChatSession(sessionId: string, userId: string, conf
   let pendingLogoAction: 'upload' | 'library' | 'plan_required' | null = null;
 
   if (logoPreference === 'has_logo') {
-    const imageAttachment = findLastUserImageAttachment(session.messages);
+    const imageAttachment = images.logo;
     if (imageAttachment) {
       await Logo.create({
         userId: user._id,
@@ -1376,10 +1622,7 @@ export async function confirmChatSession(sessionId: string, userId: string, conf
     let usedIncludedQuota = false;
     let creditsSpentOnLogo = 0;
     try {
-      const quota = getLogoQuotaInfo(user.plan, user.logosUsed || 0);
-      if (quota.canUseIncluded) {
-        user.logosUsed = (user.logosUsed || 0) + 1;
-        await user.save();
+      if (await reserverLogoInclus(user._id, user.plan)) {
         usedIncludedQuota = true;
       } else {
         await debitCredits(user._id, CREDIT_COSTS.LOGO, 'logo', {
@@ -1410,8 +1653,7 @@ export async function confirmChatSession(sessionId: string, userId: string, conf
       // rembourse ce qui a été consommé pour ne pas lui faire perdre du
       // quota/crédits pour un logo qu'il n'a jamais reçu.
       if (usedIncludedQuota) {
-        user.logosUsed = Math.max(0, (user.logosUsed || 0) - 1);
-        await user.save();
+        await restituerLogoInclus(user._id);
       } else if (creditsSpentOnLogo > 0) {
         await creditCredits(user._id, creditsSpentOnLogo, 'ajustement_admin', {
           relatedSiteId: String(site._id),

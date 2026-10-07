@@ -1,0 +1,1366 @@
+[
+  {
+    "_id": "nuit-dambre",
+    "code": "P01",
+    "id": "nuit-dambre",
+    "nom": "Nuit d'Ambre",
+    "niches": [
+      "restaurant",
+      "education"
+    ],
+    "sombre": true,
+    "esprit": "Table du soir : noir laqué, or discret, serif fin. Aussi formation premium (fusion Grand Écran).",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#050505",
+      "--ink": "#F3EFE6",
+      "--muted": "#9A968C",
+      "--accent": "#C9B37E",
+      "--on-accent": "#050505",
+      "--accent-text": "#C9B37E",
+      "--surface": "#131313",
+      "--line": "#2A2A2A",
+      "--btn-photo-bg": "#C9B37E",
+      "--btn-photo-ink": "#050505"
+    },
+    "contrastes": {
+      "ink/bg": 17.76,
+      "ink/surface": 16.19,
+      "muted/bg": 6.91,
+      "muted/surface": 6.3,
+      "on-accent/accent": 9.93,
+      "accent/bg": 9.93,
+      "accent-text/bg": 9.93,
+      "accent-text/surface": 9.05,
+      "btn-photo": 9.93
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "nappe-blanche",
+    "code": "P02",
+    "id": "nappe-blanche",
+    "nom": "Nappe Blanche",
+    "niches": [
+      "restaurant"
+    ],
+    "sombre": false,
+    "esprit": "Maison établie : blanc, encre, un seul rouge.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#FFFFFF",
+      "--ink": "#1A1A1A",
+      "--muted": "#666666",
+      "--accent": "#B80F2A",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#B80F2A",
+      "--surface": "#F4F4F4",
+      "--line": "#E6E6E6",
+      "--btn-photo-bg": "#FFFFFF",
+      "--btn-photo-ink": "#1A1A1A"
+    },
+    "contrastes": {
+      "ink/bg": 17.4,
+      "ink/surface": 15.82,
+      "muted/bg": 5.74,
+      "muted/surface": 5.22,
+      "on-accent/accent": 6.69,
+      "accent/bg": 6.69,
+      "accent-text/bg": 6.69,
+      "accent-text/surface": 6.08,
+      "btn-photo": 17.4
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "feu-de-rue",
+    "code": "P03",
+    "id": "feu-de-rue",
+    "nom": "Feu de Rue",
+    "niches": [
+      "restaurant"
+    ],
+    "sombre": true,
+    "esprit": "Street food, maquis, grillades : champ de couleur braise, titres massifs.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#B1140E",
+      "--ink": "#FFFFFF",
+      "--muted": "#FFE3DE",
+      "--accent": "#FFFFFF",
+      "--on-accent": "#B1140E",
+      "--accent-text": "#FFFFFF",
+      "--surface": "#95110C",
+      "--line": "#E0453C",
+      "--btn-photo-bg": "#FFFFFF",
+      "--btn-photo-ink": "#B1140E"
+    },
+    "contrastes": {
+      "ink/bg": 7.06,
+      "ink/surface": 8.89,
+      "muted/bg": 5.81,
+      "muted/surface": 7.32,
+      "on-accent/accent": 7.06,
+      "accent/bg": 7.06,
+      "accent-text/bg": 7.06,
+      "accent-text/surface": 8.89,
+      "btn-photo": 7.06
+    },
+    "correction": "Fond #C4160F → #B1140E (texte 6,1 → 7,1:1), surface #95110C, bouton blanc texte rouge.",
+    "seed_version": 1
+  },
+  {
+    "_id": "carnet",
+    "code": "P04",
+    "id": "carnet",
+    "nom": "Carnet",
+    "niches": [
+      "restaurant",
+      "immobilier",
+      "portfolio"
+    ],
+    "sombre": false,
+    "esprit": "Bistrot d’auteur : magazine noir et blanc, la typo fait l’identité. Aussi architecture et portfolio (fusion Béton, Galerie).",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#FFFFFF",
+      "--ink": "#1E1E1E",
+      "--muted": "#6B6B6B",
+      "--accent": "#1E1E1E",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#1E1E1E",
+      "--surface": "#F5F5F5",
+      "--line": "#E3E3E3",
+      "--btn-photo-bg": "#FFFFFF",
+      "--btn-photo-ink": "#1E1E1E"
+    },
+    "contrastes": {
+      "ink/bg": 16.67,
+      "ink/surface": 15.29,
+      "muted/bg": 5.33,
+      "muted/surface": 4.89,
+      "on-accent/accent": 16.67,
+      "accent/bg": 16.67,
+      "accent-text/bg": 16.67,
+      "accent-text/surface": 15.29,
+      "btn-photo": 16.67
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "terre-cuite",
+    "code": "P05",
+    "id": "terre-cuite",
+    "nom": "Terre Cuite",
+    "niches": [
+      "restaurant"
+    ],
+    "sombre": false,
+    "esprit": "Cuisine africaine familiale et généreuse : terracotta, crème, ocre.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#F6EFE6",
+      "--ink": "#2B1A12",
+      "--muted": "#6B5446",
+      "--accent": "#A84A22",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#A54921",
+      "--surface": "#EFE2D2",
+      "--line": "#E0CDB8",
+      "--btn-photo-bg": "#A84A22",
+      "--btn-photo-ink": "#FFFFFF",
+      "--decor": "#D9A441"
+    },
+    "contrastes": {
+      "ink/bg": 14.62,
+      "ink/surface": 13.09,
+      "muted/bg": 6.17,
+      "muted/surface": 5.53,
+      "on-accent/accent": 5.73,
+      "accent/bg": 5.02,
+      "accent-text/bg": 5.15,
+      "accent-text/surface": 4.61,
+      "btn-photo": 5.73,
+      "decor/bg (jamais texte)": 1.97
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "jardin",
+    "code": "P06",
+    "id": "jardin",
+    "nom": "Jardin",
+    "niches": [
+      "restaurant"
+    ],
+    "sombre": false,
+    "esprit": "Café, brunch, cuisine saine : olive, crème, lumière du jour.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#F4F1E8",
+      "--ink": "#1F2A1F",
+      "--muted": "#566153",
+      "--accent": "#3E5B36",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#3E5B36",
+      "--surface": "#E8E6D8",
+      "--line": "#D6D3C2",
+      "--btn-photo-bg": "#F4F1E8",
+      "--btn-photo-ink": "#1F2A1F",
+      "--decor": "#C9A45C"
+    },
+    "contrastes": {
+      "ink/bg": 13.19,
+      "ink/surface": 11.88,
+      "muted/bg": 5.76,
+      "muted/surface": 5.18,
+      "on-accent/accent": 7.62,
+      "accent/bg": 6.75,
+      "accent-text/bg": 6.75,
+      "accent-text/surface": 6.08,
+      "btn-photo": 13.19,
+      "decor/bg (jamais texte)": 2.08
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "sable",
+    "code": "P07",
+    "id": "sable",
+    "nom": "Sable",
+    "niches": [
+      "hotellerie"
+    ],
+    "sombre": false,
+    "esprit": "Silence et lieu : papier chaud, un seul verbe « Réserver ».",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#F3EEE7",
+      "--ink": "#313131",
+      "--muted": "#67635D",
+      "--accent": "#1C1C1C",
+      "--on-accent": "#F3EEE7",
+      "--accent-text": "#1C1C1C",
+      "--surface": "#E9E2D8",
+      "--line": "#D8D0C4",
+      "--btn-photo-bg": "#F3EEE7",
+      "--btn-photo-ink": "#313131"
+    },
+    "contrastes": {
+      "ink/bg": 11.27,
+      "ink/surface": 10.12,
+      "muted/bg": 5.17,
+      "muted/surface": 4.64,
+      "on-accent/accent": 14.77,
+      "accent/bg": 14.77,
+      "accent-text/bg": 14.77,
+      "accent-text/surface": 13.26,
+      "btn-photo": 11.27
+    },
+    "correction": "Secondaire #6E6A64 → #67635D (4,2 → 4,6:1 sur surface).",
+    "seed_version": 1
+  },
+  {
+    "_id": "lagune",
+    "code": "P09",
+    "id": "lagune",
+    "nom": "Lagune",
+    "niches": [
+      "hotellerie"
+    ],
+    "sombre": false,
+    "esprit": "Resort et hôtel de mer d’Afrique de l’Ouest : bleu profond, or sable.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#FFFFFF",
+      "--ink": "#1A1714",
+      "--muted": "#5C564E",
+      "--accent": "#0B3A4A",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#0B3A4A",
+      "--surface": "#F6F1E8",
+      "--line": "#E8D5B5",
+      "--btn-photo-bg": "#FFFFFF",
+      "--btn-photo-ink": "#1A1714",
+      "--decor": "#8C6B2F"
+    },
+    "contrastes": {
+      "ink/bg": 17.85,
+      "ink/surface": 15.86,
+      "muted/bg": 7.25,
+      "muted/surface": 6.44,
+      "on-accent/accent": 12.22,
+      "accent/bg": 12.22,
+      "accent-text/bg": 12.22,
+      "accent-text/surface": 10.86,
+      "btn-photo": 17.85,
+      "decor/bg (jamais texte)": 4.93
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "kora",
+    "code": "P10",
+    "id": "kora",
+    "nom": "Kora",
+    "niches": [
+      "hotellerie"
+    ],
+    "sombre": false,
+    "esprit": "Hôtel boutique afro-contemporain : indigo nuit, terracotta, artisanat.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#F7F2EA",
+      "--ink": "#1D1B2E",
+      "--muted": "#5E5A6E",
+      "--accent": "#B5532B",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#A34B27",
+      "--surface": "#EDE3D3",
+      "--line": "#DCCFBC",
+      "--btn-photo-bg": "#B5532B",
+      "--btn-photo-ink": "#FFFFFF",
+      "--decor": "#2E3A6B"
+    },
+    "contrastes": {
+      "ink/bg": 15.09,
+      "ink/surface": 13.24,
+      "muted/bg": 5.96,
+      "muted/surface": 5.22,
+      "on-accent/accent": 4.96,
+      "accent/bg": 4.45,
+      "accent-text/bg": 5.24,
+      "accent-text/surface": 4.6,
+      "btn-photo": 4.96,
+      "decor/bg (jamais texte)": 9.74
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "laiton",
+    "code": "P11",
+    "id": "laiton",
+    "nom": "Laiton",
+    "niches": [
+      "hotellerie",
+      "business"
+    ],
+    "sombre": true,
+    "esprit": "Hôtel urbain de nuit, rooftop, affaires : navy nuit, laiton. Aussi cabinet d’affaires (fusion Ébène).",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#0F1420",
+      "--ink": "#EDE6DA",
+      "--muted": "#A39B8E",
+      "--accent": "#B8925A",
+      "--on-accent": "#0F1420",
+      "--accent-text": "#B8925A",
+      "--surface": "#171E2E",
+      "--line": "#263049",
+      "--btn-photo-bg": "#B8925A",
+      "--btn-photo-ink": "#0F1420"
+    },
+    "contrastes": {
+      "ink/bg": 14.84,
+      "ink/surface": 13.42,
+      "muted/bg": 6.69,
+      "muted/surface": 6.05,
+      "on-accent/accent": 6.39,
+      "accent/bg": 6.39,
+      "accent-text/bg": 6.39,
+      "accent-text/surface": 5.78,
+      "btn-photo": 6.39
+    },
+    "correction": "Renommée (Nocturne → Laiton).",
+    "seed_version": 1
+  },
+  {
+    "_id": "clarte",
+    "code": "P12",
+    "id": "clarte",
+    "nom": "Clarté",
+    "niches": [
+      "sante"
+    ],
+    "sombre": false,
+    "esprit": "Clinique lisible : fond clair, teal, rendez-vous en un clic.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#F7F7F7",
+      "--ink": "#12211E",
+      "--muted": "#55655F",
+      "--accent": "#0B6B5B",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#0B6B5B",
+      "--surface": "#E8F0EE",
+      "--line": "#D5E1DD",
+      "--btn-photo-bg": "#F7F7F7",
+      "--btn-photo-ink": "#12211E"
+    },
+    "contrastes": {
+      "ink/bg": 15.53,
+      "ink/surface": 14.37,
+      "muted/bg": 5.74,
+      "muted/surface": 5.31,
+      "on-accent/accent": 6.43,
+      "accent/bg": 6.0,
+      "accent-text/bg": 6.0,
+      "accent-text/surface": 5.55,
+      "btn-photo": 15.53
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "tisane",
+    "code": "P13",
+    "id": "tisane",
+    "nom": "Tisane",
+    "niches": [
+      "sante"
+    ],
+    "sombre": false,
+    "esprit": "Médecine douce, nutrition, esthétique : papier chaud, sauge.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#F4F0E8",
+      "--ink": "#2C2C2C",
+      "--muted": "#625D55",
+      "--accent": "#3F5E4E",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#3F5E4E",
+      "--surface": "#EAE3D6",
+      "--line": "#D9D0C1",
+      "--btn-photo-bg": "#F4F0E8",
+      "--btn-photo-ink": "#2C2C2C"
+    },
+    "contrastes": {
+      "ink/bg": 12.29,
+      "ink/surface": 10.94,
+      "muted/bg": 5.74,
+      "muted/surface": 5.12,
+      "on-accent/accent": 7.19,
+      "accent/bg": 6.32,
+      "accent-text/bg": 6.32,
+      "accent-text/surface": 5.63,
+      "btn-photo": 12.29
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "lin",
+    "code": "P14",
+    "id": "lin",
+    "nom": "Lin",
+    "niches": [
+      "sante"
+    ],
+    "sombre": false,
+    "esprit": "Spa, massage, institut : lin, argile douce, calme.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#F5F2EC",
+      "--ink": "#2A2622",
+      "--muted": "#6A625A",
+      "--accent": "#8E5E43",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#895B41",
+      "--surface": "#EBE5DB",
+      "--line": "#DDD4C7",
+      "--btn-photo-bg": "#8E5E43",
+      "--btn-photo-ink": "#FFFFFF"
+    },
+    "contrastes": {
+      "ink/bg": 13.44,
+      "ink/surface": 11.98,
+      "muted/bg": 5.36,
+      "muted/surface": 4.78,
+      "on-accent/accent": 5.48,
+      "accent/bg": 4.9,
+      "accent-text/bg": 5.17,
+      "accent-text/surface": 4.61,
+      "btn-photo": 5.48
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "marbre",
+    "code": "P16",
+    "id": "marbre",
+    "nom": "Marbre",
+    "niches": [
+      "immobilier",
+      "business"
+    ],
+    "sombre": false,
+    "esprit": "Immobilier de prestige : navy, or discret, serif éditorial. Aussi conseil, audit (fusion Encre Marine).",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#FFFFFF",
+      "--ink": "#0F2A44",
+      "--muted": "#586676",
+      "--accent": "#0F2A44",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#0F2A44",
+      "--surface": "#F4F1EA",
+      "--line": "#E3DED3",
+      "--btn-photo-bg": "#FFFFFF",
+      "--btn-photo-ink": "#0F2A44",
+      "--decor": "#8F6F3E"
+    },
+    "contrastes": {
+      "ink/bg": 14.63,
+      "ink/surface": 12.97,
+      "muted/bg": 5.87,
+      "muted/surface": 5.2,
+      "on-accent/accent": 14.63,
+      "accent/bg": 14.63,
+      "accent-text/bg": 14.63,
+      "accent-text/surface": 12.97,
+      "btn-photo": 14.63,
+      "decor/bg (jamais texte)": 4.66
+    },
+    "correction": "Texte / accent décalés #0A2540 → #0F2A44 (valeur de marque).",
+    "seed_version": 1
+  },
+  {
+    "_id": "horizon",
+    "code": "P18",
+    "id": "horizon",
+    "nom": "Horizon",
+    "niches": [
+      "immobilier"
+    ],
+    "sombre": false,
+    "esprit": "Agence immobilière moderne : bleu ardoise, sable, clair.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#FFFFFF",
+      "--ink": "#16202B",
+      "--muted": "#56626F",
+      "--accent": "#1F4E5F",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#1F4E5F",
+      "--surface": "#F3F0EA",
+      "--line": "#E2DED5",
+      "--btn-photo-bg": "#FFFFFF",
+      "--btn-photo-ink": "#16202B",
+      "--decor": "#C8A96A"
+    },
+    "contrastes": {
+      "ink/bg": 16.46,
+      "ink/surface": 14.47,
+      "muted/bg": 6.23,
+      "muted/surface": 5.47,
+      "on-accent/accent": 9.08,
+      "accent/bg": 9.08,
+      "accent-text/bg": 9.08,
+      "accent-text/surface": 7.98,
+      "btn-photo": 16.46,
+      "decor/bg (jamais texte)": 2.25
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "etabli",
+    "code": "P19",
+    "id": "etabli",
+    "nom": "Établi",
+    "niches": [
+      "services"
+    ],
+    "sombre": false,
+    "esprit": "Artisan de confiance : devis rapide, téléphone et WhatsApp visibles.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#FFFFFF",
+      "--ink": "#14213D",
+      "--muted": "#4F5B6E",
+      "--accent": "#0F5CC0",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#0F5CC0",
+      "--surface": "#F2F5F9",
+      "--line": "#DDE3EB",
+      "--btn-photo-bg": "#FFFFFF",
+      "--btn-photo-ink": "#14213D"
+    },
+    "contrastes": {
+      "ink/bg": 15.97,
+      "ink/surface": 14.61,
+      "muted/bg": 6.88,
+      "muted/surface": 6.29,
+      "on-accent/accent": 6.34,
+      "accent/bg": 6.34,
+      "accent-text/bg": 6.34,
+      "accent-text/surface": 5.8,
+      "btn-photo": 15.97
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "atelier-noir",
+    "code": "P20",
+    "id": "atelier-noir",
+    "nom": "Atelier Noir",
+    "niches": [
+      "services"
+    ],
+    "sombre": true,
+    "esprit": "Barbier, coiffure, tatouage : atelier sombre, crème, réservation immédiate.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#111111",
+      "--ink": "#F5E6C8",
+      "--muted": "#B3A68D",
+      "--accent": "#C8102E",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#F03F5C",
+      "--surface": "#1C1A17",
+      "--line": "#2E2A24",
+      "--btn-photo-bg": "#F5E6C8",
+      "--btn-photo-ink": "#111111"
+    },
+    "contrastes": {
+      "ink/bg": 15.32,
+      "ink/surface": 14.08,
+      "muted/bg": 7.87,
+      "muted/surface": 7.24,
+      "on-accent/accent": 5.88,
+      "accent/bg": 3.21,
+      "accent-text/bg": 5.01,
+      "accent-text/surface": 4.61,
+      "btn-photo": 15.32
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "tresse",
+    "code": "P21",
+    "id": "tresse",
+    "nom": "Tresse",
+    "niches": [
+      "services"
+    ],
+    "sombre": false,
+    "esprit": "Salon de beauté, tresses, onglerie : aubergine, rose poudré, crème.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#FBF5F2",
+      "--ink": "#2B1623",
+      "--muted": "#6B5562",
+      "--accent": "#7A2F57",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#7A2F57",
+      "--surface": "#F4E6E4",
+      "--line": "#E8D3D1",
+      "--btn-photo-bg": "#FBF5F2",
+      "--btn-photo-ink": "#2B1623",
+      "--decor": "#E7B7A8"
+    },
+    "contrastes": {
+      "ink/bg": 15.66,
+      "ink/surface": 13.92,
+      "muted/bg": 6.27,
+      "muted/surface": 5.57,
+      "on-accent/accent": 8.85,
+      "accent/bg": 8.2,
+      "accent-text/bg": 8.2,
+      "accent-text/surface": 7.29,
+      "btn-photo": 15.66,
+      "decor/bg (jamais texte)": 1.66
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "chantier",
+    "code": "P22",
+    "id": "chantier",
+    "nom": "Chantier",
+    "niches": [
+      "services"
+    ],
+    "sombre": false,
+    "esprit": "BTP, électricité, froid : graphite, jaune sécurité en aplat.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#F5F5F2",
+      "--ink": "#151515",
+      "--muted": "#555555",
+      "--accent": "#1A1A1A",
+      "--on-accent": "#F2B705",
+      "--accent-text": "#1A1A1A",
+      "--surface": "#ECECE6",
+      "--line": "#DADAD2",
+      "--btn-photo-bg": "#F5F5F2",
+      "--btn-photo-ink": "#151515",
+      "--decor": "#F2B705"
+    },
+    "contrastes": {
+      "ink/bg": 16.72,
+      "ink/surface": 15.4,
+      "muted/bg": 6.83,
+      "muted/surface": 6.29,
+      "on-accent/accent": 9.57,
+      "accent/bg": 15.93,
+      "accent-text/bg": 15.93,
+      "accent-text/surface": 14.68,
+      "btn-photo": 16.72,
+      "decor/bg (jamais texte)": 1.66
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "ligne",
+    "code": "P26",
+    "id": "ligne",
+    "nom": "Ligne",
+    "niches": [
+      "business",
+      "saas"
+    ],
+    "sombre": false,
+    "esprit": "Cabinet moderne, agence, conseil numérique : blanc, graphite, bleu électrique. Aussi SaaS et outils numériques.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#FFFFFF",
+      "--ink": "#111418",
+      "--muted": "#5A616B",
+      "--accent": "#2340D9",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#2340D9",
+      "--surface": "#F4F5F7",
+      "--line": "#E3E6EA",
+      "--btn-photo-bg": "#FFFFFF",
+      "--btn-photo-ink": "#111418"
+    },
+    "contrastes": {
+      "ink/bg": 18.47,
+      "ink/surface": 16.93,
+      "muted/bg": 6.26,
+      "muted/surface": 5.73,
+      "on-accent/accent": 7.48,
+      "accent/bg": 7.48,
+      "accent-text/bg": 7.48,
+      "accent-text/surface": 6.86,
+      "btn-photo": 18.47
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "couture",
+    "code": "P27",
+    "id": "couture",
+    "nom": "Couture",
+    "niches": [
+      "mode",
+      "portfolio"
+    ],
+    "sombre": true,
+    "esprit": "Marque créateur : noir total, capitales espacées, split éditorial. Aussi photographe, vidéaste (fusion Chambre Noire).",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#0D0D0D",
+      "--ink": "#F4F4F4",
+      "--muted": "#9A9A9A",
+      "--accent": "#F4F4F4",
+      "--on-accent": "#0D0D0D",
+      "--accent-text": "#F4F4F4",
+      "--surface": "#1A1A1A",
+      "--line": "#2B2B2B",
+      "--btn-photo-bg": "#F4F4F4",
+      "--btn-photo-ink": "#0D0D0D"
+    },
+    "contrastes": {
+      "ink/bg": 17.67,
+      "ink/surface": 15.82,
+      "muted/bg": 6.91,
+      "muted/surface": 6.19,
+      "on-accent/accent": 17.67,
+      "accent/bg": 17.67,
+      "accent-text/bg": 17.67,
+      "accent-text/surface": 15.82,
+      "btn-photo": 17.67
+    },
+    "correction": "Renommée (Nuit Couture → Couture).",
+    "seed_version": 1
+  },
+  {
+    "_id": "soleil",
+    "code": "P28",
+    "id": "soleil",
+    "nom": "Soleil",
+    "niches": [
+      "mode"
+    ],
+    "sombre": false,
+    "esprit": "Direction artistique radicale : blanc, noir, aplats jaune soleil.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#FFFFFF",
+      "--ink": "#000000",
+      "--muted": "#5E5E5E",
+      "--accent": "#000000",
+      "--on-accent": "#F2C230",
+      "--accent-text": "#000000",
+      "--surface": "#FFF8DC",
+      "--line": "#E6E6E6",
+      "--btn-photo-bg": "#FFFFFF",
+      "--btn-photo-ink": "#000000",
+      "--decor": "#F2C230"
+    },
+    "contrastes": {
+      "ink/bg": 21.0,
+      "ink/surface": 19.71,
+      "muted/bg": 6.48,
+      "muted/surface": 6.09,
+      "on-accent/accent": 12.53,
+      "accent/bg": 21.0,
+      "accent-text/bg": 21.0,
+      "accent-text/surface": 19.71,
+      "btn-photo": 21.0,
+      "decor/bg (jamais texte)": 1.68
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "argile",
+    "code": "P29",
+    "id": "argile",
+    "nom": "Argile",
+    "niches": [
+      "mode"
+    ],
+    "sombre": false,
+    "esprit": "Soin, cosmétique, objets : taupe, encre olive, copy longue.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#E8DCC8",
+      "--ink": "#3D3A32",
+      "--muted": "#5E594D",
+      "--accent": "#3D3A32",
+      "--on-accent": "#E8DCC8",
+      "--accent-text": "#3D3A32",
+      "--surface": "#DDD0B8",
+      "--line": "#CDBFA5",
+      "--btn-photo-bg": "#E8DCC8",
+      "--btn-photo-ink": "#3D3A32"
+    },
+    "contrastes": {
+      "ink/bg": 8.38,
+      "ink/surface": 7.45,
+      "muted/bg": 5.15,
+      "muted/surface": 4.58,
+      "on-accent/accent": 8.38,
+      "accent/bg": 8.38,
+      "accent-text/bg": 8.38,
+      "accent-text/surface": 7.45,
+      "btn-photo": 8.38
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "indigo",
+    "code": "P30",
+    "id": "indigo",
+    "nom": "Indigo",
+    "niches": [
+      "mode"
+    ],
+    "sombre": false,
+    "esprit": "Textile teint, artisanat : bleu indigo, écru.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#F4F1EA",
+      "--ink": "#14213D",
+      "--muted": "#56607A",
+      "--accent": "#1F3A7A",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#1F3A7A",
+      "--surface": "#E8E4DA",
+      "--line": "#D8D2C4",
+      "--btn-photo-bg": "#F4F1EA",
+      "--btn-photo-ink": "#14213D"
+    },
+    "contrastes": {
+      "ink/bg": 14.16,
+      "ink/surface": 12.58,
+      "muted/bg": 5.56,
+      "muted/surface": 4.94,
+      "on-accent/accent": 10.8,
+      "accent/bg": 9.57,
+      "accent-text/bg": 9.57,
+      "accent-text/surface": 8.51,
+      "btn-photo": 14.16
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "bogolan",
+    "code": "P31",
+    "id": "bogolan",
+    "nom": "Bogolan",
+    "niches": [
+      "mode"
+    ],
+    "sombre": false,
+    "esprit": "Mode d’auteur africaine : terre, brun, écru, graphisme fort.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#EFE6D8",
+      "--ink": "#2A1D14",
+      "--muted": "#6A5745",
+      "--accent": "#2A1D14",
+      "--on-accent": "#EFE6D8",
+      "--accent-text": "#2A1D14",
+      "--surface": "#E3D6C2",
+      "--line": "#CDBBA2",
+      "--btn-photo-bg": "#EFE6D8",
+      "--btn-photo-ink": "#2A1D14",
+      "--decor": "#8C4A2F"
+    },
+    "contrastes": {
+      "ink/bg": 13.22,
+      "ink/surface": 11.42,
+      "muted/bg": 5.55,
+      "muted/surface": 4.79,
+      "on-accent/accent": 13.22,
+      "accent/bg": 13.22,
+      "accent-text/bg": 13.22,
+      "accent-text/surface": 11.42,
+      "btn-photo": 13.22,
+      "decor/bg (jamais texte)": 5.42
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "signal",
+    "code": "P34",
+    "id": "signal",
+    "nom": "Signal",
+    "niches": [
+      "portfolio"
+    ],
+    "sombre": false,
+    "esprit": "Designer, studio graphique : grille suisse, un orange signal.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#F2F0EB",
+      "--ink": "#111111",
+      "--muted": "#5C5C5C",
+      "--accent": "#E8431A",
+      "--on-accent": "#111111",
+      "--accent-text": "#BA3413",
+      "--surface": "#E8E5DE",
+      "--line": "#D6D2C8",
+      "--btn-photo-bg": "#E8431A",
+      "--btn-photo-ink": "#111111"
+    },
+    "contrastes": {
+      "ink/bg": 16.58,
+      "ink/surface": 15.01,
+      "muted/bg": 5.87,
+      "muted/surface": 5.32,
+      "on-accent/accent": 4.72,
+      "accent/bg": 3.51,
+      "accent-text/bg": 5.14,
+      "accent-text/surface": 4.65,
+      "btn-photo": 4.72
+    },
+    "correction": "Renommée (Grille → Signal).",
+    "seed_version": 1
+  },
+  {
+    "_id": "agora",
+    "code": "P38",
+    "id": "agora",
+    "nom": "Agora",
+    "niches": [
+      "saas"
+    ],
+    "sombre": false,
+    "esprit": "Logiciel pour commerçants africains : chaleureux, orange, direct.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#FFFFFF",
+      "--ink": "#16110D",
+      "--muted": "#5F564E",
+      "--accent": "#D9571A",
+      "--on-accent": "#16110D",
+      "--accent-text": "#BD4C17",
+      "--surface": "#FFF4EC",
+      "--line": "#F0DFD2",
+      "--btn-photo-bg": "#D9571A",
+      "--btn-photo-ink": "#16110D"
+    },
+    "contrastes": {
+      "ink/bg": 18.75,
+      "ink/surface": 17.32,
+      "muted/bg": 7.17,
+      "muted/surface": 6.63,
+      "on-accent/accent": 4.76,
+      "accent/bg": 3.94,
+      "accent-text/bg": 4.99,
+      "accent-text/surface": 4.61,
+      "btn-photo": 4.76
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "elan",
+    "code": "P40",
+    "id": "elan",
+    "nom": "Élan",
+    "niches": [
+      "education"
+    ],
+    "sombre": true,
+    "esprit": "Programme intensif, carrière : bleu franc, énergie.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#1C3FA8",
+      "--ink": "#FFFFFF",
+      "--muted": "#D4DCFF",
+      "--accent": "#FFFFFF",
+      "--on-accent": "#1C3FA8",
+      "--accent-text": "#FFFFFF",
+      "--surface": "#2447B8",
+      "--line": "#3558C4",
+      "--btn-photo-bg": "#FFFFFF",
+      "--btn-photo-ink": "#1C3FA8",
+      "--decor": "#FF4D6A"
+    },
+    "contrastes": {
+      "ink/bg": 9.03,
+      "ink/surface": 7.87,
+      "muted/bg": 6.66,
+      "muted/surface": 5.8,
+      "on-accent/accent": 9.03,
+      "accent/bg": 9.03,
+      "accent-text/bg": 9.03,
+      "accent-text/surface": 7.87,
+      "btn-photo": 9.03,
+      "decor/bg (jamais texte)": 2.8
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "tableau",
+    "code": "P41",
+    "id": "tableau",
+    "nom": "Tableau",
+    "niches": [
+      "education",
+      "business"
+    ],
+    "sombre": false,
+    "esprit": "École, centre de formation : vert école, crème, rassurant. Aussi cabinet de proximité, comptable (fusion Papier Kraft).",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#FAF7F0",
+      "--ink": "#1B2A22",
+      "--muted": "#56625A",
+      "--accent": "#1E5B3F",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#1E5B3F",
+      "--surface": "#EFEADC",
+      "--line": "#DED8C6",
+      "--btn-photo-bg": "#FAF7F0",
+      "--btn-photo-ink": "#1B2A22",
+      "--decor": "#C8962E"
+    },
+    "contrastes": {
+      "ink/bg": 14.01,
+      "ink/surface": 12.47,
+      "muted/bg": 5.97,
+      "muted/surface": 5.31,
+      "on-accent/accent": 8.0,
+      "accent/bg": 7.48,
+      "accent-text/bg": 7.48,
+      "accent-text/surface": 6.66,
+      "btn-photo": 14.01,
+      "decor/bg (jamais texte)": 2.5
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "canopee",
+    "code": "P08",
+    "id": "canopee",
+    "nom": "Canopée",
+    "niches": [
+      "hotellerie"
+    ],
+    "sombre": false,
+    "esprit": "Hôtel nature et bien-être : pierre claire, bois, lumière douce.",
+    "origine": "issue des packs",
+    "tokens": {
+      "--bg": "#F2F1EB",
+      "--ink": "#2E2E2E",
+      "--muted": "#62615B",
+      "--accent": "#5C5A3A",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#5C5A3A",
+      "--surface": "#E7E5DC",
+      "--line": "#D6D3C8",
+      "--btn-photo-bg": "#F2F1EB",
+      "--btn-photo-ink": "#2E2E2E"
+    },
+    "contrastes": {
+      "ink/bg": 12.0,
+      "ink/surface": 10.76,
+      "muted/bg": 5.49,
+      "muted/surface": 4.92,
+      "on-accent/accent": 7.05,
+      "accent/bg": 6.23,
+      "accent-text/bg": 6.23,
+      "accent-text/surface": 5.59,
+      "btn-photo": 12.0
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "laterite",
+    "code": "P17",
+    "id": "laterite",
+    "nom": "Latérite",
+    "niches": [
+      "immobilier"
+    ],
+    "sombre": false,
+    "esprit": "Architecture africaine contemporaine : terre rouge, blanc cassé.",
+    "origine": "création NexAI",
+    "tokens": {
+      "--bg": "#FBF8F4",
+      "--ink": "#1E1714",
+      "--muted": "#675A52",
+      "--accent": "#9C3F1C",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#9C3F1C",
+      "--surface": "#F1E6DC",
+      "--line": "#E3D4C6",
+      "--btn-photo-bg": "#FBF8F4",
+      "--btn-photo-ink": "#1E1714"
+    },
+    "contrastes": {
+      "ink/bg": 16.7,
+      "ink/surface": 14.39,
+      "muted/bg": 6.27,
+      "muted/surface": 5.41,
+      "on-accent/accent": 6.69,
+      "accent/bg": 6.31,
+      "accent-text/bg": 6.31,
+      "accent-text/surface": 5.44,
+      "btn-photo": 16.7
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "etude-papier",
+    "code": "V01",
+    "id": "etude-papier",
+    "nom": "Étude Papier",
+    "niches": [
+      "business"
+    ],
+    "sombre": false,
+    "esprit": "Cabinet, notaire, conseil, papier, institutionnel.",
+    "origine": "V10 (2e IA), testée NexAI",
+    "tokens": {
+      "--bg": "#F6F1E8",
+      "--ink": "#1A1714",
+      "--muted": "#5E574E",
+      "--accent": "#6B1D2A",
+      "--on-accent": "#F6F1E8",
+      "--accent-text": "#6B1D2A",
+      "--surface": "#EDE6D8",
+      "--line": "#DDD4C4",
+      "--btn-photo-bg": "#F6F1E8",
+      "--btn-photo-ink": "#1A1714"
+    },
+    "contrastes": {
+      "ink/bg": 15.86,
+      "ink/surface": 14.37,
+      "muted/bg": 6.33,
+      "muted/surface": 5.73,
+      "on-accent/accent": 10.18,
+      "accent/bg": 10.18,
+      "accent-text/bg": 10.18,
+      "accent-text/surface": 9.22,
+      "btn-photo": 15.86
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "flux",
+    "code": "P37",
+    "id": "flux",
+    "nom": "Flux",
+    "niches": [
+      "saas"
+    ],
+    "sombre": false,
+    "esprit": "Fintech, mobile money.",
+    "origine": "V10 (2e IA), testée NexAI",
+    "tokens": {
+      "--bg": "#F7FBFC",
+      "--ink": "#0B1F2A",
+      "--muted": "#5A7380",
+      "--accent": "#0B7A93",
+      "--on-accent": "#FFFFFF",
+      "--accent-text": "#0B7A93",
+      "--surface": "#FFFFFF",
+      "--line": "#D5E5EA",
+      "--btn-photo-bg": "#0B7A93",
+      "--btn-photo-ink": "#FFFFFF"
+    },
+    "contrastes": {
+      "ink/bg": 16.21,
+      "ink/surface": 16.89,
+      "muted/bg": 4.8,
+      "muted/surface": 5.0,
+      "on-accent/accent": 4.98,
+      "accent/bg": 4.78,
+      "accent-text/bg": 4.78,
+      "accent-text/surface": 4.98,
+      "btn-photo": 4.98
+    },
+    "correction": "Texte #0A2540 → #102A43, secondaire → #52667A (valeurs de marque décalées).",
+    "seed_version": 1
+  },
+  {
+    "_id": "planches-photo",
+    "code": "V03",
+    "id": "planches-photo",
+    "nom": "Planches Photo",
+    "niches": [
+      "immobilier"
+    ],
+    "sombre": false,
+    "esprit": "Galerie, architecture, planches, photo.",
+    "origine": "V10 (2e IA), testée NexAI",
+    "tokens": {
+      "--bg": "#F5F2EC",
+      "--ink": "#1A1814",
+      "--muted": "#625C54",
+      "--accent": "#5C4033",
+      "--on-accent": "#FDF8F2",
+      "--accent-text": "#5C4033",
+      "--surface": "#EBE6DC",
+      "--line": "#D8D0C4",
+      "--btn-photo-bg": "#F5F2EC",
+      "--btn-photo-ink": "#1A1814"
+    },
+    "contrastes": {
+      "ink/bg": 15.86,
+      "ink/surface": 14.25,
+      "muted/bg": 5.91,
+      "muted/surface": 5.31,
+      "on-accent/accent": 8.89,
+      "accent/bg": 8.4,
+      "accent-text/bg": 8.4,
+      "accent-text/surface": 7.55,
+      "btn-photo": 15.86
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "atelier-affiche",
+    "code": "V04",
+    "id": "atelier-affiche",
+    "nom": "Atelier Affiche",
+    "niches": [
+      "services"
+    ],
+    "sombre": true,
+    "esprit": "Affiche, local, urgent, atelier.",
+    "origine": "V10 (2e IA), testée NexAI",
+    "tokens": {
+      "--bg": "#1A120C",
+      "--ink": "#F5EDE4",
+      "--muted": "#B8A89A",
+      "--accent": "#E85D04",
+      "--on-accent": "#1A120C",
+      "--accent-text": "#E85D04",
+      "--surface": "#261C14",
+      "--line": "#3D2E22",
+      "--btn-photo-bg": "#E85D04",
+      "--btn-photo-ink": "#1A120C"
+    },
+    "contrastes": {
+      "ink/bg": 15.95,
+      "ink/surface": 14.39,
+      "muted/bg": 8.02,
+      "muted/surface": 7.23,
+      "on-accent/accent": 5.28,
+      "accent/bg": 5.28,
+      "accent-text/bg": 5.28,
+      "accent-text/surface": 4.77,
+      "btn-photo": 5.28
+    },
+    "correction": "",
+    "seed_version": 1
+  },
+  {
+    "_id": "registre-plan",
+    "code": "V07",
+    "id": "registre-plan",
+    "nom": "Registre Plan",
+    "niches": [
+      "business"
+    ],
+    "sombre": false,
+    "esprit": "Audit, comptable, registre, technique.",
+    "origine": "V10 (2e IA), testée NexAI",
+    "tokens": {
+      "--bg": "#F4F4F1",
+      "--ink": "#141412",
+      "--muted": "#5A5A54",
+      "--accent": "#1F3A2E",
+      "--on-accent": "#F4F4F1",
+      "--accent-text": "#1F3A2E",
+      "--surface": "#E8E8E2",
+      "--line": "#D4D4CC",
+      "--btn-photo-bg": "#F4F4F1",
+      "--btn-photo-ink": "#141412"
+    },
+    "contrastes": {
+      "ink/bg": 16.74,
+      "ink/surface": 14.99,
+      "muted/bg": 6.3,
+      "muted/surface": 5.64,
+      "on-accent/accent": 11.19,
+      "accent/bg": 11.19,
+      "accent-text/bg": 11.19,
+      "accent-text/surface": 10.03,
+      "btn-photo": 16.74
+    },
+    "correction": "",
+    "seed_version": 1
+  }
+]

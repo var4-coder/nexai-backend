@@ -213,22 +213,26 @@ export async function purchaseDomain(domain: string, years = 1): Promise<void> {
   });
 }
 
+/** Adresse du load balancer Netlify pour l'enregistrement A d'un domaine racine (doc Netlify « external DNS »). */
+export const NETLIFY_APEX_IP = '75.2.60.5';
+
 /**
- * Ajoute un enregistrement DNS ciblé pointant vers Netlify
- * (sans déléguer les nameservers complets — Architecture A.13).
+ * Pose les deux enregistrements que Netlify exige pour un domaine géré en DNS
+ * externe : un A sur la racine (un CNAME y est interdit par le DNS) et un
+ * CNAME « www » vers l'adresse réelle du site Netlify. Chaque enregistrement
+ * est remplacé individuellement (PUT /records/{type}/{nom}) : les autres
+ * enregistrements du domaine (MX, TXT…) ne sont jamais touchés.
+ *
+ * @param netlifyHost adresse réelle du site, ex. « nexai-monsite.netlify.app »
  */
-export async function addNetlifyDnsRecord(domain: string, netlifyTarget: string): Promise<void> {
-  // Pour un domaine apex on utilise souvent un ALIAS / A ; pour un sous-domaine un CNAME.
-  // Ici on pose un CNAME générique vers le target Netlify fourni.
-  await godaddyFetch(`/domains/${domain}/records`, {
+export async function addNetlifyDnsRecord(domain: string, netlifyHost: string): Promise<void> {
+  const host = netlifyHost.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  await godaddyFetch(`/domains/${domain}/records/A/@`, {
     method: 'PUT',
-    body: JSON.stringify([
-      {
-        type: 'CNAME',
-        name: '@',
-        data: netlifyTarget.replace(/^https?:\/\//, '').replace(/\/$/, ''),
-        ttl: 600,
-      },
-    ]),
+    body: JSON.stringify([{ data: NETLIFY_APEX_IP, ttl: 600 }]),
+  });
+  await godaddyFetch(`/domains/${domain}/records/CNAME/www`, {
+    method: 'PUT',
+    body: JSON.stringify([{ data: host, ttl: 600 }]),
   });
 }

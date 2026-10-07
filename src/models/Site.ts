@@ -74,9 +74,40 @@ export interface ISiteProposalPage {
   vetos?: string[];
 }
 
+/** Combinaison de design imposée (Librairie v8 : famille + ouverture + nav + densité + geste). */
+export interface ISiteCombinaison {
+  famille: string;
+  style: string;
+  palette: string;
+  hero: string;
+  nav: string;
+  densite: string;
+  geste: string;
+  gesteComposant?: string;
+}
+
+/** Photo que le codeur a le droit d'utiliser (liste « PHOTOS AUTORISÉES », MEDIA.md). */
+export interface IPhotoAutorisee {
+  url: string;
+  /** 'client' = envoyée par le client ; 'galerie' = galerie NexAI ; 'generee' = image réaliste générée. */
+  source: 'client' | 'galerie' | 'generee';
+  /** Emplacement visé (allowlist.photo_slots) : hero, plat, chambre… */
+  slot?: string;
+  ratio?: string;
+  label?: string;
+  width?: number;
+  height?: number;
+  photographer?: string;
+  pexelsUrl?: string;
+}
+
 export interface ISiteProposal {
   versionId: string; // prop_1 | prop_2 | prop_3
   seedDa: string;
+  /** Combinaison imposée à cet aperçu (reprise par les pages intérieures, les modifications IA). */
+  combinaison?: ISiteCombinaison;
+  /** Photos autorisées pour cet aperçu (reprises par les pages intérieures). */
+  photosAutorisees?: IPhotoAutorisee[];
   score?: number;
   /**
    * Motivation du verdict des juges — Architecture v6 : un juge ne renvoie
@@ -100,6 +131,13 @@ export interface ISiteProposal {
    * Absent = site d'une seule page, ou pages créées d'emblée (historique).
    */
   pagesStatut?: 'a_finaliser' | 'en_cours' | 'pretes' | 'echec';
+  /**
+   * Modèles retenus au début de la génération (décision du 03/10/2026) : le
+   * même codeur et le même réparateur servent pour l'accueil et pour toutes
+   * les pages intérieures, y compris lors d'une finalisation ultérieure.
+   */
+  modeleCodeur?: string;
+  modeleReparateur?: string;
   htmlDemo?: string; // page d'accueil (toujours présente, comportement historique inchangé)
   /**
    * Pages additionnelles générées pour les sites multi-pages (voir
@@ -227,6 +265,11 @@ export interface ISite {
   freeRelaunchAvailableAt?: Date;
   /** Crédits déjà rendus après double échec. */
   generationRefunded?: boolean;
+  /**
+   * Combinaisons de design déjà essayées pour CE site (clé famille|hero|nav|densité) :
+   * une relance en reçoit toujours une nouvelle.
+   */
+  combinaisonsEssayees?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -258,11 +301,37 @@ const siteSchema = new Schema<ISite>(
       {
         versionId: String,
         seedDa: String,
+        combinaison: {
+          famille: String,
+          style: String,
+          palette: String,
+          hero: String,
+          nav: String,
+          densite: String,
+          geste: String,
+          gesteComposant: String,
+        },
+        photosAutorisees: [
+          {
+            _id: false,
+            url: String,
+            source: { type: String, enum: ['client', 'galerie', 'generee'] },
+            slot: String,
+            ratio: String,
+            label: String,
+            width: Number,
+            height: Number,
+            photographer: String,
+            pexelsUrl: String,
+          },
+        ],
         score: Number,
         judgeReasons: [{ type: String }],
         judgeAdvice: [{ type: String }],
         vetos: [{ type: String }],
         pagesStatut: { type: String, enum: ['a_finaliser', 'en_cours', 'pretes', 'echec'] },
+        modeleCodeur: String,
+        modeleReparateur: String,
         htmlDemo: String,
         pages: [
           {
@@ -316,6 +385,7 @@ const siteSchema = new Schema<ISite>(
     freeRelaunchUsed: { type: Boolean, default: false },
     freeRelaunchAvailableAt: { type: Date },
     generationRefunded: { type: Boolean, default: false },
+    combinaisonsEssayees: { type: [String], default: [] },
     logoProposals: [
       {
         versionId: String,

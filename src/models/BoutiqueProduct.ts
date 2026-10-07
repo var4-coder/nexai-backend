@@ -10,6 +10,26 @@ export type BoutiqueAudience = 'starter_formation' | 'all_paid' | 'everyone';
 export type BoutiqueProductType = 'pdf' | 'archive';
 export type BoutiqueStatus = 'brouillon' | 'publié';
 
+/**
+ * Catégorie choisie par l'admin (décision du 03/10/2026) :
+ *  · 'skill'   : un skill IA. Après déblocage, le client peut COPIER le skill
+ *                (version à coller), télécharger ses fichiers et sa version PDF ;
+ *  · 'digital' : produit digital classique (PDF, ZIP…) : téléchargement seul,
+ *                pas de bouton Copier.
+ */
+export type BoutiqueCategorie = 'skill' | 'digital';
+
+/** Rôle d'un fichier dans le produit (sert à l'affichage côté client). */
+export type BoutiqueRoleFichier = 'skill_md' | 'a_coller' | 'guide_pdf' | 'pdf' | 'zip' | 'autre';
+
+export interface IBoutiqueFichier {
+  nom: string;
+  publicId: string;
+  resourceType: 'raw' | 'image' | 'video';
+  role: BoutiqueRoleFichier;
+  taille?: number;
+}
+
 export interface IBoutiqueProduct {
   _id: Types.ObjectId;
   title: string;
@@ -23,7 +43,13 @@ export interface IBoutiqueProduct {
   audience: BoutiqueAudience;
   /** pdf/archive → Cloudinary resource_type 'raw', video → 'video', image → 'image' (voir cloudinary.service.ts) */
   type: BoutiqueProductType;
-  cloudinaryPublicId: string; // utilisé pour générer une signed URL au déblocage
+  cloudinaryPublicId: string; // fichier principal — utilisé pour générer une signed URL au déblocage
+  /** Catégorie du produit : skill ou produit digital (défaut). */
+  categorie: BoutiqueCategorie;
+  /** Tous les fichiers du produit (un skill en a plusieurs : SKILL.md, version à coller, guide PDF, zip). */
+  fichiers?: IBoutiqueFichier[];
+  /** Skill : texte prêt à coller, servi au bouton « Copier » APRÈS déblocage seulement. */
+  texteACopier?: string;
   /**
    * brouillon = créé automatiquement (upload admin, titre-accroche +
    * description générés par Sonnet 5) mais invisible côté client — publié
@@ -48,6 +74,18 @@ const boutiqueProductSchema = new Schema<IBoutiqueProduct>(
     creditsCost: { type: Number, default: 0, min: 0 },
     type: { type: String, enum: ['pdf', 'video', 'image', 'archive'], default: 'pdf' },
     cloudinaryPublicId: { type: String, required: true },
+    categorie: { type: String, enum: ['skill', 'digital'], default: 'digital', index: true },
+    fichiers: [
+      {
+        _id: false,
+        nom: { type: String, required: true },
+        publicId: { type: String, required: true },
+        resourceType: { type: String, enum: ['raw', 'image', 'video'], default: 'raw' },
+        role: { type: String, enum: ['skill_md', 'a_coller', 'guide_pdf', 'pdf', 'zip', 'autre'], default: 'autre' },
+        taille: Number,
+      },
+    ],
+    texteACopier: { type: String, maxlength: 200_000 },
     status: { type: String, enum: ['brouillon', 'publié'], required: true, default: 'brouillon', index: true },
     niche: { type: String },
     imageUrl: { type: String },

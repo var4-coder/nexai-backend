@@ -153,9 +153,6 @@ export const SITE_RELANCE_GRATUITE_PRETE =
 export const SITE_GENERATION_REMBOURSEE =
   'Cette création n’a pas pu aboutir malgré les reprises. Vos crédits ont été rendus. Nous corrigeons la panne : vous pourrez relancer une nouvelle création plus tard, ou supprimer cet essai.';
 
-export const SITE_RELANCE_COMPTE_A_REBOURS =
-  'La relance gratuite sera disponible dans {minutes} minute(s). Merci de patienter — nous finalisons le diagnostic.';
-
 /** Ligne de temps restant, commune aux deux écrans. */
 export function attenteTempsEstime(minutes: number): string {
   if (minutes <= 1) return 'Prêt dans moins d\u2019une minute';
@@ -187,6 +184,25 @@ export const MSG_VIDEO_REMBOURSEE =
   'en raison d’un incident technique de notre côté. Vos crédits vous ont été ' +
   'intégralement rendus. Vous pouvez lancer une nouvelle création quand vous le souhaitez.';
 
+/** Même situation, mais la vidéo était offerte : aucun crédit n'a été débité, donc rien à rendre. */
+export const MSG_VIDEO_ECHEC_SANS_DEBIT =
+  'Nous n’avons pas réussi à produire cette vidéo malgré plusieurs tentatives, ' +
+  'en raison d’un incident technique de notre côté. Cet essai ne vous a coûté aucun crédit. ' +
+  'Vous pouvez lancer une nouvelle création quand vous le souhaitez.';
+
+/** Échec total d'une vidéo : ce que le client peut faire, sans promesse que le service ne tient pas. */
+export const VIDEO_ECHEC_TITRE = 'Génération à relancer';
+export const VIDEO_ECHEC_MESSAGE =
+  'Cette vidéo n’a pas abouti. Vos crédits restent attachés à cette commande : vous pouvez la relancer gratuitement. ' +
+  'Si l’incident persiste malgré plusieurs tentatives, vos crédits vous sont rendus automatiquement. ' +
+  'Après deux tentatives, un court délai peut être demandé avant la suivante.';
+
+/** Pendant l'attente : le client peut partir, il retrouvera sa vidéo (aucune notification n'est envoyée). */
+export const VIDEO_QUITTER_PAGE =
+  'Vous pouvez quitter cette page : votre vidéo vous attendra dans « Mes vidéos », en bas de cette page, dès qu’elle sera prête.';
+export const SITE_QUITTER_PAGE =
+  'Vous pouvez quitter cette page : votre site vous attendra dans « Mes sites » dès qu’il sera prêt.';
+
 /** Des séquences manquent et ont été remplacées par les images de la marque. */
 export const MSG_VIDEO_SEQUENCES_REMPLACEES =
   'Votre vidéo est prête. Certaines séquences n’ont pas pu être produites à cause ' +
@@ -199,17 +215,6 @@ export const MSG_VIDEO_PLUS_COURTE =
   'de notre côté a empêché la production de certaines séquences. Vous pouvez relancer ' +
   'gratuitement leur création, ou lancer une nouvelle vidéo si vous préférez repartir ' +
   'sur une autre idée.';
-
-/** Affiché pendant la reprise automatique des séquences manquantes. */
-export const MSG_VIDEO_REPRISE_AUTO =
-  'Votre vidéo prend un peu plus de temps que prévu. Nous travaillons encore dessus — ' +
-  'vous pouvez fermer cette page, nous vous préviendrons dès qu’elle est prête.';
-
-/** Plus aucune relance gratuite : la vidéo livrée reste exploitable. */
-export const MSG_VIDEO_RELANCES_EPUISEES =
-  'Votre vidéo reste disponible telle quelle. Nous avons fait tout notre possible pour ' +
-  'compléter les séquences manquantes. Pour un autre rendu, vous pouvez lancer une ' +
-  'nouvelle création.';
 
 // ══════════════════════════════════════════════════════════════════
 // ENCAISSEMENT — transparence sur la commission
@@ -231,3 +236,30 @@ export const MSG_COMMISSION_NEXAI =
 /** Résumé court, affiché à côté du solde à reverser. */
 export const MSG_COMMISSION_RAPPEL =
   'Montant net qui vous revient, après la commission NexAI de 25 % sur chaque vente.';
+
+
+// ══════════════════════════════════════════════════════════════════
+// SKILL NEXAI — page « Mes skills »
+//
+// Règle de la commande : AUCUN remboursement automatique, sauf si NexAI n'a
+// pas pu lancer la commande après le débit. Un échec ouvre une relance
+// gratuite (une seule, après 30 minutes), puis l'assistance. Ces textes ne
+// promettent donc jamais de remboursement.
+// ══════════════════════════════════════════════════════════════════
+
+export const SKILL_ATTENTE_TITRE = 'Votre skill est en cours de création';
+export const SKILL_ATTENTE_MESSAGE =
+  'En général, cela prend quelques dizaines de minutes. Vous pouvez quitter cette page : la création continue, et votre skill apparaîtra ici dès qu’il sera prêt. Aucune action n’est nécessaire de votre part.';
+
+export const SKILL_PRET_AIDE =
+  'Le Guide PDF explique pas à pas comment installer votre skill avec Claude, avec ChatGPT ou sur téléphone. La Preuve de test présente les essais réalisés pour le valider.';
+
+export const SKILL_RELANCE_TITRE = 'Cette création n’a pas abouti';
+export const SKILL_RELANCE_PRETE =
+  'Cela arrive parfois et n’est pas de votre fait. Vos crédits restent attachés à cette commande et vous avez droit à une nouvelle tentative gratuite, une seule fois. Elle ne vous coûte rien.';
+export const SKILL_RELANCE_ATTENTE =
+  'Cela arrive parfois et n’est pas de votre fait. Vos crédits restent attachés à cette commande. Une nouvelle tentative gratuite sera disponible dans {minutes} min : ce délai évite de relancer pendant une panne passagère. Vous pouvez quitter cette page, rien n’est à faire en attendant.';
+
+export const SKILL_ASSISTANCE_TITRE = 'Votre commande est confiée à l’assistance';
+export const SKILL_ASSISTANCE_MESSAGE =
+  'Les deux tentatives n’ont pas abouti. Contactez l’assistance NexAI en indiquant la référence ci-dessous : notre équipe examine votre commande avec vous. Vos crédits restent attachés à cette commande pendant cet examen.';

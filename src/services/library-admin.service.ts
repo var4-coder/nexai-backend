@@ -15,14 +15,17 @@ import {
   construireBlocNiche,
   invaliderCacheLibrairie,
   NICHE_SITE_VERS_LIBRAIRIE,
+  construireBlocFamille,
+  planDePagesLibrairie,
 } from '@/services/library.service';
+import { combinaisonsDuMetier } from '@/services/combinaison.service';
 
 /**
  * Onglet Admin → IA & qualité → Librairie.
  *
  * Tout ce que le codeur et les juges appliquent se lit et se modifie ici,
  * sans redéploiement. Garanties :
- *   · seules les 13 collections de la Librairie sont accessibles ;
+ *   · seules les collections de la Librairie (LIBRARY_COLLECTIONS) sont accessibles ;
  *   · chaque modification est historisée (contenu avant/après, auteur,
  *     commentaire) et peut être annulée — l'annulation est elle-même une
  *     nouvelle version ;
@@ -48,6 +51,9 @@ export const LIBELLES_COLLECTIONS: Record<LibraryCollection, { label: string; de
   library_legal: { label: 'Mentions légales', desc: 'Pages et informations obligatoires' },
   library_media: { label: 'Médias', desc: 'Contraintes photo et vidéo' },
   library_tokens: { label: 'Tokens', desc: 'Espacements, tailles de texte, rayons, ombres' },
+  library_styles: { label: 'Styles', desc: 'Recettes des 18 styles (polices, ouvertures, composants propres) envoyées au codeur' },
+  library_couleurs: { label: 'Couleurs', desc: 'Palettes nommées (variables et contrastes calculés)' },
+  library_familles: { label: 'Familles', desc: 'Style × palette testés ≥ 70/100 : le backend en choisit une par site' },
 };
 
 const CHAMPS_PROTEGES = new Set(['_id', 'seed_version', 'modifie_admin', 'modifie_le', 'modifie_par']);
@@ -262,13 +268,25 @@ export async function apercuLibrairie(nicheSite: string) {
   const juges = construireBlocJuges(lib);
   const visuel = construireBlocJugeVisuel(lib);
   const tokens = (s: string) => Math.round(s.length / 3.6);
+  // Exemple de bloc propre au site : première combinaison de la meilleure famille du métier.
+  const combinaisons = combinaisonsDuMetier(lib, nicheSite);
+  const exemple = combinaisons[0] ?? null;
+  const familleTexte = construireBlocFamille(lib, nicheSite, exemple);
   return {
     version: lib.version,
     ficheTrouvee: niche.ficheTrouvee,
     composants: niche.composants,
+    familles: Array.from(new Set(combinaisons.map((c) => c.famille))),
+    nombreCombinaisons: combinaisons.length,
+    pages: planDePagesLibrairie(lib, nicheSite),
     blocs: [
       { nom: 'Bloc commun (codeur + juge code)', tokens: tokens(commun), texte: commun },
       { nom: `Bloc de la niche « ${niche.idNiche} » (codeur, juge code)`, tokens: tokens(niche.texte), texte: niche.texte },
+      {
+        nom: `Bloc propre au site — exemple : famille ${exemple?.famille ?? 'de secours'} (codeur, juges)`,
+        tokens: tokens(familleTexte),
+        texte: familleTexte,
+      },
       { nom: 'Règles des juges', tokens: tokens(juges), texte: juges },
       { nom: 'Règles du juge visuel', tokens: tokens(visuel), texte: visuel },
     ],

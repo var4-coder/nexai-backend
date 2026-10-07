@@ -10,7 +10,7 @@ import { Schema, model, Types } from 'mongoose';
  * Une version est enregistrée automatiquement à chaque : mise en ligne,
  * modification IA, ou édition manuelle.
  */
-export type TypeChangement = 'mise_en_ligne' | 'modification_ia' | 'edition_manuelle' | 'restauration';
+export type TypeChangement = 'mise_en_ligne' | 'modification_ia' | 'edition_manuelle' | 'modification_images' | 'restauration';
 
 export interface ISiteVersion {
   _id: Types.ObjectId;
@@ -35,7 +35,7 @@ const siteVersionSchema = new Schema<ISiteVersion>(
     numero: { type: Number, required: true },
     typeChangement: {
       type: String,
-      enum: ['mise_en_ligne', 'modification_ia', 'edition_manuelle', 'restauration'],
+      enum: ['mise_en_ligne', 'modification_ia', 'edition_manuelle', 'modification_images', 'restauration'],
       required: true,
     },
     htmlSnapshot: { type: String, required: true },

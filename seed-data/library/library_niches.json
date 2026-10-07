@@ -8,39 +8,7 @@
       "cabinet"
     ],
     "atmosphere": "Autorité sobre, typographie forte, preuve institutionnelle.",
-    "mode": "light-first",
-    "fonts": {
-      "display": {
-        "family": "Playfair Display",
-        "wght": "500;700",
-        "fallback": "Georgia, serif"
-      },
-      "body": {
-        "family": "Inter",
-        "wght": "400;600",
-        "fallback": "system-ui, sans-serif"
-      }
-    },
-    "radius": {
-      "control": "6px",
-      "card": "8px",
-      "image": "6px"
-    },
-    "color": {
-      "primary": "#1E3A5F",
-      "action": "#1E3A5F",
-      "on-action": "#FFFFFF",
-      "action-hover": "#16293F",
-      "accent": "#1E3A5F",
-      "accentUsage": "mono-accent, pas de 2e teinte",
-      "secondary": "#64748B",
-      "surface": "#F8FAFC",
-      "surface-alt": "#FFFFFF",
-      "text": "#0F172A",
-      "text-muted": "#475569",
-      "border": "#E2E8F0"
-    },
-    "hero": "typographic-left",
+    "hero": "style de la famille",
     "heroContent": "H1 ≤10 mots + 1 preuve (logo/cas) + CTA",
     "photo": {
       "style": "portraits studio, bureaux réels, jamais poignées de main stock",
@@ -62,17 +30,13 @@
       ]
     },
     "pages": [
-      "home",
-      "expertise",
-      "equipe",
-      "cas-clients",
-      "contact",
-      "mentions",
-      "404"
+      "index",
+      "expertises",
+      "contact"
     ],
     "homeSections": [
       "nav",
-      "hero-typographic-left",
+      "hero (type : style de la famille ; contenu : heroContent)",
       "logo-cloud-clients",
       "expertise-split",
       "cas-clients-2col",
@@ -95,7 +59,46 @@
       "illustration générique cabinet"
     ],
     "_id": "business",
-    "seed_version": 4
+    "seed_version": 8,
+    "familles": [
+      "editorial-etude-papier",
+      "suisse-ligne",
+      "editorial-marbre",
+      "plan-ligne",
+      "editorial-tableau",
+      "suisse-laiton",
+      "suisse-tableau",
+      "plan-registre-plan"
+    ],
+    "famille_par_defaut": "editorial-etude-papier",
+    "heroNote": "Le TYPE de haut de page (photo pleine largeur, écran partagé, titre seul) est TOUJOURS celui du style de la famille choisie par le backend. Cette fiche ne fixe que le CONTENU du haut de page (`heroContent`, `must`). En conflit : le style gagne.",
+    "secours_backend": {
+      "mode": "light-first",
+      "fonts": {
+        "display": {
+          "family": "Fraunces",
+          "wght": "400;500"
+        },
+        "body": {
+          "family": "Outfit",
+          "wght": "400;600"
+        },
+        "note": "secours seulement : la famille imposée par le backend fixe les polices"
+      },
+      "color": {
+        "primary": "#1A1714",
+        "action": "#6B1D2A",
+        "on-action": "#F6F1E8",
+        "accent-text": "#6B1D2A",
+        "surface": "#F6F1E8",
+        "surface-alt": "#EDE6D8",
+        "text": "#1A1714",
+        "text-muted": "#5E574E",
+        "border": "#DDD4C4",
+        "note": "secours seulement : la famille imposée fixe les couleurs"
+      },
+      "note": "Secours backend uniquement (si aucune famille n'est disponible). NE PAS envoyer au codeur : la famille fixe couleurs, polices, mode clair/sombre ; le mouvement vient de allowlist.geste_motion."
+    }
   },
   {
     "id": "education",
@@ -105,40 +108,10 @@
       "coach business",
       "e-learning"
     ],
-    "atmosphere": "Dynamique, clair, progression. Violet accent sur pierre chaude.",
-    "fonts": {
-      "display": {
-        "family": "Outfit",
-        "wght": "600;700",
-        "fallback": "system-ui, sans-serif"
-      },
-      "body": {
-        "family": "Source Sans 3",
-        "wght": "400;600",
-        "fallback": "system-ui, sans-serif"
-      }
-    },
-    "radius": {
-      "control": "8px",
-      "card": "12px",
-      "image": "12px"
-    },
-    "color": {
-      "primary": "#1C1917",
-      "action": "#6D28D9",
-      "on-action": "#FFFFFF",
-      "action-hover": "#5B21B6",
-      "accent": "#6D28D9",
-      "accentUsage": "mono-accent, pas de 2e teinte",
-      "surface": "#FAF7F2",
-      "surface-alt": "#FFFFFF",
-      "text": "#1C1917",
-      "text-muted": "#57534E",
-      "border": "#E7E5E4"
-    },
-    "hero": "centered-proof",
+    "atmosphere": "Dynamique, clair, progression : transformation et preuve réelle.",
+    "hero": "style de la famille",
     "heroContent": "H1 outcome + 1 preuve (taux/diplôme réel) + CTA",
-    "heroNote": "seule niche autorisée à un hero centré — ailleurs = left ou split (voir LAYOUTS.md)",
+    "heroNote": "Le TYPE de haut de page (photo pleine largeur, écran partagé, titre seul) est TOUJOURS celui du style de la famille choisie par le backend. Cette fiche ne fixe que le CONTENU du haut de page (`heroContent`, `must`). En conflit : le style gagne.",
     "voice": {
       "tone": "pédagogue, motivant, clair",
       "cta": [
@@ -154,7 +127,7 @@
     },
     "homeSections": [
       "nav",
-      "hero-outcome-cta",
+      "hero (type : style de la famille ; contenu : heroContent)",
       "stats-3-sourced",
       "programmes-split-2",
       "pedagogy-steps",
@@ -179,7 +152,53 @@
       "stats inventées"
     ],
     "_id": "education",
-    "seed_version": 4
+    "seed_version": 8,
+    "familles": [
+      "cinema-nuit-dambre",
+      "affiche-elan",
+      "doux-tableau",
+      "tunnel-tableau",
+      "tunnel-nuit-dambre",
+      "tunnel-elan",
+      "editorial-tableau",
+      "bento-tableau",
+      "wax-nuit-dambre",
+      "editorial-nuit-dambre",
+      "wax-tableau",
+      "wax-elan"
+    ],
+    "famille_par_defaut": "cinema-nuit-dambre",
+    "pages": [
+      "index",
+      "programmes",
+      "candidater"
+    ],
+    "secours_backend": {
+      "fonts": {
+        "display": {
+          "family": "Bodoni Moda",
+          "wght": "400"
+        },
+        "body": {
+          "family": "Manrope",
+          "wght": "400;600"
+        },
+        "note": "secours seulement : la famille imposée par le backend fixe les polices"
+      },
+      "color": {
+        "primary": "#F3EFE6",
+        "action": "#C9B37E",
+        "on-action": "#050505",
+        "accent-text": "#C9B37E",
+        "surface": "#050505",
+        "surface-alt": "#131313",
+        "text": "#F3EFE6",
+        "text-muted": "#9A968C",
+        "border": "#2A2A2A",
+        "note": "secours seulement : la famille imposée fixe les couleurs"
+      },
+      "note": "Secours backend uniquement (si aucune famille n'est disponible). NE PAS envoyer au codeur : la famille fixe couleurs, polices, mode clair/sombre ; le mouvement vient de allowlist.geste_motion."
+    }
   },
   {
     "id": "hotellerie",
@@ -192,64 +211,8 @@
       "spa"
     ],
     "atmosphere": "Chaleureux premium, cinématique, rituel d'arrivée. Beaucoup d'air, photos grand format, motion lent.",
-    "mode": "light-first",
-    "fonts": {
-      "display": {
-        "family": "Cormorant Garamond",
-        "wght": "500;600",
-        "fallback": "Georgia, serif"
-      },
-      "body": {
-        "family": "Source Sans 3",
-        "wght": "400;600",
-        "fallback": "system-ui, sans-serif"
-      }
-    },
-    "radius": {
-      "control": "8px",
-      "card": "12px",
-      "image": "8px"
-    },
-    "color": {
-      "primary": "#1C1917",
-      "action": "#B45309",
-      "on-action": "#FFFFFF",
-      "action-hover": "#92400E",
-      "accent": "#B45309",
-      "accentUsage": "identique à action ici, pas de 2e teinte — niche mono-accent",
-      "surface": "#FAF7F2",
-      "surface-alt": "#F3EDE4",
-      "text": "#1C1917",
-      "text-muted": "#57534E",
-      "border": "#E7E0D6",
-      "overlay": "rgba(28,25,23,0.42)",
-      "nav": "rgba(250,247,242,0.86)",
-      "dark": {
-        "surface": "#1C1917",
-        "text": "#FAF7F2",
-        "accent": "#F59E0B",
-        "on-accent": "#1C1917"
-      }
-    },
-    "ramp": {
-      "primary": [
-        "#FAF7F2",
-        "#E7E0D6",
-        "#A8A29E",
-        "#57534E",
-        "#1C1917"
-      ],
-      "accent": [
-        "#FEF3C7",
-        "#FDBA74",
-        "#B45309",
-        "#92400E",
-        "#78350F"
-      ]
-    },
-    "hero": "full-bleed",
-    "heroContent": "H1 + 1 CTA réserver + overlay 40%",
-    "motion": "cinematic (ken-burns très lent, désactivé si reduced-motion)",
+    "hero": "style de la famille",
+    "heroContent": "H1 + 1 CTA réserver",
     "photo": {
       "style": "cinéma naturel, golden hour, textures lin/pierre/bois, jamais stock souriant",
       "ratio": "16/9 hero, 3/4 chambres",
@@ -274,19 +237,13 @@
       ]
     },
     "pages": [
-      "home",
-      "chambres|espaces",
-      "experience|spa",
-      "evenements|mariage",
-      "galerie",
-      "offres",
-      "contact",
-      "mentions",
-      "404"
+      "index",
+      "chambres",
+      "reserver"
     ],
     "homeSections": [
       "nav-transparent",
-      "hero-fullbleed-cta",
+      "hero (type : style de la famille ; contenu : heroContent)",
       "trust-awards",
       "featured-1-plus-2",
       "experiences-split",
@@ -302,7 +259,7 @@
       "EventVenue"
     ],
     "must": [
-      "CTA réservation sticky mobile",
+      "Réserver dans la barre mobile (M7, lien)",
       "NAP + Google Maps"
     ],
     "dont": [
@@ -311,7 +268,51 @@
       "bleus froids"
     ],
     "_id": "hotellerie",
-    "seed_version": 4
+    "seed_version": 8,
+    "familles": [
+      "luxe-laiton",
+      "partage-lagune",
+      "luxe-lagune",
+      "cinema-laiton",
+      "wax-kora",
+      "galerie-sable",
+      "carte-lagune",
+      "partage-laiton",
+      "editorial-sable",
+      "editorial-canopee",
+      "galerie-laiton",
+      "editorial-lagune"
+    ],
+    "famille_par_defaut": "luxe-laiton",
+    "heroNote": "Le TYPE de haut de page (photo pleine largeur, écran partagé, titre seul) est TOUJOURS celui du style de la famille choisie par le backend. Cette fiche ne fixe que le CONTENU du haut de page (`heroContent`, `must`). En conflit : le style gagne.",
+    "secours_backend": {
+      "mode": "light-first",
+      "fonts": {
+        "display": {
+          "family": "Cormorant Garamond",
+          "wght": "400;500"
+        },
+        "body": {
+          "family": "Manrope",
+          "wght": "400;600"
+        },
+        "note": "secours seulement : la famille imposée par le backend fixe les polices"
+      },
+      "color": {
+        "primary": "#EDE6DA",
+        "action": "#B8925A",
+        "on-action": "#0F1420",
+        "accent-text": "#B8925A",
+        "surface": "#0F1420",
+        "surface-alt": "#171E2E",
+        "text": "#EDE6DA",
+        "text-muted": "#A39B8E",
+        "border": "#263049",
+        "note": "secours seulement : la famille imposée fixe les couleurs"
+      },
+      "motion": "cinematic (ken-burns très lent, désactivé si reduced-motion)",
+      "note": "Secours backend uniquement (si aucune famille n'est disponible). NE PAS envoyer au codeur : la famille fixe couleurs, polices, mode clair/sombre ; le mouvement vient de allowlist.geste_motion."
+    }
   },
   {
     "id": "immobilier",
@@ -320,40 +321,8 @@
       "architecte",
       "promoteur"
     ],
-    "atmosphere": "Précis, confiant, architecture soignée. Bleu profond + neutre.",
-    "mode": "light-first",
-    "fonts": {
-      "display": {
-        "family": "Plus Jakarta Sans",
-        "wght": "500;700",
-        "fallback": "system-ui, sans-serif"
-      },
-      "body": {
-        "family": "Inter",
-        "wght": "400;600",
-        "fallback": "system-ui, sans-serif"
-      }
-    },
-    "radius": {
-      "control": "8px",
-      "card": "10px",
-      "image": "8px"
-    },
-    "color": {
-      "primary": "#1E3A5F",
-      "action": "#1D4ED8",
-      "on-action": "#FFFFFF",
-      "action-hover": "#1E40AF",
-      "accent": "#2563EB",
-      "accentUsage": "hover/icône/lien secondaire uniquement, revérifier ≥4.5 sur le fond utilisé avant usage texte",
-      "secondary": "#64748B",
-      "surface": "#F8FAFC",
-      "surface-alt": "#FFFFFF",
-      "text": "#0F172A",
-      "text-muted": "#475569",
-      "border": "#E2E8F0"
-    },
-    "hero": "split-listing",
+    "atmosphere": "Précis, confiant, architecture soignée : le bien ou le projet en grand.",
+    "hero": "style de la famille",
     "heroContent": "H1 + 1 recherche OU 1 bien phare (pas 3)",
     "photo": {
       "style": "architecture, 24mm extérieur / 35mm intérieur, vertical 3/4",
@@ -376,17 +345,13 @@
       ]
     },
     "pages": [
-      "home",
-      "biens",
-      "estimation",
-      "agence",
-      "contact",
-      "mentions",
-      "404"
+      "index",
+      "projets",
+      "contact"
     ],
     "homeSections": [
       "nav",
-      "hero-split-listing",
+      "hero (type : style de la famille ; contenu : heroContent)",
       "featured-bien-plus-liste-4",
       "estimation-cta",
       "process-steps",
@@ -409,7 +374,49 @@
       "hero 100% centré"
     ],
     "_id": "immobilier",
-    "seed_version": 4
+    "seed_version": 8,
+    "familles": [
+      "galerie-planches-photo",
+      "editorial-carnet",
+      "partage-horizon",
+      "plan-horizon",
+      "editorial-marbre",
+      "luxe-marbre",
+      "plan-laterite",
+      "editorial-laterite",
+      "suisse-horizon",
+      "suisse-laterite",
+      "suisse-carnet"
+    ],
+    "famille_par_defaut": "galerie-planches-photo",
+    "heroNote": "Le TYPE de haut de page (photo pleine largeur, écran partagé, titre seul) est TOUJOURS celui du style de la famille choisie par le backend. Cette fiche ne fixe que le CONTENU du haut de page (`heroContent`, `must`). En conflit : le style gagne.",
+    "secours_backend": {
+      "mode": "light-first",
+      "fonts": {
+        "display": {
+          "family": "Instrument Serif",
+          "wght": "400"
+        },
+        "body": {
+          "family": "Inter",
+          "wght": "400;500"
+        },
+        "note": "secours seulement : la famille imposée par le backend fixe les polices"
+      },
+      "color": {
+        "primary": "#1A1814",
+        "action": "#5C4033",
+        "on-action": "#FDF8F2",
+        "accent-text": "#5C4033",
+        "surface": "#F5F2EC",
+        "surface-alt": "#EBE6DC",
+        "text": "#1A1814",
+        "text-muted": "#625C54",
+        "border": "#D8D0C4",
+        "note": "secours seulement : la famille imposée fixe les couleurs"
+      },
+      "note": "Secours backend uniquement (si aucune famille n'est disponible). NE PAS envoyer au codeur : la famille fixe couleurs, polices, mode clair/sombre ; le mouvement vient de allowlist.geste_motion."
+    }
   },
   {
     "id": "mode",
@@ -421,38 +428,7 @@
       "boutique"
     ],
     "atmosphere": "Éditorial fashion. Contraste fort sur CTA panier. Grille lookbook.",
-    "mode_display": "light-first",
-    "fonts": {
-      "display": {
-        "family": "Playfair Display",
-        "wght": "500;600",
-        "fallback": "Georgia, serif"
-      },
-      "body": {
-        "family": "Inter",
-        "wght": "400;600",
-        "fallback": "system-ui, sans-serif"
-      }
-    },
-    "radius": {
-      "control": "4px",
-      "card": "8px",
-      "image": "4px"
-    },
-    "color": {
-      "primary": "#111827",
-      "action": "#BE185D",
-      "on-action": "#FFFFFF",
-      "action-hover": "#9D174D",
-      "accent": "#0F766E",
-      "accentUsage": "détail secondaire (tag, badge stock) uniquement, jamais CTA panier",
-      "surface": "#FAFAF9",
-      "text": "#111827",
-      "text-muted": "#4B5563",
-      "border": "#E7E5E4",
-      "sale": "#BE185D"
-    },
-    "hero": "lookbook-fullbleed",
+    "hero": "style de la famille",
     "heroContent": "H1 campagne + CTA collection",
     "voice": {
       "tone": "désirable, précis, sensoriel",
@@ -468,20 +444,13 @@
       ]
     },
     "pages": [
-      "home",
-      "collection",
-      "produit",
-      "panier",
-      "checkout",
-      "lookbook",
-      "a-propos",
-      "compte",
-      "mentions",
-      "404"
+      "index",
+      "boutique",
+      "contact"
     ],
     "homeSections": [
       "nav-shop",
-      "hero-campaign",
+      "hero (type : style de la famille ; contenu : heroContent)",
       "collection-grid-4",
       "editorial-split",
       "bestsellers",
@@ -517,7 +486,50 @@
       "plus de 2 CTA égaux sur PDP"
     ],
     "_id": "mode",
-    "seed_version": 4
+    "seed_version": 8,
+    "familles": [
+      "wax-bogolan",
+      "catalogue-argile",
+      "galerie-couture",
+      "galerie-argile",
+      "affiche-soleil",
+      "catalogue-indigo",
+      "catalogue-bogolan",
+      "partage-indigo",
+      "collage-indigo",
+      "wax-indigo",
+      "affiche-bogolan",
+      "luxe-indigo"
+    ],
+    "famille_par_defaut": "wax-bogolan",
+    "heroNote": "Le TYPE de haut de page (photo pleine largeur, écran partagé, titre seul) est TOUJOURS celui du style de la famille choisie par le backend. Cette fiche ne fixe que le CONTENU du haut de page (`heroContent`, `must`). En conflit : le style gagne.",
+    "secours_backend": {
+      "fonts": {
+        "display": {
+          "family": "DM Serif Display",
+          "wght": "400"
+        },
+        "body": {
+          "family": "Work Sans",
+          "wght": "400;600"
+        },
+        "note": "secours seulement : la famille imposée par le backend fixe les polices"
+      },
+      "color": {
+        "primary": "#2A1D14",
+        "action": "#2A1D14",
+        "on-action": "#EFE6D8",
+        "accent-text": "#2A1D14",
+        "surface": "#EFE6D8",
+        "surface-alt": "#E3D6C2",
+        "text": "#2A1D14",
+        "text-muted": "#6A5745",
+        "border": "#CDBBA2",
+        "note": "secours seulement : la famille imposée fixe les couleurs"
+      },
+      "note": "Secours backend uniquement (si aucune famille n'est disponible). NE PAS envoyer au codeur : la famille fixe couleurs, polices, mode clair/sombre ; le mouvement vient de allowlist.geste_motion.",
+      "mode": "light-first"
+    }
   },
   {
     "id": "portfolio",
@@ -527,40 +539,8 @@
       "artiste",
       "agence créative"
     ],
-    "atmosphere": "Minimal brutaliste-doux. Noir, jaune signal, violet rare. Beaucoup de négatif. Radius ~ 0.",
-    "mode": "light ou dark, jamais mixte amateur",
-    "fonts": {
-      "display": {
-        "family": "Space Grotesk",
-        "wght": "500;700",
-        "fallback": "system-ui, sans-serif"
-      },
-      "body": {
-        "family": "Inter",
-        "wght": "400;500",
-        "fallback": "system-ui, sans-serif"
-      }
-    },
-    "radius": {
-      "control": "0px",
-      "card": "0px",
-      "image": "0px",
-      "max": "2px"
-    },
-    "shadow": "none (utiliser filets 1px #E5E5E5)",
-    "color": {
-      "primary": "#101010",
-      "action": "#FFD300",
-      "on-action": "#101010",
-      "action-hover": "#E6BE00",
-      "accent": "#7C6DFA",
-      "accentUsage": "rare, jamais en fill CTA — décoration ponctuelle uniquement",
-      "surface": "#F8F8F8",
-      "text": "#101010",
-      "text-muted": "#525252",
-      "border": "#E5E5E5"
-    },
-    "hero": "typographic",
+    "atmosphere": "Le travail d’abord : beaucoup de négatif, typographie maîtrisée, un seul accent rare.",
+    "hero": "style de la famille",
     "heroContent": "Nom + rôle + 1 work large (pas 3 thumbs)",
     "voice": {
       "tone": "expressif, maîtrisé",
@@ -577,7 +557,7 @@
     },
     "homeSections": [
       "nav-minimal",
-      "hero-name-role",
+      "hero (type : style de la famille ; contenu : heroContent)",
       "selected-work-1plus-grid",
       "marquee-clients",
       "about-short",
@@ -600,7 +580,52 @@
       "CreativeWork"
     ],
     "_id": "portfolio",
-    "seed_version": 4
+    "seed_version": 8,
+    "familles": [
+      "galerie-couture",
+      "galerie-carnet",
+      "suisse-signal",
+      "couverture-carnet",
+      "cinema-couture",
+      "plan-signal",
+      "collage-signal",
+      "plan-couture"
+    ],
+    "famille_par_defaut": "galerie-couture",
+    "heroNote": "Le TYPE de haut de page (photo pleine largeur, écran partagé, titre seul) est TOUJOURS celui du style de la famille choisie par le backend. Cette fiche ne fixe que le CONTENU du haut de page (`heroContent`, `must`). En conflit : le style gagne.",
+    "pages": [
+      "index",
+      "projet",
+      "a-propos"
+    ],
+    "secours_backend": {
+      "mode": "light ou dark, jamais mixte amateur",
+      "fonts": {
+        "display": {
+          "family": "Instrument Serif",
+          "wght": "400"
+        },
+        "body": {
+          "family": "Inter",
+          "wght": "400;500"
+        },
+        "note": "secours seulement : la famille imposée par le backend fixe les polices"
+      },
+      "color": {
+        "primary": "#F4F4F4",
+        "action": "#F4F4F4",
+        "on-action": "#0D0D0D",
+        "accent-text": "#F4F4F4",
+        "surface": "#0D0D0D",
+        "surface-alt": "#1A1A1A",
+        "text": "#F4F4F4",
+        "text-muted": "#9A9A9A",
+        "border": "#2B2B2B",
+        "note": "secours seulement : la famille imposée fixe les couleurs"
+      },
+      "shadow": "none (utiliser filets 1px #E5E5E5)",
+      "note": "Secours backend uniquement (si aucune famille n'est disponible). NE PAS envoyer au codeur : la famille fixe couleurs, polices, mode clair/sombre ; le mouvement vient de allowlist.geste_motion."
+    }
   },
   {
     "id": "restaurant",
@@ -611,43 +636,7 @@
       "traiteur"
     ],
     "atmosphere": "Tons chauds, appetite appeal, menu star. Photo food directionnelle.",
-    "fonts": {
-      "display": {
-        "family": "Fraunces",
-        "wght": "500;600",
-        "fallback": "Georgia, serif"
-      },
-      "body": {
-        "family": "DM Sans",
-        "wght": "400;600",
-        "fallback": "system-ui, sans-serif"
-      }
-    },
-    "radius": {
-      "control": "8px",
-      "card": "12px",
-      "image": "8px"
-    },
-    "color": {
-      "primary": "#3A0D0D",
-      "action": "#C0392B",
-      "on-action": "#FFFFFF",
-      "action-hover": "#A93226",
-      "secondary": "#E8743B",
-      "accentUsage": "secondary #E8743B = 2.63:1 sur surface, FAIL AA — déco/bordure/icône uniquement, jamais texte même à 20px+",
-      "surface": "#FBEFD6",
-      "surface-alt": "#FFF8EA",
-      "text": "#3A0D0D",
-      "text-muted": "#6B3A2A",
-      "border": "#E8D5B5",
-      "info": "#B45309"
-    },
-    "forbidden": [
-      "#3B82F6",
-      "#0EA5E9",
-      "tout bleu hue 180-250°"
-    ],
-    "hero": "full-bleed-food",
+    "hero": "style de la famille",
     "heroContent": "H1 + Réserver + tel",
     "voice": {
       "tone": "sensoriel, accueillant",
@@ -663,18 +652,13 @@
       ]
     },
     "pages": [
-      "home",
+      "index",
       "menu",
-      "chef|histoire",
-      "reserver",
-      "privatiser",
-      "contact",
-      "mentions",
-      "404"
+      "reserver"
     ],
     "homeSections": [
       "nav",
-      "hero-photo-reserve",
+      "hero (type : style de la famille ; contenu : heroContent)",
       "signature-1-plus-list",
       "menu-preview",
       "chef-split",
@@ -700,7 +684,55 @@
       ]
     },
     "_id": "restaurant",
-    "seed_version": 4
+    "seed_version": 8,
+    "familles": [
+      "wax-terre-cuite",
+      "luxe-nuit-dambre",
+      "editorial-carnet",
+      "affiche-feu-de-rue",
+      "cinema-nuit-dambre",
+      "carte-carnet",
+      "galerie-carnet",
+      "doux-jardin",
+      "editorial-nappe-blanche",
+      "partage-jardin",
+      "editorial-jardin",
+      "catalogue-terre-cuite"
+    ],
+    "famille_par_defaut": "wax-terre-cuite",
+    "heroNote": "Le TYPE de haut de page (photo pleine largeur, écran partagé, titre seul) est TOUJOURS celui du style de la famille choisie par le backend. Cette fiche ne fixe que le CONTENU du haut de page (`heroContent`, `must`). En conflit : le style gagne.",
+    "secours_backend": {
+      "fonts": {
+        "display": {
+          "family": "DM Serif Display",
+          "wght": "400"
+        },
+        "body": {
+          "family": "Work Sans",
+          "wght": "400;600"
+        },
+        "note": "secours seulement : la famille imposée par le backend fixe les polices"
+      },
+      "color": {
+        "primary": "#2B1A12",
+        "action": "#A84A22",
+        "on-action": "#FFFFFF",
+        "accent-text": "#A54921",
+        "surface": "#F6EFE6",
+        "surface-alt": "#EFE2D2",
+        "text": "#2B1A12",
+        "text-muted": "#6B5446",
+        "border": "#E0CDB8",
+        "note": "secours seulement : la famille imposée fixe les couleurs"
+      },
+      "forbidden": [
+        "#3B82F6",
+        "#0EA5E9",
+        "tout bleu hue 180-250°"
+      ],
+      "note": "Secours backend uniquement (si aucune famille n'est disponible). NE PAS envoyer au codeur : la famille fixe couleurs, polices, mode clair/sombre ; le mouvement vient de allowlist.geste_motion."
+    },
+    "note_sections": "`signature-1-plus-list` et `menu-preview` peuvent être fusionnées en une seule section carte."
   },
   {
     "id": "saas",
@@ -710,52 +742,8 @@
       "produit tech",
       "app"
     ],
-    "atmosphere": "Précision Linear/Stripe : navy, un bleu, surface slate, UI réelle above-the-fold.",
-    "mode": "light default + dark optionnel",
-    "fonts": {
-      "display": {
-        "family": "Inter",
-        "wght": "500;600;700",
-        "features": "\"cv01\", \"ss03\"",
-        "fallback": "system-ui, sans-serif"
-      },
-      "body": {
-        "family": "Inter",
-        "wght": "400;500;600",
-        "fallback": "system-ui, sans-serif"
-      },
-      "mono": {
-        "family": "IBM Plex Mono",
-        "wght": "400"
-      }
-    },
-    "radius": {
-      "control": "8px",
-      "card": "12px",
-      "image": "12px"
-    },
-    "color": {
-      "primary": "#0B1F3A",
-      "action": "#1D4ED8",
-      "on-action": "#FFFFFF",
-      "action-hover": "#1E40AF",
-      "accent": "#3B82F6",
-      "accentUsage": "hover/icône/chart uniquement — JAMAIS bouton ni texte (3.68:1, FAIL AA, voir CONTRAST.md)",
-      "surface": "#F1F5F9",
-      "surface-alt": "#FFFFFF",
-      "text": "#0B1F3A",
-      "text-muted": "#475569",
-      "border": "#E2E8F0",
-      "code-bg": "#0B1F3A"
-    },
-    "dark": {
-      "surface": "#0B1F3A",
-      "elevated": "#122844",
-      "text": "#F1F5F9",
-      "accent": "#60A5FA",
-      "border": "rgba(255,255,255,0.08)"
-    },
-    "hero": "split-product-ui",
+    "atmosphere": "Précision : produit réel au-dessus de la ligne de flottaison, un seul accent, preuve chiffrée sourcée.",
+    "hero": "style de la famille",
     "heroContent": "H1 + 1 outcome + 1 CTA + screenshot réel",
     "voice": {
       "tone": "précis, confiant, factuel",
@@ -772,7 +760,7 @@
     },
     "homeSections": [
       "nav-saas",
-      "hero-headline-sub-cta-product",
+      "hero (type : style de la famille ; contenu : heroContent)",
       "logo-cloud",
       "feature-split-or-bento-4-max",
       "quote-1",
@@ -809,7 +797,53 @@
       "gradient violet/indigo en hero ou H1"
     ],
     "_id": "saas",
-    "seed_version": 4
+    "seed_version": 8,
+    "familles": [
+      "bento-ligne",
+      "bento-flux",
+      "plan-ligne",
+      "bento-agora",
+      "suisse-ligne",
+      "brutal-agora",
+      "tunnel-ligne",
+      "tunnel-agora",
+      "plan-agora",
+      "suisse-agora"
+    ],
+    "famille_par_defaut": "bento-ligne",
+    "heroNote": "Le TYPE de haut de page (photo pleine largeur, écran partagé, titre seul) est TOUJOURS celui du style de la famille choisie par le backend. Cette fiche ne fixe que le CONTENU du haut de page (`heroContent`, `must`). En conflit : le style gagne.",
+    "pages": [
+      "index",
+      "tarifs",
+      "contact"
+    ],
+    "secours_backend": {
+      "mode": "light default + dark optionnel",
+      "fonts": {
+        "display": {
+          "family": "Bricolage Grotesque",
+          "wght": "700"
+        },
+        "body": {
+          "family": "Karla",
+          "wght": "400;600"
+        },
+        "note": "secours seulement : la famille imposée par le backend fixe les polices"
+      },
+      "color": {
+        "primary": "#111418",
+        "action": "#2340D9",
+        "on-action": "#FFFFFF",
+        "accent-text": "#2340D9",
+        "surface": "#FFFFFF",
+        "surface-alt": "#F4F5F7",
+        "text": "#111418",
+        "text-muted": "#5A616B",
+        "border": "#E3E6EA",
+        "note": "secours seulement : la famille imposée fixe les couleurs"
+      },
+      "note": "Secours backend uniquement (si aucune famille n'est disponible). NE PAS envoyer au codeur : la famille fixe couleurs, polices, mode clair/sombre ; le mouvement vient de allowlist.geste_motion."
+    }
   },
   {
     "id": "sante",
@@ -822,40 +856,7 @@
       "psychologie"
     ],
     "atmosphere": "Biophilique, rassurant, clinique-doux. Vert profond + crème. Zéro anxiété visuelle.",
-    "mode": "light-only",
-    "fonts": {
-      "display": {
-        "family": "Fraunces",
-        "wght": "500;600",
-        "fallback": "Georgia, serif"
-      },
-      "body": {
-        "family": "Nunito Sans",
-        "wght": "400;600",
-        "fallback": "system-ui, sans-serif"
-      }
-    },
-    "radius": {
-      "control": "12px",
-      "card": "16px",
-      "image": "12px"
-    },
-    "color": {
-      "primary": "#1F3D1A",
-      "action": "#1F3D1A",
-      "on-action": "#FFFFFF",
-      "action-hover": "#16290F",
-      "accent": "#4C9A2A",
-      "accentUsage": "décoration / icône large uniquement — JAMAIS texte, JAMAIS bouton (3.25:1, voir CONTRAST.md)",
-      "secondary": "#8FAF8A",
-      "surface": "#FBF6E3",
-      "surface-alt": "#F3F0DE",
-      "text": "#1F3D1A",
-      "text-muted": "#4B5D49",
-      "border": "#D9E2C8",
-      "info": "#3F7D22"
-    },
-    "hero": "split-calm",
+    "hero": "style de la famille",
     "heroContent": "H1 + RDV + diplômes 1 ligne",
     "photo": {
       "style": "lumière naturelle, plantes, portraits rassurants non stock, cabinet réel",
@@ -878,19 +879,13 @@
       ]
     },
     "pages": [
-      "home",
-      "approche",
-      "soins|programmes",
-      "praticien",
-      "infos pratiques",
-      "rdv",
-      "contact",
-      "mentions",
-      "404"
+      "index",
+      "soins",
+      "rendez-vous"
     ],
     "homeSections": [
       "nav",
-      "hero-split-portrait-rdv",
+      "hero (type : style de la famille ; contenu : heroContent)",
       "reassurance-diplomes",
       "services-zigzag",
       "method-steps",
@@ -914,7 +909,44 @@
       "3 icon-cards services"
     ],
     "_id": "sante",
-    "seed_version": 4
+    "seed_version": 8,
+    "familles": [
+      "doux-tisane",
+      "doux-lin",
+      "local-clarte",
+      "editorial-tisane",
+      "editorial-lin",
+      "luxe-lin"
+    ],
+    "famille_par_defaut": "doux-tisane",
+    "heroNote": "Le TYPE de haut de page (photo pleine largeur, écran partagé, titre seul) est TOUJOURS celui du style de la famille choisie par le backend. Cette fiche ne fixe que le CONTENU du haut de page (`heroContent`, `must`). En conflit : le style gagne.",
+    "secours_backend": {
+      "mode": "light-only",
+      "fonts": {
+        "display": {
+          "family": "Fraunces",
+          "wght": "400"
+        },
+        "body": {
+          "family": "DM Sans",
+          "wght": "400;600"
+        },
+        "note": "secours seulement : la famille imposée par le backend fixe les polices"
+      },
+      "color": {
+        "primary": "#2C2C2C",
+        "action": "#3F5E4E",
+        "on-action": "#FFFFFF",
+        "accent-text": "#3F5E4E",
+        "surface": "#F4F0E8",
+        "surface-alt": "#EAE3D6",
+        "text": "#2C2C2C",
+        "text-muted": "#625D55",
+        "border": "#D9D0C1",
+        "note": "secours seulement : la famille imposée fixe les couleurs"
+      },
+      "note": "Secours backend uniquement (si aucune famille n'est disponible). NE PAS envoyer au codeur : la famille fixe couleurs, polices, mode clair/sombre ; le mouvement vient de allowlist.geste_motion."
+    }
   },
   {
     "id": "services",
@@ -925,40 +957,8 @@
       "auto",
       "coiffure locale"
     ],
-    "atmosphere": "Confiance de proximité, réactivité. Bleu + neutre, NAP visible partout.",
-    "mode": "light-first",
-    "fonts": {
-      "display": {
-        "family": "Plus Jakarta Sans",
-        "wght": "500;700",
-        "fallback": "system-ui, sans-serif"
-      },
-      "body": {
-        "family": "Inter",
-        "wght": "400;600",
-        "fallback": "system-ui, sans-serif"
-      }
-    },
-    "radius": {
-      "control": "8px",
-      "card": "10px",
-      "image": "8px"
-    },
-    "color": {
-      "primary": "#1E3A5F",
-      "action": "#1D4ED8",
-      "on-action": "#FFFFFF",
-      "action-hover": "#1E40AF",
-      "accent": "#2563EB",
-      "accentUsage": "hover/icône uniquement",
-      "secondary": "#64748B",
-      "surface": "#F8FAFC",
-      "surface-alt": "#FFFFFF",
-      "text": "#0F172A",
-      "text-muted": "#475569",
-      "border": "#E2E8F0"
-    },
-    "hero": "split-artisan",
+    "atmosphere": "Confiance de proximité, réactivité : téléphone et WhatsApp visibles partout.",
+    "hero": "style de la famille",
     "heroContent": "H1 + tel: click-to-call + devis",
     "photo": {
       "style": "chantier/avant-après honnêtes, artisan réel au travail",
@@ -980,17 +980,13 @@
       ]
     },
     "pages": [
-      "home",
-      "services",
-      "zone-intervention",
-      "avis",
-      "contact",
-      "mentions",
-      "404"
+      "index",
+      "tarifs",
+      "reserver"
     ],
     "homeSections": [
       "nav-tel-visible",
-      "hero-split-artisan-devis",
+      "hero (type : style de la famille ; contenu : heroContent)",
       "services-zigzag",
       "avant-apres",
       "avis-google",
@@ -1002,7 +998,7 @@
       "LocalBusiness"
     ],
     "must": [
-      "tel: sticky mobile",
+      "tel: dans la barre mobile (M7)",
       "NAP identique header/footer/schema",
       "horaires du jour"
     ],
@@ -1011,6 +1007,49 @@
       "offre avant preuve"
     ],
     "_id": "services",
-    "seed_version": 4
+    "seed_version": 8,
+    "familles": [
+      "local-etabli",
+      "local-chantier",
+      "affiche-chantier",
+      "affiche-atelier-affiche",
+      "affiche-atelier-noir",
+      "brutal-chantier",
+      "bento-etabli",
+      "local-atelier-noir",
+      "tunnel-etabli",
+      "doux-tresse",
+      "catalogue-tresse",
+      "wax-tresse"
+    ],
+    "famille_par_defaut": "local-etabli",
+    "heroNote": "Le TYPE de haut de page (photo pleine largeur, écran partagé, titre seul) est TOUJOURS celui du style de la famille choisie par le backend. Cette fiche ne fixe que le CONTENU du haut de page (`heroContent`, `must`). En conflit : le style gagne.",
+    "secours_backend": {
+      "mode": "light-first",
+      "fonts": {
+        "display": {
+          "family": "Archivo",
+          "wght": "800"
+        },
+        "body": {
+          "family": "IBM Plex Sans",
+          "wght": "400;600"
+        },
+        "note": "secours seulement : la famille imposée par le backend fixe les polices"
+      },
+      "color": {
+        "primary": "#14213D",
+        "action": "#0F5CC0",
+        "on-action": "#FFFFFF",
+        "accent-text": "#0F5CC0",
+        "surface": "#FFFFFF",
+        "surface-alt": "#F2F5F9",
+        "text": "#14213D",
+        "text-muted": "#4F5B6E",
+        "border": "#DDE3EB",
+        "note": "secours seulement : la famille imposée fixe les couleurs"
+      },
+      "note": "Secours backend uniquement (si aucune famille n'est disponible). NE PAS envoyer au codeur : la famille fixe couleurs, polices, mode clair/sombre ; le mouvement vient de allowlist.geste_motion."
+    }
   }
 ]

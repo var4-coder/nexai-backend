@@ -3,7 +3,7 @@ import { Site } from '@/models/Site';
 import { SiteVisit } from '@/models/SiteVisit';
 import { User } from '@/models/User';
 import { AppError } from '@/middleware/errorHandler';
-import { debitCredits } from '@/services/credits.service';
+import { debitCredits, creditCredits } from '@/services/credits.service';
 import { aUnAbonnementActif, joursDepuisFinAbonnement, type EtatAbonnement } from '@/utils/abonnement';
 
 /**
@@ -206,20 +206,30 @@ export async function payerHebergementSeul(
     note: `hebergement_seul:${mois}_mois`,
   });
 
-  const maintenant = new Date();
-  const heb = site.hebergement ?? {};
-  const base =
-    heb.payeJusquAu && new Date(heb.payeJusquAu).getTime() > maintenant.getTime()
-      ? new Date(heb.payeJusquAu)
-      : new Date(maintenant);
-  base.setMonth(base.getMonth() + mois);
+  let base: Date;
+  try {
+    const maintenant = new Date();
+    const heb = site.hebergement ?? {};
+    base =
+      heb.payeJusquAu && new Date(heb.payeJusquAu).getTime() > maintenant.getTime()
+        ? new Date(heb.payeJusquAu)
+        : new Date(maintenant);
+    base.setMonth(base.getMonth() + mois);
 
-  heb.payeJusquAu = base;
-  heb.etape = 'aucune';
-  heb.depassementDepuis = undefined;
-  site.hebergement = heb;
-  if (site.status === 'offline') site.status = 'launched';
-  await site.save();
+    heb.payeJusquAu = base;
+    heb.etape = 'aucune';
+    heb.depassementDepuis = undefined;
+    site.hebergement = heb;
+    if (site.status === 'offline') site.status = 'launched';
+    await site.save();
+  } catch (err) {
+    // La période n'a pas pu être enregistrée : le client ne doit pas payer pour rien.
+    await creditCredits(userId, credits, 'ajustement_admin', {
+      relatedSiteId: site._id,
+      note: 'Remboursement — hébergement non enregistré',
+    }).catch((e) => console.error(`[hebergement] ALERTE : remboursement impossible user=${userId} montant=${credits}`, e));
+    throw err;
+  }
 
   return { payeJusquAu: base, creditsDebites: credits };
 }

@@ -88,7 +88,7 @@ Nom de marque : ${brandName || '(aucun)'}
 Niche déclarée : ${params.niche || '(non précisée)'}`;
 
   try {
-    const raw = await callClaude('claude-sonnet-5', system, [{ role: 'user', content: user }], {
+    const raw = await callClaude('claude-sonnet-5-5', system, [{ role: 'user', content: user }], {
       maxTokens: 200,
       temperature: 0,
     });

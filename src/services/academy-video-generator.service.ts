@@ -154,7 +154,7 @@ export async function ecrireScript(jobId: string): Promise<void> {
     );
     reinitialiserUsage();
     const brut = await callClaude(
-      'claude-sonnet-5',
+      'claude-sonnet-5-5',
       consigneScript({
         partie: job.partie,
         domaine: module?.titre ?? job.module,

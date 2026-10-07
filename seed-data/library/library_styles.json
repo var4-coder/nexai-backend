@@ -1,0 +1,715 @@
+[
+  {
+    "_id": "editorial",
+    "code": "S01",
+    "id": "editorial",
+    "nom": "Éditorial",
+    "polices": {
+      "titres": "Fraunces",
+      "texte": "Outfit",
+      "mono": null,
+      "graisses_titres": [
+        400,
+        500
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500&family=Outfit:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "type-only"
+      ],
+      "navs": [
+        "centered",
+        "wordmark-left"
+      ],
+      "densites": [
+        "air",
+        "medium"
+      ]
+    },
+    "metiers": {
+      "restaurant": "très adapté",
+      "hotellerie": "possible",
+      "sante": "possible",
+      "immobilier": "possible",
+      "business": "très adapté",
+      "education": "possible"
+    },
+    "content_md": "# Style S01 — Éditorial\n\nPolices : **Fraunces** (titres, graisses 400/500) + **Outfit** (texte, 400/600).\nOuvertures : `split`, `type-only` · nav : `centered`, `wordmark-left` · densité : `air`, `medium`.\n\nMagazine de qualité : la typographie fait l'identité, l'image vient en appui.\n- **En-tête « journal »** : bandeau fin (édition · lieu · lien d'action ; bouton plein seulement si le haut de page n'en a pas, K3), nom centré en `--font-d` clamp(36px,6vw,64px), liens en capitales espacées (taille réduite, jamais `font-variant:small-caps` synthétique) 0.1em sous le nom.\n- **Ouverture split** : grille 1.3fr / 1fr, gap 48 px. H1 clamp(34px,4.6vw,56px), interligne 1.08. Texte d'intro en 2 colonnes (1 seule sous 760 px) avec **lettrine** (`::first-letter`, 64 px, interligne 0.9). Photo à droite, hauteur ≥ 420 px.\n- **Sections numérotées** : grille 200 px / 1fr ; numéro « 01 » en `--font-d` 44 px sous un filet de 2 px `--ink`.\n- **Carte / offre à points de conduite** : nom · pointillés `--muted` · prix, 2 colonnes (1 sous 760 px), description 14 px `--muted`.\n- **Citation** centrée en italique clamp(24px,3vw,36px) entre deux sections.\n- **Coordonnées en tableau** : libellé / valeur séparés par filets `--line`.\n- Rayon 0. Ombres interdites. Secondaire = lien souligné (jamais un 2e bouton plein).\nInterdit : cartes à ombre, dégradés, plus d'une citation par page.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : colonne de la recette (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "galerie",
+    "code": "S02",
+    "id": "galerie",
+    "nom": "Galerie",
+    "polices": {
+      "titres": "Instrument Serif",
+      "texte": "Inter",
+      "mono": null,
+      "graisses_titres": [
+        400
+      ],
+      "graisses_texte": [
+        400,
+        500
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Instrument+Serif:wght@400&family=Inter:wght@400;500&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "fullbleed"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "air"
+      ]
+    },
+    "metiers": {
+      "portfolio": "très adapté",
+      "mode": "très adapté",
+      "immobilier": "très adapté",
+      "hotellerie": "possible",
+      "restaurant": "possible"
+    },
+    "content_md": "# Style S02 — Galerie\n\nPolices : **Instrument Serif** (titres, graisses 400) + **Inter** (texte, 400/500).\nOuvertures : `split`, `fullbleed` · nav : `wordmark-left` · densité : `air`.\n\nLes images d'abord, le texte en légende.\n- **Mosaïque d'ouverture** : grille 2fr / 1fr, 2 rangées de 260 px, gap 12 px (1 grande + 2 petites). Sous 760 px : grande pleine largeur 300 px, 2 petites côte à côte 150 px.\n- **Bloc titre** sous la mosaïque : H1 clamp(38px,5vw,64px), interligne 1.02 (Instrument Serif), à gauche ; intro 15 px `--muted` + bouton à droite.\n- **Libellé de section** : filet 1 px `--ink`, libellé 12 px capitales espacées `--muted`.\n- **Grille décalée** : 3 colonnes, la colonne du milieu descend de 48 px (téléphone : 2 colonnes, pas de décalage). Photos 4/5. Légende sous chaque photo : nom à gauche, `.prix` à droite (téléphone : nom sur 2 lignes max, prix dessous).\n- **Image pleine largeur 21/9** entre deux sections.\n- Rayon 0, aucune ombre, aucune icône. 5 liens de menu max.\nInterdit : texte long (> 3 phrases par bloc), cartes, arrondis.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : colonne de la recette (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "luxe",
+    "code": "S03",
+    "id": "luxe",
+    "nom": "Luxe",
+    "polices": {
+      "titres": "Cormorant Garamond",
+      "texte": "Manrope",
+      "mono": null,
+      "graisses_titres": [
+        400,
+        500
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Manrope:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "fullbleed",
+        "type-only"
+      ],
+      "navs": [
+        "centered",
+        "wordmark-left"
+      ],
+      "densites": [
+        "air"
+      ]
+    },
+    "metiers": {
+      "hotellerie": "très adapté",
+      "restaurant": "très adapté",
+      "sante": "possible",
+      "immobilier": "possible",
+      "mode": "possible"
+    },
+    "content_md": "# Style S03 — Luxe\n\nPolices : **Cormorant Garamond** (titres, graisses 400/500) + **Manrope** (texte, 400/600).\nOuvertures : `fullbleed`, `type-only` · nav : `centered`, `wordmark-left` · densité : `air`.\n\nSilence et retenue. Hero centré AUTORISÉ pour ce style.\n- **Ouverture plein écran** : photo du client ≥ 88 vh (640 px min téléphone), voile ≥ 55 % sous le texte, **cadre fin intérieur** (1 px, blanc 45 %, inset 20 px ; 12 px téléphone) ; la nav est posée À L'INTÉRIEUR du cadre (marge ≥ inset + 16 px), le filet ne traverse jamais un texte. Nom en capitales espacées 0.3em. Au centre : ornement « — lieu — » (12 px, 0.24em), H1 clamp(38px,5vw,68px) graisse 400 interligne 1.1, largeur max 16ch (TY6), un seul bouton en capitales espacées (libellé sur une ligne : 13–14 px au téléphone si besoin). Prix en `--accent-text`. Texte du haut de page CENTRÉ (le placement bas-gauche de `texte-sur-photo` ne s'applique pas à Luxe).\n- **Sections** : padding 96 px (64 px téléphone), tout centré, largeur texte 560 px max.\n- **Liste centrée** (carte, chambres, soins) : nom en `--font-d` 22 px, prix 13 px espacé 0.14em, description 14 px `--muted`, filet `--line` entre chaque ligne.\n- **Bloc 50/50** image / texte sur `--surface`, texte centré 420 px max.\n- **Infos en 3 colonnes centrées** (1 colonne téléphone).\n- Ornements : filets 48 px de part et d'autre d'un petit libellé, en `--accent-text`.\nInterdit : couleurs vives hors accent, plus d'un bouton plein par écran, gros titres en capitales, ombres.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : 16ch. Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 4
+  },
+  {
+    "_id": "affiche",
+    "code": "S04",
+    "id": "affiche",
+    "nom": "Affiche",
+    "polices": {
+      "titres": "Anton",
+      "texte": "Schibsted Grotesk",
+      "mono": null,
+      "graisses_titres": [
+        400
+      ],
+      "graisses_texte": [
+        400,
+        700
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Anton:wght@400&family=Schibsted+Grotesk:wght@400;700&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "type-only",
+        "split"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "medium"
+      ]
+    },
+    "metiers": {
+      "restaurant": "très adapté",
+      "services": "possible",
+      "mode": "possible",
+      "education": "possible"
+    },
+    "content_md": "# Style S04 — Affiche\n\nPolices : **Anton** (titres, graisses 400) + **Schibsted Grotesk** (texte, 400/700).\nOuvertures : `type-only`, `split` · nav : `wordmark-left` · densité : `medium`.\n\nÉnergie de rue, lisible de loin.\n- **Titre géant** en capitales : `font-size: clamp(56px, 12.5vw, 200px)` ; **interligne 1.16 minimum** (testé au pixel : à 0.86, 1.08 et 1.14 la virgule d'une ligne touche l'accent du « À » de la suivante) ; largeur max 11ch ; `text-wrap: balance`.\n- **Pastilles d'infos** sous le titre : bordure 2 px, arrondi 999 px, 13 px gras capitales, `nowrap` (prix de départ, horaires, quartier).\n- **Macaron** tourné −12°, 112 px, fond `--accent` texte `--on-accent` (masqué sous 760 px).\n- **Bandeau défilant** (ou statique si `prefers-reduced-motion`) : fond `--ink`, texte `--bg`, `--font-d` clamp(22px,3vw,34px).\n- **Rangée de 3 photos carrées** (2 sur téléphone).\n- **Carte massive** : rangées séparées par un filet 3 px, nom en capitales `--font-d` clamp(22px,2.6vw,32px), prix même taille aligné à droite, description 14 px.\n- Rayon 0, pas d'ombre.\nInterdit : titre en interligne < 1.16, texte courant en capitales, plus de 3 pastilles.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : pleine largeur (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "bento",
+    "code": "S05",
+    "id": "bento",
+    "nom": "Bento",
+    "polices": {
+      "titres": "Bricolage Grotesque",
+      "texte": "Karla",
+      "mono": null,
+      "graisses_titres": [
+        700
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700&family=Karla:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "type-only"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "medium"
+      ]
+    },
+    "metiers": {
+      "saas": "très adapté",
+      "restaurant": "possible",
+      "services": "possible",
+      "education": "possible"
+    },
+    "content_md": "# Style S05 — Bento\n\nPolices : **Bricolage Grotesque** (titres, graisses 700) + **Karla** (texte, 400/600).\nOuvertures : `split`, `type-only` · nav : `wordmark-left` · densité : `medium`.\n\nTableau de bord en tuiles, pour produits et services « pratiques ».\n- **Menu en pilule** : liens dans une capsule `--surface` (arrondi 999 px).\n- **Grille d'ouverture** : 1.2fr / 1fr, gap 14 px. Grande tuile titre (H1 clamp(34px,4vw,52px) graisse 700, interligne 1.08) + tuile image + 2 petites tuiles d'info (horaires du jour, prix de départ, statut). **4 tuiles maximum**, tailles inégales (règle SLOP W6).\n- **Tuiles** : fond `--surface`, arrondi 22 px, padding 28 px. Horaires et prix `nowrap`.\n- **Cartes produit/offre** : 3 colonnes (1 sous 760 px), image 4/3 arrondie 16 px, titre 19 px, prix en pastille `--bg`.\n- **Ligne finale 2fr/1fr/1fr** : histoire + adresse + contact.\n- Boutons arrondis 999 px.\nInterdit : plus de 4 tuiles dans l'ouverture, dégradés, ombres portées colorées, icônes décoratives.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : colonne de la recette (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:16px` (champs, cartes) et `--radius-btn:999px` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "cinema",
+    "code": "S06",
+    "id": "cinema",
+    "nom": "Cinéma",
+    "polices": {
+      "titres": "Bodoni Moda",
+      "texte": "Manrope",
+      "mono": null,
+      "graisses_titres": [
+        400
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400&family=Manrope:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "fullbleed",
+        "type-only"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "air",
+        "medium"
+      ]
+    },
+    "metiers": {
+      "education": "très adapté",
+      "restaurant": "possible",
+      "hotellerie": "possible",
+      "portfolio": "possible"
+    },
+    "content_md": "# Style S06 — Cinéma\n\nPolices : **Bodoni Moda** (titres, graisses 400) + **Manrope** (texte, 400/600).\nOuvertures : `fullbleed`, `type-only` · nav : `wordmark-left` · densité : `air`, `medium`.\n\nPlateforme de streaming. **Palette sombre obligatoire.**\n- **Ouverture** : photo/vidéo du client ≥ 86 vh, voile latéral (noir 82 % à gauche → 15 % à droite) + fondu bas vers `--bg`. Étiquette encadrée (1 px, 12 px capitales) **24 px sous le menu**. H1 clamp(40px,5.2vw,72px) interligne 1.05, texte 480 px max, ligne de méta 14 px (depuis, jours, capacité), bouton + lien.\n- **Rangée d'affiches numérotées** : défilement horizontal (`overflow-x:auto`, dans son conteneur). Chaque affiche : grille 40 px / 1fr, **le grand numéro est À CÔTÉ de l'affiche, jamais dessus** (`--font-d` 64 px `--muted`), image 2/3 arrondie 6 px, titre 14 px et prix dessous.\n- **Bloc « à la une »** : image 16/9 + texte, 1.2fr / 1fr (1 colonne téléphone).\n- **Tuiles d'infos** : 3 colonnes `minmax(0,1fr)` (jamais de débordement), fond `--surface`, arrondi 6 px.\nInterdit : palette claire, numéros superposés aux images ou légendes, plus d'un voile par écran.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : 14ch. Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "catalogue",
+    "code": "S07",
+    "id": "catalogue",
+    "nom": "Catalogue",
+    "polices": {
+      "titres": "EB Garamond",
+      "texte": "Karla",
+      "mono": null,
+      "graisses_titres": [
+        400
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400&family=Karla:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "fullbleed"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "medium"
+      ]
+    },
+    "metiers": {
+      "mode": "très adapté",
+      "restaurant": "possible",
+      "services": "possible"
+    },
+    "content_md": "# Style S07 — Catalogue\n\nPolices : **EB Garamond** (titres, graisses 400) + **Karla** (texte, 400/600).\nOuvertures : `split`, `fullbleed` · nav : `wordmark-left` · densité : `medium`.\n\nBoutique claire et directe.\n- **Bandeau d'annonce** : fond `--ink`, texte `--bg` 14 px, centré (livraison, paiement Mobile Money / carte, commande WhatsApp).\n- **Ouverture split** 1fr/1fr, H1 clamp(34px,3.8vw,50px) graisse 400, intro `--muted`, bouton + lien.\n- **Filtres en pastilles** : 44 px de haut minimum, arrondi 999 px, la pastille active en `--accent`.\n- **Grille de fiches** : 3 colonnes (2 sur téléphone), photo 1/1, nom + `.prix` (téléphone : prix sous le nom), bouton contour « Ajouter » 44 px.\n- **Bande de 3 arguments** séparés par des filets verticaux (1 colonne téléphone) — contenu réel du client uniquement.\n- **Pied de page riche** sur `--surface` (coordonnées, moyens de paiement en texte, liens légaux + CGV).\nInterdit : plus de 2 CTA pleins par fiche, prix coupés, badges « promo » inventés.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : colonne de la recette (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "doux",
+    "code": "S08",
+    "id": "doux",
+    "nom": "Doux",
+    "polices": {
+      "titres": "Fraunces",
+      "texte": "DM Sans",
+      "mono": null,
+      "graisses_titres": [
+        400
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400&family=DM+Sans:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "type-only"
+      ],
+      "navs": [
+        "wordmark-left",
+        "centered"
+      ],
+      "densites": [
+        "air",
+        "medium"
+      ]
+    },
+    "metiers": {
+      "sante": "très adapté",
+      "restaurant": "possible",
+      "services": "possible",
+      "education": "possible"
+    },
+    "content_md": "# Style S08 — Doux\n\nPolices : **Fraunces** (titres, graisses 400) + **DM Sans** (texte, 400/600).\nOuvertures : `split`, `type-only` · nav : `wordmark-left`, `centered` · densité : `air`, `medium`.\n\nRassurant, arrondi, zéro anxiété visuelle.\n- **Pastille statut** au-dessus du H1 (« Ouvert aujourd'hui · 8h–18h » réel) : fond `--surface`, point 8 px `--accent`.\n- **Ouverture split** 1fr/1fr gap 48 px, H1 clamp(36px,4.4vw,58px) graisse 400 interligne 1.08. Photo 4/5 arrondie 28 px avec **2 cartes flottantes max** (fond `--bg`, arrondi 16 px, ombre douce) qui ne couvrent jamais un visage ni une légende.\n- **Section à coins arrondis** (36 px) sur `--surface` pour l'offre : cartes `--bg` arrondies 18 px, prix en pastille.\n- **Étapes 1 · 2 · 3** : seulement si le parcours est réel (prise de RDV, soin) — pastille numérotée `--accent`.\n- **Bloc infos sombre arrondi** (28 px) : fond `--ink`, texte `--bg`, 3 colonnes (1 téléphone).\n- Boutons arrondis 999 px.\nInterdit : palette sombre, rouge vif, photos cliniques froides, plus de 2 cartes flottantes.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : colonne de la recette (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:20px` (champs, cartes) et `--radius-btn:999px` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "local",
+    "code": "S09",
+    "id": "local",
+    "nom": "Artisan local",
+    "polices": {
+      "titres": "Archivo",
+      "texte": "IBM Plex Sans",
+      "mono": null,
+      "graisses_titres": [
+        800
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Archivo:wght@800&family=IBM+Plex+Sans:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "type-only"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "medium"
+      ]
+    },
+    "metiers": {
+      "services": "très adapté",
+      "restaurant": "possible",
+      "sante": "possible"
+    },
+    "content_md": "# Style S09 — Artisan local\n\nPolices : **Archivo** (titres, graisses 800) + **IBM Plex Sans** (texte, 400/600).\nOuvertures : `split`, `type-only` · nav : `wordmark-left` · densité : `medium`.\n\nL'artisan qui convertit : téléphone et preuves partout.\n- **Bandeau du haut** : fond `--ink`, texte `--bg` 13 px gras : horaires du jour + téléphone cliquable (`tel:`).\n- **Ouverture split** 1.15fr/1fr : H1 en capitales graisse 800 clamp(32px,4vw,52px), **interligne 1.12**, puis **liste à coches** (3 max, pastille ✓ `--accent`), bouton principal, puis « ou appelez **07 00 00 00 00** » (`nowrap`).\n- **Encart adresse** posé sur le bas de la photo (fond `--bg`, bordure 2 px `--ink`) ; la légende photo passe **en haut** de l'image. Téléphone : l'encart passe sous la photo.\n- **4 chiffres clés réels** (jamais inventés, R2) entre deux filets 2 px ; 2×2 sur téléphone.\n- **Offre** en liste sur fond `--surface` (2 colonnes, 1 téléphone), prix `nowrap`.\n- **Bloc « Commander / Demander un devis sur WhatsApp »** fond `--ink`.\n- **Horaires & accès** encadrés 2 px.\n- M7 : barre mobile Appeler / WhatsApp / Itinéraire autorisée.\nInterdit : `--decor` en texte, chiffres sans source, photos stock « ouvrier souriant ».\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : colonne de la recette (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:6px` (champs, cartes) et `--radius-btn:6px` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "suisse",
+    "code": "S10",
+    "id": "suisse",
+    "nom": "Suisse",
+    "polices": {
+      "titres": "Inter Tight",
+      "texte": "Inter",
+      "mono": null,
+      "graisses_titres": [
+        700
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&family=Inter:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "type-only",
+        "split"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "medium"
+      ]
+    },
+    "metiers": {
+      "business": "très adapté",
+      "immobilier": "très adapté",
+      "portfolio": "possible",
+      "saas": "possible",
+      "restaurant": "possible"
+    },
+    "content_md": "# Style S10 — Suisse\n\nPolices : **Inter Tight** (titres, graisses 700) + **Inter** (texte, 400/600).\nOuvertures : `type-only`, `split` · nav : `wordmark-left` · densité : `medium`.\n\nTypographie internationale : grille stricte, un seul carré de couleur.\n- **En-tête** souligné d'un filet 2 px `--ink`.\n- **Ouverture** : grille 80 px / 1fr. Carré plein 28 px `--accent` dans la colonne de gauche ; H1 graisse 700 clamp(40px,7vw,96px), **interligne 1.02 minimum**, espacement **−0.03em sur ordinateur, −0.01em maximum sous 600 px** (lettres jamais collées). Intro 15 px + bouton alignés sur la grille.\n- **Image pleine largeur 21/9** (4/3 sur téléphone).\n- **Sections** : grille 1fr / 2fr, filet 1 px `--ink` en haut, **grand numéro** « 01 » clamp(64px,8vw,112px) en `--accent-text`.\n- **Tableaux 3 colonnes** (nom · description · prix), filets `--line` ; sur téléphone : nom + prix sur la ligne 1, description ligne 2.\n- Rayon 0, aucune ombre, aucune image décorative.\nInterdit : palette sans accent chromatique (le carré doit être une vraie couleur), Inter en titre (le titre est en Inter Tight), centrage.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : colonne de la recette (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "wax",
+    "code": "S11",
+    "id": "wax",
+    "nom": "Wax",
+    "polices": {
+      "titres": "DM Serif Display",
+      "texte": "Work Sans",
+      "mono": null,
+      "graisses_titres": [
+        400
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=DM+Serif+Display:wght@400&family=Work+Sans:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "type-only"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "medium"
+      ]
+    },
+    "metiers": {
+      "restaurant": "très adapté",
+      "mode": "très adapté",
+      "hotellerie": "possible",
+      "services": "possible",
+      "education": "possible"
+    },
+    "content_md": "# Style S11 — Wax\n\nPolices : **DM Serif Display** (titres, graisses 400) + **Work Sans** (texte, 400/600).\nOuvertures : `split`, `type-only` · nav : `wordmark-left` · densité : `medium`.\n\nChaleur ouest-africaine contemporaine (création NexAI).\n- **Bandeau motif** géométrique 18 px (croisillons en `--decor`, CSS uniquement) en haut de page et entre les grandes sections — jamais derrière du texte.\n- **Ouverture split** 1fr/1fr gap 56 px : sur-titre en `--accent-text`, H1 clamp(36px,4.6vw,60px) graisse 400, bouton arrondi 999 px + lien. **Image en arche** (arrondi 999 px en haut, 18 px en bas, ratio 4/5) avec **ombre pleine décalée** 14 px en `--decor` (10 px téléphone, marge droite 10 px pour ne pas déborder).\n- **Cartes à ombre pleine** 6 px en `--accent` (sans flou), fond `--bg`, bordure `--line`, arrondi 14 px ; prix en `--accent-text`.\n- **Duo d'images superposées** (la 2e avec bordure 6 px `--bg`).\n- **Bloc infos** fond `--accent`, texte `--on-accent`, arrondi 20 px.\nInterdit : motif sous du texte, plus de 2 bandeaux motif par écran, palettes froides (tech, clinique).\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : colonne de la recette (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:24px` (champs, cartes) et `--radius-btn:999px` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "plan",
+    "code": "S12",
+    "id": "plan",
+    "nom": "Plan",
+    "polices": {
+      "titres": "Bricolage Grotesque",
+      "texte": "IBM Plex Sans",
+      "mono": "IBM Plex Mono",
+      "graisses_titres": [
+        700
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "type-only"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "medium"
+      ]
+    },
+    "metiers": {
+      "immobilier": "très adapté",
+      "saas": "très adapté",
+      "business": "possible",
+      "portfolio": "possible"
+    },
+    "content_md": "# Style S12 — Plan\n\nPolices : **Bricolage Grotesque** (titres, graisses 700) + **IBM Plex Sans** (texte, 400/600) + **IBM Plex Mono** 400 (étiquettes seulement).\nOuvertures : `split`, `type-only` · nav : `wordmark-left` · densité : `medium`.\n\nPlan d'architecte (création NexAI). 3e police AUTORISÉE : IBM Plex Mono, **uniquement** pour étiquettes, références, coordonnées et en-têtes de tableau (jamais un paragraphe).\n- **Fond quadrillé** 80 px en `--line` (1 px) sous tout le site ; blocs de contenu sur fond `--bg` plein.\n- **Références** [00] [01] en mono, couleur `--accent-text` (jamais `--accent` si < 4,5:1).\n- **Ouverture** : sur-titre mono, H1 graisse 700 clamp(38px,5.6vw,72px) interligne 1.05, ligne de coordonnées GPS/horaires en mono 12 px `--muted`, puis **boîte 1fr/2fr** bordée 1 px `--ink` (texte + bouton | image) avec repères « + » aux coins.\n- **Tableau technique** (réf · nom · description · prix). **Sous 700 px : liste empilée** (réf + nom ligne 1, description ligne 2, prix à droite) — jamais 4 colonnes écrasées.\n- **Bloc histoire** 1fr/1fr bordé ; **infos** en 3 cases bordées (1 colonne téléphone).\n- Rayon 0.\nInterdit : mono en texte courant, couleurs vives en surface, ombres.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : 13ch. Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "collage",
+    "code": "S13",
+    "id": "collage",
+    "nom": "Collage",
+    "polices": {
+      "titres": "Bricolage Grotesque",
+      "texte": "DM Sans",
+      "mono": null,
+      "graisses_titres": [
+        700
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700&family=DM+Sans:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "type-only"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "medium"
+      ]
+    },
+    "metiers": {
+      "mode": "possible",
+      "portfolio": "possible"
+    },
+    "content_md": "# Style S13 — Collage\n\nPolices : **Bricolage Grotesque** (titres, graisses 700) + **DM Sans** (texte, 400/600).\nOuvertures : `split`, `type-only` · nav : `wordmark-left` · densité : `medium`.\n\nTableau d'inspiration (création NexAI). Réservé mode et portfolio.\n- **Ouverture split** 1fr/1.1fr : H1 graisse 700 clamp(38px,4.8vw,62px), texte, bouton + lien. À droite, **tableau** de 2 photos inclinées (+3° / −5°, cadre blanc 8 px, ombre douce) + 2 rubans adhésifs (`--decor`, sans texte) + **1 note** (fond `--accent`, texte `--on-accent`, 14 px gras, −3°) posée en bas à droite.\n- Légendes des photos : en haut de la photo si le bas est couvert. **Rien ne recouvre un texte, un bouton ou un lien** (marge 24 px sur téléphone).\n- **Cartes épinglées** : fond `--surface`, rotation ±1,5°, photo 4/3, prix en étiquette **fond `--bg`, texte `--ink`, bordure 1 px** (jamais texte sombre sur fond foncé).\n- **Séparateur pointillé** 2 px `--line`.\nInterdit : plus de 3 éléments inclinés par écran, rotation > 5°, restaurant, santé, cabinet.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : 11ch. Rayon par défaut `--radius:2px` (champs, cartes) et `--radius-btn:2px` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "carte",
+    "code": "S14",
+    "id": "carte",
+    "nom": "Carte imprimée",
+    "polices": {
+      "titres": "Cormorant Garamond",
+      "texte": "Manrope",
+      "mono": null,
+      "graisses_titres": [
+        400,
+        500
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Manrope:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "type-only",
+        "split"
+      ],
+      "navs": [
+        "centered"
+      ],
+      "densites": [
+        "air"
+      ]
+    },
+    "metiers": {
+      "restaurant": "très adapté",
+      "hotellerie": "possible"
+    },
+    "content_md": "# Style S14 — Carte imprimée\n\nPolices : **Cormorant Garamond** (titres, graisses 400/500) + **Manrope** (texte, 400/600).\nOuvertures : `type-only`, `split` · nav : `centered` · densité : `air`.\n\nLe menu imprimé devenu site. Tout centré (hero centré AUTORISÉ pour ce style).\n- **Feuille** : conteneur 860 px max sur fond `--surface`, fond `--bg`, **double filet** (bordure 1 px + contour 1 px décalé −8 px ; −6 px téléphone), padding 28/56 px (20/22 px téléphone).\n- **En-tête** : ornements ✦ ✦ ✦ en `--accent-text`, nom en `--font-d` clamp(42px,6vw,72px), sous-titre 12 px capitales espacées.\n- **Photo ovale** 220×280 (180×230 téléphone) ; **légende SOUS l'ovale**, jamais dedans.\n- Accroche en italique clamp(24px,3vw,32px), texte 15 px `--muted`, un bouton.\n- **Intertitres entre filets** : filets de 120 px (**40 px sous 760 px**), intertitre sur une seule ligne (`nowrap`).\n- **Carte à points de conduite** : nom `--font-d` 20 px · pointillés · prix ; description italique 14 px.\nInterdit : photos rectangulaires plein cadre, plus d'une photo par section, couleurs vives.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : 26ch (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "partage",
+    "code": "S15",
+    "id": "partage",
+    "nom": "Écran partagé",
+    "polices": {
+      "titres": "Newsreader",
+      "texte": "Figtree",
+      "mono": null,
+      "graisses_titres": [
+        400
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Newsreader:wght@400&family=Figtree:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "fullbleed"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "air",
+        "medium"
+      ]
+    },
+    "metiers": {
+      "hotellerie": "très adapté",
+      "immobilier": "très adapté",
+      "sante": "possible",
+      "restaurant": "possible",
+      "mode": "possible"
+    },
+    "content_md": "# Style S15 — Écran partagé\n\nPolices : **Newsreader** (titres, graisses 400) + **Figtree** (texte, 400/600).\nOuvertures : `split`, `fullbleed` · nav : `wordmark-left` · densité : `air`, `medium`.\n\nGrande image fixe à gauche, contenu qui défile à droite.\n- **Colonne image** 50 % : `position: sticky; top: 0; height: 100vh`, photo du client avec voile ≥ 55 % sous le nom (nom en `--font-d` 24 px, blanc, en haut à gauche).\n- **Colonne contenu** : padding 0 56 px, menu aligné à droite. Ouverture : sur-titre, H1 clamp(34px,3.6vw,52px) graisse 400, intro `--muted`, bouton + lien.\n- **Blocs numérotés** 01 · 02 · 03 (12 px `--muted`), titres 30 px, séparés par des filets `--line`, padding 48 px.\n- **Listes** (chambres, biens, soins) : nom + prix `nowrap` sur une ligne, description 14 px dessous.\n- **Vignettes** 2 colonnes 4/3.\n- **Téléphone** : image en haut (56 vh, 360 px min), contenu dessous, menu replié.\nInterdit : texte sur la moitié image hors du nom, 2e image fixe, carrousel.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : colonne de la recette (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 4
+  },
+  {
+    "_id": "brutal",
+    "code": "S16",
+    "id": "brutal",
+    "nom": "Brutal doux",
+    "polices": {
+      "titres": "Bricolage Grotesque",
+      "texte": "Jost",
+      "mono": null,
+      "graisses_titres": [
+        700
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700&family=Jost:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "split",
+        "type-only"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "medium"
+      ]
+    },
+    "metiers": {
+      "services": "possible",
+      "saas": "possible",
+      "restaurant": "possible",
+      "education": "possible"
+    },
+    "content_md": "# Style S16 — Brutal doux\n\nPolices : **Bricolage Grotesque** (titres, graisses 700) + **Jost** (texte, 400/600).\nOuvertures : `split`, `type-only` · nav : `wordmark-left` · densité : `medium`.\n\nNéo-brutalisme adouci. **Exige une palette avec un `--decor` clair et vif** (jaune, orange) lisible sous `--ink` (≥ 4,5:1).\n- **Bordures 3 px `--ink`** sur les blocs, **ombres pleines décalées** 4–6 px `--ink` (sans flou), rayon 0.\n- **Nav en étiquettes** : chaque lien encadré 2 px ; logo sur fond `--decor`.\n- **Ouverture** split 1fr/1fr encadrée 3 px : H1 graisse 700 clamp(34px,4.2vw,56px) interligne 1.12 avec **surlignage** d'un groupe de mots (fond `--decor`, texte `--ink`, `box-decoration-break: clone`).\n- **Bande de preuves** : 3 cases fond `--decor` texte `--ink` gras (1 colonne téléphone) — preuves réelles uniquement.\n- **Cartes offre** bordées 3 px + ombre 6 px ; prix en étiquette `--decor`.\nInterdit : palettes luxe ou sombres, surlignage sur plus d'un groupe de mots par écran, rotation des blocs.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : colonne de la recette (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "couverture",
+    "code": "S17",
+    "id": "couverture",
+    "nom": "Couverture",
+    "polices": {
+      "titres": "Syne",
+      "texte": "Work Sans",
+      "mono": null,
+      "graisses_titres": [
+        600,
+        800
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=Work+Sans:wght@400;600&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "fullbleed",
+        "type-only"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "air"
+      ]
+    },
+    "metiers": {
+      "mode": "très adapté",
+      "portfolio": "très adapté",
+      "restaurant": "possible",
+      "hotellerie": "possible"
+    },
+    "content_md": "# Style S17 — Couverture\n\nPolices : **Syne** (titres, graisses 600/800) + **Work Sans** (texte, 400/600).\nOuvertures : `fullbleed`, `type-only` · nav : `wordmark-left` · densité : `air`.\n\nUne de magazine.\n- **Couverture** ≥ 92 vh (640 px téléphone) : photo du client + voile ≥ 55 %. Barre fine (lieu · numéro · liens 12 px capitales). **Nom géant** en capitales graisse 800 clamp(40px,10.5vw,150px), interligne 0.95 (pas d'accent sur le nom ; sinon 1.12).\n- **Pied de couverture** : « À la une » à gauche (320 px max, 16 px au-dessus de la légende photo) ; H1 + bouton à droite, **largeur max 40 %, marge intérieure ≥ 32 px : le texte ne sort jamais de l'image**. Téléphone : empilés à gauche.\n- **Doubles pages alternées** image / texte (1fr/1fr, image ≥ 560 px de haut ; empilées sur téléphone). Titres de section en capitales graisse 800 clamp(34px,4.4vw,58px), jamais coupés au milieu d'un mot.\n- **Infos en grandes capitales** (libellés `--font-d` 14 px 800).\nInterdit : plus de 3 doubles pages, texte hors image, nom sur plus de 2 lignes.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : 22ch (16ch si le H1 est posé sur une photo, TY6). Rayon par défaut `--radius:0` (champs, cartes) et `--radius-btn:0` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  },
+  {
+    "_id": "tunnel",
+    "code": "S18",
+    "id": "tunnel",
+    "nom": "Tunnel de vente",
+    "polices": {
+      "titres": "Figtree",
+      "texte": "Figtree",
+      "mono": null,
+      "graisses_titres": [
+        800
+      ],
+      "graisses_texte": [
+        400,
+        600
+      ],
+      "url_google_fonts": "https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&display=swap"
+    },
+    "kit": {
+      "heroes": [
+        "type-only",
+        "split"
+      ],
+      "navs": [
+        "wordmark-left"
+      ],
+      "densites": [
+        "medium"
+      ]
+    },
+    "metiers": {
+      "education": "très adapté",
+      "saas": "très adapté",
+      "services": "possible"
+    },
+    "content_md": "# Style S18 — Tunnel de vente\n\nPolices : **Figtree** (titres, graisses 800) + **Figtree** (texte, 400/600).\nOuvertures : `type-only`, `split` · nav : `wordmark-left` · densité : `medium`.\n\nPage de vente (blocs du brief Kroiesma, recolorés). Hero centré AUTORISÉ pour ce style. Tutoiement autorisé si la famille le prévoit (formation).\n- **Ouverture** centrée : sur-titre `--accent-text`, H1 graisse 800 clamp(34px,5vw,64px) interligne 1.08 avec **un seul groupe de mots** en `--accent-text`, intro `--muted` 620 px max, un bouton arrondi 999 px.\n- **Scènes** : chaque bloc dans un cadre arrondi 28 px bordé 1 px `--line`, fond dégradé radial `--surface` → `--bg` (pas d'autre dégradé).\n- **Bloc « Tout ce que tu reçois »** (offer-stack) : ordinateur + tablette (captures réelles du client) + 4 à 8 boîtes MODULE / BONUS (la boîte bonus en `--accent`). **Texte des boîtes ≥ 12 px et contraste ≥ 4,5:1** (testé : 7–9 px et 1:1 échouent). 3 caractéristiques dessous (1 colonne téléphone).\n- **Bloc « En bonus »** (bonus-split) : 1 boîte à gauche, titre + 5 lignes + « Valeur : X FCFA » (valeur réelle du brief uniquement).\n- **Bloc « Ton parcours »** (path-timeline) : 4 étapes, filet 3 px `--accent` au-dessus de chaque étape, libellés de temps (AUJOURD'HUI, ÉTAPE 01…).\n- **Aucun nom interne visible** (« OFFER-STACK », « BONUS-SPLIT »…).\nInterdit : Inter en titre graisse 800 (S9 de SLOP), plus d'un bouton par bloc, compte à rebours inventé.\n\n**Valeurs complémentaires** : taille du H1 = celle écrite dans cette recette (une seule source) ; largeur max du H1 : 16ch. Rayon par défaut `--radius:14px` (champs, cartes) et `--radius-btn:999px` (boutons), **sauf si cette recette donne un autre rayon pour un élément : la recette prime**. Ces valeurs priment sur les jetons génériques (`--section-y`, rayons de TOKENS).\n\nRègles communes à tous les styles : couleurs uniquement par les variables de la famille ; `.prix` et horaires en `white-space:nowrap` ; aucun texte ne touche ni ne recouvre un autre texte ; boutons et liens ≥ 44 px de haut ; corps ≥ 16 px (légendes 13–14 px) ; aucune opacité sur un texte (couleur pleine uniquement).",
+    "seed_version": 3
+  }
+]

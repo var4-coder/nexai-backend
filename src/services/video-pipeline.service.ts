@@ -1,5 +1,6 @@
 import {
   MSG_VIDEO_REMBOURSEE,
+  MSG_VIDEO_ECHEC_SANS_DEBIT,
   MSG_VIDEO_SEQUENCES_REMPLACEES,
   MSG_VIDEO_PLUS_COURTE,
 } from '@/constants/textes-client';
@@ -10,7 +11,8 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
-import type { HydratedDocument } from 'mongoose';
+import { Types, type HydratedDocument } from 'mongoose';
+import { redisConnection } from '@/config/redis';
 import { VideoAd } from '@/models/VideoAd';
 import { Site, ISite } from '@/models/Site';
 import { User } from '@/models/User';
@@ -28,7 +30,7 @@ import {
   FALAI_AVATAR_MAX_SECONDS_PER_CALL,
   type AvatarQuality,
 } from '@/services/falai-avatar.service';
-import { synthesizeSpeech, estimateSpeechDurationSeconds, pickVoiceId } from '@/services/tts.service';
+import { synthesizeSpeech, pickVoiceId } from '@/services/tts.service';
 import { uploadVideoAd, uploadNarrationAudio, deleteVideoAdClip } from '@/services/cloudinary.service';
 import {
   debitCredits,
@@ -209,40 +211,66 @@ export async function enqueueVideoAd(
     videoOfferte = !!consomme;
   }
 
+  // ── Débit puis lancement, avec annulation propre ──
+  //
+  // Si NexAI n'arrive pas à créer la commande ou à la mettre en file APRÈS le
+  // débit, le client n'a rien reçu par notre faute : c'est le seul cas où le
+  // remboursement est automatique. La vidéo offerte consommée est elle aussi
+  // restituée.
+  let debite = false;
   if (!videoOfferte) {
     await debitCredits(userId, cost, 'video_ad', {
       relatedSiteId: opts.siteId,
       note: `video_ad:${opts.mode}:${opts.format}`,
     });
+    debite = true;
   }
 
-  const videoAd = await VideoAd.create({
-    userId,
-    siteId: opts.siteId || undefined,
-    mode: opts.mode,
-    format: opts.format,
-    quality: opts.quality,
-    aspectRatio: opts.aspectRatio,
-    brief: opts.brief,
-    creditsCharged: videoOfferte ? 0 : cost,
-    offerte: videoOfferte,
-    status: 'queued',
-    scenes: [],
-  });
+  let videoAdId: Types.ObjectId | undefined;
+  let bullJobId: string | undefined;
+  let bullJob: Awaited<ReturnType<typeof videoQueue.add>>;
+  let videoAd: HydratedDocument<any>;
+  try {
+    videoAd = await VideoAd.create({
+      userId,
+      siteId: opts.siteId || undefined,
+      mode: opts.mode,
+      format: opts.format,
+      quality: opts.quality,
+      aspectRatio: opts.aspectRatio,
+      brief: opts.brief,
+      creditsCharged: videoOfferte ? 0 : cost,
+      offerte: videoOfferte,
+      status: 'queued',
+      scenes: [],
+    });
+    videoAdId = videoAd._id as Types.ObjectId;
 
-  const bullJob = await videoQueue.add(
-    'video_ad',
-    { siteId: opts.siteId, userId, type: 'video_ad', videoAdId: String(videoAd._id) },
-    { jobId: `video_${videoAd._id}_${Date.now()}` }
-  );
+    bullJob = await videoQueue.add(
+      'video_ad',
+      { siteId: opts.siteId, userId, type: 'video_ad', videoAdId: String(videoAd._id) },
+      { jobId: `video_${videoAd._id}_${Date.now()}` }
+    );
+    bullJobId = String(bullJob.id);
 
-  await JobModel.create({
-    type: 'video_ad',
-    siteId: site?._id,
-    status: 'queued',
-    bullJobId: String(bullJob.id),
-    meta: { videoAdId: String(videoAd._id), mode: opts.mode, format: opts.format },
-  });
+    await JobModel.create({
+      type: 'video_ad',
+      siteId: site?._id,
+      status: 'queued',
+      bullJobId,
+      meta: { videoAdId: String(videoAd._id), mode: opts.mode, format: opts.format },
+    });
+  } catch (err) {
+    await annulerLancementVideo({
+      userId,
+      videoAdId,
+      bullJob: bullJobId ? bullJob! : undefined,
+      creditsDebites: debite ? cost : 0,
+      videoOfferteConsommee: videoOfferte,
+      motif: `video_ad:${opts.mode}:${opts.format}`,
+    });
+    throw err;
+  }
 
   // Recommandation NON-bloquante : une 30s (~75 mots parlés) ne peut pas
   // détailler beaucoup d'offres distinctes. On ne bloque jamais la
@@ -257,7 +285,8 @@ export async function enqueueVideoAd(
   return {
     videoAdId: videoAd._id,
     jobId: bullJob.id,
-    creditsCharged: cost,
+    // Montant réellement débité : 0 pour la vidéo offerte.
+    creditsCharged: videoOfferte ? 0 : cost,
     status: 'queued',
     formatRecommendation,
   };
@@ -311,8 +340,12 @@ export async function enqueueVideoAdRelaunch(
   // une troisième fois ne réglerait rien et le ferait attendre pour rien.
   const relancesEchecDejaTentees = original.echecRelanceCount ?? 0;
   if (relanceGratuite && relancesEchecDejaTentees >= MAX_RELANCES_ECHEC_TOTAL) {
-    await rembourserVideoNonLivree(original);
-    throw new AppError(MSG_VIDEO_REMBOURSEE, 409);
+    const rendu = await rembourserVideoNonLivree(original);
+    // Le message dit la vérité : « crédits rendus » seulement s'il y en avait à rendre.
+    throw new AppError(rendu > 0 ? MSG_VIDEO_REMBOURSEE : MSG_VIDEO_ECHEC_SANS_DEBIT, 409, {
+      echecDefinitif: true,
+      creditsRendus: rendu,
+    });
   }
 
   const plansManquants = (original.partialDelivery?.scenesFailed ?? 0) > 0;
@@ -365,24 +398,57 @@ export async function enqueueVideoAdRelaunch(
     cost = original.relaunchOffer.priceCredits || getVideoAdRelaunchCost(original.creditsCharged, !original.isRelaunchOf);
   }
 
-  if (cost > 0) {
-    await debitCredits(userId, cost, 'video_ad_relance', {
-      relatedSiteId: original.siteId,
-      note: `video_ad_relance:${originalVideoAdId}`,
-    });
+  // ── Réservation ATOMIQUE de la relance ──
+  //
+  // Une vidéo ne peut être relancée qu'UNE fois. Sans cette réservation, deux
+  // requêtes simultanées (double-clic, deux onglets) passaient les contrôles
+  // ensemble : double débit pour une relance payante, et relances gratuites
+  // illimitées en parallèle — à nos frais — pour les autres chemins.
+  const nouvelId = new Types.ObjectId();
+  // Verrou Redis (SET NX, atomique) en plus de la réservation en base : une
+  // seule requête à la fois peut engager une relance de cette vidéo.
+  const cleVerrou = `video:relance:${original._id}`;
+  const verrouPris = await redisConnection.set(cleVerrou, '1', 'EX', 120, 'NX');
+  if (!verrouPris) {
+    throw new AppError(
+      'Cette vidéo a déjà été relancée. Consultez la tentative la plus récente dans votre liste.',
+      409
+    );
+  }
+  const reservee = await VideoAd.findOneAndUpdate(
+    { _id: original._id, relanceVideoId: { $exists: false } },
+    { $set: { relanceVideoId: nouvelId } }
+  );
+  if (!reservee) {
+    await redisConnection.del(cleVerrou).catch(() => undefined);
+    throw new AppError(
+      'Cette vidéo a déjà été relancée. Consultez la tentative la plus récente dans votre liste.',
+      409
+    );
   }
 
-  if (relanceGratuite) {
-    // Le délai repart : si cette tentative échoue aussi, le client devra à
-    // nouveau patienter avant la suivante. Son droit reste entier.
-    original.failedAt = new Date();
-    await original.save();
-  } else {
-    // Marquer l'offre d'origine comme consommée avant de créer la nouvelle
-    // vidéo, pour éviter qu'un double-clic ne déclenche deux relances payantes.
-    original.relaunchOffer!.used = true;
-    await original.save();
-  }
+  let debite = false;
+  let videoAd: HydratedDocument<any> | undefined;
+  let bullJob: Awaited<ReturnType<typeof videoQueue.add>> | undefined;
+  const aMarqueOffreUtilisee = !relanceGratuite;
+  try {
+    if (cost > 0) {
+      await debitCredits(userId, cost, 'video_ad_relance', {
+        relatedSiteId: original.siteId,
+        note: `video_ad_relance:${originalVideoAdId}`,
+      });
+      debite = true;
+    }
+
+    if (relanceGratuite) {
+      // Le délai repart : si cette tentative échoue aussi, le client devra à
+      // nouveau patienter avant la suivante. Son droit reste entier.
+      await VideoAd.updateOne({ _id: original._id }, { $set: { failedAt: new Date() } });
+    } else {
+      // Offre d'origine consommée dès maintenant, pour qu'aucune seconde
+      // relance payante ne soit possible.
+      await VideoAd.updateOne({ _id: original._id }, { $set: { 'relaunchOffer.used': true } });
+    }
 
   // ── Héritage des plans réussis (relance partielle) ──
   //
@@ -417,7 +483,9 @@ export async function enqueueVideoAdRelaunch(
         })
       : [];
 
-  const videoAd = await VideoAd.create({
+
+    videoAd = await VideoAd.create({
+    _id: nouvelId,
     userId,
     siteId: original.siteId,
     mode: original.mode,
@@ -443,19 +511,39 @@ export async function enqueueVideoAdRelaunch(
     partialRelaunchCount: relancePartielle ? relancesDejaFaites + 1 : 0,
   });
 
-  const bullJob = await videoQueue.add(
-    'video_ad',
-    { siteId: original.siteId, userId, type: 'video_ad', videoAdId: String(videoAd._id) },
-    { jobId: `video_${videoAd._id}_${Date.now()}` }
-  );
+    bullJob = await videoQueue.add(
+      'video_ad',
+      { siteId: original.siteId, userId, type: 'video_ad', videoAdId: String(videoAd._id) },
+      { jobId: `video_${videoAd._id}_${Date.now()}` }
+    );
 
-  await JobModel.create({
-    type: 'video_ad',
-    siteId: original.siteId,
-    status: 'queued',
-    bullJobId: String(bullJob.id),
-    meta: { videoAdId: String(videoAd._id), mode: original.mode, format: original.format, isRelaunchOf: originalVideoAdId },
-  });
+    await JobModel.create({
+      type: 'video_ad',
+      siteId: original.siteId,
+      status: 'queued',
+      bullJobId: String(bullJob.id),
+      meta: { videoAdId: String(videoAd._id), mode: original.mode, format: original.format, isRelaunchOf: originalVideoAdId },
+    });
+  } catch (err) {
+    // La relance n'a pas pu être lancée : on rend tout dans l'état d'origine.
+    await redisConnection.del(cleVerrou).catch(() => undefined);
+    await VideoAd.updateOne(
+      { _id: original._id, relanceVideoId: nouvelId },
+      {
+        $unset: { relanceVideoId: 1 },
+        ...(aMarqueOffreUtilisee ? { $set: { 'relaunchOffer.used': false } } : {}),
+      }
+    ).catch((e) => console.error('[video-pipeline] Libération de la relance impossible :', e));
+    await annulerLancementVideo({
+      userId,
+      videoAdId: videoAd?._id as Types.ObjectId | undefined,
+      bullJob,
+      creditsDebites: debite ? cost : 0,
+      videoOfferteConsommee: false,
+      motif: `video_ad_relance:${originalVideoAdId}`,
+    });
+    throw err;
+  }
 
   return {
     videoAdId: videoAd._id,
@@ -653,30 +741,50 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Montant réellement payé par le client pour la chaîne de relances à laquelle
+ * appartient cette vidéo.
+ *
+ * Les relances gratuites sont créées à coût 0 : le montant payé est porté par
+ * la première vidéo de la chaîne qui a été facturée. On remonte donc la chaîne
+ * jusqu'à elle. Sans cela, le « remboursement » d'une chaîne de relances
+ * rendait 0 crédit alors que le message annonçait un remboursement intégral.
+ */
+async function montantPayeDeLaChaine(video: { creditsCharged?: number; isRelaunchOf?: unknown }): Promise<number> {
+  let courant: { creditsCharged?: number; isRelaunchOf?: unknown } | null = video;
+  for (let niveau = 0; niveau < 12 && courant; niveau++) {
+    if ((courant.creditsCharged ?? 0) > 0) return courant.creditsCharged ?? 0;
+    if (!courant.isRelaunchOf) return 0;
+    courant = await VideoAd.findById(courant.isRelaunchOf).select('creditsCharged isRelaunchOf').lean();
+  }
+  return 0;
+}
+
+/**
  * Rend ses crédits au client quand une vidéo n'a jamais pu être produite.
  *
- * SEUL cas de remboursement du système : partout ailleurs, les crédits
- * restent attachés à la commande et ouvrent un droit de relance. Ici le
- * client n'a RIEN reçu — ni vidéo complète, ni vidéo partielle.
- *
- * Le marquage est ATOMIQUE et précède le crédit : deux appels simultanés ne
- * peuvent pas rembourser deux fois la même commande.
+ * Le client n'a RIEN reçu — ni vidéo complète, ni vidéo partielle — après les
+ * relances gratuites. Le marquage est ATOMIQUE et précède le crédit : deux
+ * appels simultanés ne peuvent pas rembourser deux fois la même commande.
  */
 async function rembourserVideoNonLivree(video: {
   _id: unknown;
   userId: unknown;
   creditsCharged?: number;
-}): Promise<void> {
+  isRelaunchOf?: unknown;
+}): Promise<number> {
+  // Montant payé par le client pour cette chaîne (0 pour une vidéo offerte).
+  const montant = await montantPayeDeLaChaine(video);
+  const cleVerrouRemb = `video:remboursement:${String(video._id)}`;
+  if (!(await redisConnection.set(cleVerrouRemb, '1', 'EX', 300, 'NX'))) return montant; // déjà en cours
   const verrou = await VideoAd.findOneAndUpdate(
     { _id: video._id, rembourse: { $ne: true } },
     { $set: { rembourse: true, rembourseA: new Date() } },
     { new: true }
   );
-  if (!verrou) return; // déjà remboursée
+  if (!verrou) return montant; // déjà remboursée lors d'un appel précédent
 
-  const montant = video.creditsCharged ?? 0;
   // Une vidéo offerte n'a rien coûté au client : rien à rendre.
-  if (montant <= 0) return;
+  if (montant <= 0) return 0;
 
   try {
     await creditCredits(String(video.userId), montant, 'ajustement_admin', {
@@ -685,11 +793,47 @@ async function rembourserVideoNonLivree(video: {
     console.warn(
       `[video-pipeline] Vidéo ${String(video._id)} remboursée : ${montant} crédits rendus.`
     );
+    return montant;
   } catch (err) {
     // Le crédit a échoué : on relâche le verrou pour qu'une nouvelle
     // tentative reste possible, plutôt que de perdre l'argent du client.
     await VideoAd.updateOne({ _id: video._id }, { $set: { rembourse: false } }).catch(() => undefined);
+    await redisConnection.del(cleVerrouRemb).catch(() => undefined);
     throw err;
+  }
+}
+
+/**
+ * Annule un lancement de vidéo qui a échoué APRÈS le débit : NexAI n'a pas pu
+ * démarrer la commande, le client n'a donc rien reçu par notre faute.
+ * Rend les crédits, restitue la vidéo offerte consommée et supprime ce qui a
+ * été créé à moitié. Chaque étape est tentée même si la précédente échoue, et
+ * tout échec est journalisé (jamais avalé en silence).
+ */
+export async function annulerLancementVideo(p: {
+  userId: string;
+  videoAdId?: Types.ObjectId;
+  bullJob?: { remove: () => Promise<void> };
+  creditsDebites: number;
+  videoOfferteConsommee: boolean;
+  motif: string;
+}): Promise<void> {
+  if (p.bullJob) await p.bullJob.remove().catch((e) => console.error('[video-pipeline] Job non retiré :', e));
+  if (p.videoAdId) {
+    await JobModel.deleteMany({ 'meta.videoAdId': String(p.videoAdId) }).catch(() => undefined);
+    await VideoAd.deleteOne({ _id: p.videoAdId }).catch((e) => console.error('[video-pipeline] Vidéo non supprimée :', e));
+  }
+  if (p.videoOfferteConsommee) {
+    await User.updateOne({ _id: p.userId }, { $set: { videoOfferteDisponible: true } }).catch((e) =>
+      console.error('[video-pipeline] Vidéo offerte non restituée :', e)
+    );
+  }
+  if (p.creditsDebites > 0) {
+    await creditCredits(p.userId, p.creditsDebites, 'ajustement_admin', {
+      note: `Remboursement — lancement impossible (${p.motif})`,
+    }).catch((e) =>
+      console.error(`[video-pipeline] ALERTE : remboursement impossible user=${p.userId} montant=${p.creditsDebites}`, e)
+    );
   }
 }
 
@@ -967,7 +1111,7 @@ ${siteMeta ? `Contexte site : titre=${siteMeta.title || ''} | desc=${(siteMeta.d
 Brief : ${JSON.stringify({ ...brief, siteMeta: undefined }).slice(0, 500)}`;
 
   try {
-    const prompt = await callClaude('claude-sonnet-5', system, [{ role: 'user', content: user }], {
+    const prompt = await callClaude('claude-sonnet-5-5', system, [{ role: 'user', content: user }], {
       maxTokens: 300,
       temperature: 0.4,
     });
@@ -1023,7 +1167,7 @@ Niche : ${niche}
 Brief client : ${JSON.stringify({ ...brief, siteMeta: undefined, siteContentDossier: undefined }).slice(0, 800)}${siteContext}${dossierContext}`;
 
   try {
-    const script = await callClaude('claude-sonnet-5', system, [{ role: 'user', content: user }], {
+    const script = await callClaude('claude-sonnet-5-5', system, [{ role: 'user', content: user }], {
       maxTokens: 400,
       temperature: 0.5,
     });
@@ -1286,107 +1430,6 @@ function escapeDrawtext(text: string): string {
 function buildOffersOverlayLine(offerHighlights?: string[]): string {
   if (!offerHighlights?.length) return '';
   return offerHighlights.slice(0, 3).join('  •  ').slice(0, 70);
-}
-
-/**
- * NON UTILISÉE — conservée volontairement.
- *
- * Conçue pour un flux plus ancien qui mixait musique et incrustation en une
- * seule passe. Le pipeline actuel enchaîne deux passes distinctes. Elle est
- * gardée parce qu'elle encode des réglages ffmpeg éprouvés qu'il serait long
- * de retrouver, et qu'elle ne coûte rien : elle n'est jamais appelée.
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function runFfmpegMixMusicAndOverlay(params: {
-  silentVideoPath: string;
-  musicPath: string | null;
-  totalDurationSeconds: number;
-  brandName?: string;
-  ctaText?: string;
-  offerHighlights?: string[];
-  outputPath: string;
-  /** Langue du client — conditionne l'incrustation de texte. */
-  langue?: string;
-}): Promise<void> {
-  const { silentVideoPath, musicPath, totalDurationSeconds, outputPath } = params;
-  // Incrustation désactivée pour les écritures que `drawtext` ne sait pas
-  // rendre (arabe : lettres détachées et ordre inversé). Un texte illisible
-  // incrusté dans la vidéo livrée serait pire que pas de texte du tout ; la
-  // narration porte déjà le message.
-  const avecTexte = texteIncrustable(params.langue);
-  const brand = avecTexte && params.brandName ? escapeDrawtext(params.brandName.slice(0, 40)) : '';
-  const cta = avecTexte ? escapeDrawtext((params.ctaText || 'Découvrez-en plus').slice(0, 60)) : '';
-  const offersLine = avecTexte ? escapeDrawtext(buildOffersOverlayLine(params.offerHighlights)) : '';
-  const fontPath = env.FFMPEG_FONT_PATH;
-  const ctaStart = Math.max(0, totalDurationSeconds - 3);
-  // Fenêtre d'affichage des offres : après l'accroche (1s), jusqu'à 6s ou
-  // jusqu'à 2s avant la fin si la vidéo est très courte — jamais superposé
-  // au CTA final.
-  const offersEnd = Math.max(2, Math.min(6, totalDurationSeconds - 2));
-
-  const args: string[] = ['-y', '-i', silentVideoPath];
-  if (musicPath) {
-    args.push('-stream_loop', '-1', '-i', musicPath);
-  }
-
-  let videoLabel = '0:v';
-  const filters: string[] = [];
-
-  if (brand) {
-    filters.push(
-      `[${videoLabel}]drawtext=fontfile='${fontPath}':text='${brand}':fontcolor=white:fontsize=28:` +
-        `x=32:y=h-64:box=1:boxcolor=black@0.35:boxborderw=10[vbrand]`
-    );
-    videoLabel = 'vbrand';
-  }
-
-  if (offersLine && offersEnd > 1) {
-    filters.push(
-      `[${videoLabel}]drawtext=fontfile='${fontPath}':text='${offersLine}':fontcolor=white:fontsize=22:` +
-        `x=(w-text_w)/2:y=48:box=1:boxcolor=black@0.4:boxborderw=8:enable='between(t,1,${offersEnd})'[voffers]`
-    );
-    videoLabel = 'voffers';
-  }
-
-  if (cta) {
-    filters.push(
-      `[${videoLabel}]drawtext=fontfile='${fontPath}':text='${cta}':fontcolor=white:fontsize=36:` +
-        `x=(w-text_w)/2:y=h-140:box=1:boxcolor=black@0.45:boxborderw=14:enable='gte(t,${ctaStart})'[vout]`
-    );
-    videoLabel = 'vout';
-  }
-
-  // Aucune incrustation possible (langue non supportée par drawtext) : la
-  // piste vidéo passe telle quelle. Le label brut '0:v' se mappe SANS
-  // crochets, contrairement à un label de filtre.
-  const aucunFiltreVideo = videoLabel === '0:v';
-  const mapArgs: string[] = ['-map', aucunFiltreVideo ? '0:v' : `[${videoLabel}]`];
-
-  if (musicPath) {
-    filters.push(`[1:a]volume=${env.MUSIC_VOLUME}[aout]`);
-    mapArgs.push('-map', '[aout]');
-  }
-
-  // Un -filter_complex vide fait échouer ffmpeg : on ne l'ajoute que s'il y a
-  // réellement au moins un filtre.
-  if (filters.length > 0) {
-    args.push('-filter_complex', filters.join(';'));
-  }
-  args.push(...mapArgs);
-  args.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p');
-  if (musicPath) args.push('-c:a', 'aac', '-shortest');
-  args.push('-t', String(totalDurationSeconds), outputPath);
-
-  await new Promise<void>((resolve, reject) => {
-    const proc = spawn('ffmpeg', args);
-    let stderr = '';
-    proc.stderr.on('data', (d) => (stderr += d.toString()));
-    proc.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new AppError(`ffmpeg mix (musique/overlay) échoué (code ${code}): ${stderr.slice(-500)}`, 500));
-    });
-    proc.on('error', (err) => reject(new AppError(`ffmpeg introuvable ou erreur: ${err.message}`, 500)));
-  });
 }
 
 /**
@@ -1704,10 +1747,8 @@ async function runFfmpegBuildLogoIntroClip(params: {
 /**
  * Incruste le nom de marque (watermark discret, permanent) et un CTA
  * ("Visitez [site]", etc.) dans les 3 dernières secondes, sur la vidéo déjà
- * finalisée (narration + musique mixées). Contrairement à
- * runFfmpegMixMusicAndOverlay (non branchée, conçue pour un flux plus ancien
- * sans narration séparée), celle-ci s'applique en toute dernière étape et
- * préserve l'audio existant tel quel (-c:a copy).
+ * finalisée (narration + musique mixées). S'applique en toute dernière
+ * étape et préserve l'audio existant tel quel (-c:a copy).
  */
 async function runFfmpegAddCtaOverlay(params: {
   inputPath: string;
@@ -1839,9 +1880,39 @@ async function resolveBrandLogo(
  * Dispatch selon videoAd.mode vers le bon pipeline (Option 1 voix off, ou
  * Option 2 avatar) — la logique de statut est commune aux deux.
  */
+/** Une vidéo sans aucune activité depuis ce délai est considérée interrompue (une génération dure 4 à 10 minutes). */
+const VIDEO_INACTIVITE_MAX_MS = 45 * 60 * 1000;
+
+/**
+ * Filet anti-blocage : une vidéo restée « en file » ou « en génération » après
+ * l'arrêt d'un worker ne se terminerait jamais, et le client verrait un
+ * chargement sans fin. Elle passe en échec : les crédits restent attachés à la
+ * commande et la relance gratuite s'ouvre (voir enqueueVideoAdRelaunch).
+ */
+export async function recupererVideosBloquees(): Promise<number> {
+  const limite = new Date(Date.now() - VIDEO_INACTIVITE_MAX_MS);
+  const res = await VideoAd.updateMany(
+    { status: { $in: ['queued', 'generating'] }, updatedAt: { $lt: limite } },
+    {
+      $set: {
+        status: 'failed',
+        failedAt: new Date(),
+        errorMessage: 'Génération interrompue (aucune activité depuis plus de 45 minutes).',
+      },
+    }
+  );
+  if (res.modifiedCount > 0) {
+    console.warn(`[video-pipeline] ${res.modifiedCount} vidéo(s) bloquée(s) passée(s) en échec.`);
+  }
+  return res.modifiedCount;
+}
+
 export async function processVideoAd(videoAdId: string): Promise<void> {
   const videoAd = await VideoAd.findById(videoAdId);
   if (!videoAd) throw new Error(`VideoAd ${videoAdId} introuvable`);
+  // Job re-livré après un redémarrage alors que la vidéo est déjà livrée :
+  // la régénérer ferait payer un second appel fournisseur pour rien.
+  if (videoAd.status === 'completed' && videoAd.finalVideoUrl) return;
 
   let niche = 'général';
   if (videoAd.siteId) {
@@ -1905,7 +1976,7 @@ export async function processVideoAd(videoAdId: string): Promise<void> {
     const finalPath =
       utiliseVoixOffSeule
         ? await runVoixOffPipeline(videoAd, videoAdId, niche, tmpFiles)
-        : await runAvatarPipeline(videoAd, videoAdId, niche, tmpFiles, compositionMiniFilm);
+        : await runAvatarPipeline(videoAd, videoAdId, niche, tmpFiles);
 
     // Contrôle qualité final, juste avant l'upload/livraison client : durée
     // conforme, ratio conforme, pistes vidéo+audio réellement présentes et
@@ -2076,7 +2147,7 @@ async function runVoixOffPipeline(
 
     if (!plansHerites) {
       const scenesRaw = await callClaude(
-        'claude-sonnet-5',
+        'claude-sonnet-5-5',
         'Tu réponds uniquement en JSON valide, sans texte autour.',
         [
           {
@@ -2769,9 +2840,7 @@ async function runAvatarPipeline(
   videoAd: HydratedDocument<any>,
   videoAdId: string,
   niche: string,
-  tmpFiles: string[],
-  /** Composition du mini-film. Seul 'presentateur' passe par ce flux. */
-  compositionMiniFilm?: CompositionMiniFilm | null
+  tmpFiles: string[]
 ): Promise<string> {
   const isScenario = videoAd.mode === 'mini_film';
   // Qualité de l'avatar FalAI : 'pro' pour les formats longs (60 s et le

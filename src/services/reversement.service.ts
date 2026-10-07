@@ -81,14 +81,28 @@ export async function enregistrerEncaissement(params: {
   if (params.amountFcfa <= 0) {
     throw new AppError("Le montant d'un encaissement doit être positif.", 400);
   }
-  return Reversement.create({
+  const donnees = {
     userId: params.userId,
     siteId: params.siteId,
-    type: 'encaissement_visiteur',
+    type: 'encaissement_visiteur' as const,
     amountFcfa: params.amountFcfa,
     reference: params.reference,
     note: params.note,
-  });
+  };
+  // Idempotent : une même référence de paiement n'est inscrite qu'une fois,
+  // même si le webhook est rejoué ou livré deux fois en même temps.
+  if (!params.reference) return Reversement.create(donnees);
+  const cleIdempotence = `encaissement:${params.reference}`;
+  try {
+    return await Reversement.findOneAndUpdate(
+      { cleIdempotence },
+      { $setOnInsert: { ...donnees, cleIdempotence } },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    if ((err as { code?: number }).code === 11000) return Reversement.findOne({ cleIdempotence });
+    throw err;
+  }
 }
 
 /**

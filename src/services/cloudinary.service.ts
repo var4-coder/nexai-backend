@@ -332,3 +332,100 @@ export function uploadVitrineVideo(
     upload.end(buffer);
   });
 }
+
+
+/**
+ * Copie une photo du stock (source Pexels) dans le Cloudinary NexAI, en livraison PUBLIQUE : les sites
+ * livrés pointent vers cette URL, qui ne dépend plus de Pexels. Renvoie une URL optimisée (format/qualité auto).
+ */
+export async function uploadStockPhoto(
+  sourceUrl: string,
+  niche: string,
+  pexelsId: number
+): Promise<{ url: string; publicId: string }> {
+  ensureConfigured();
+  const r = await cloudinary.uploader.upload(sourceUrl, {
+    resource_type: 'image',
+    type: 'upload',
+    folder: `nexai/stock/${niche}`,
+    public_id: `pexels-${pexelsId}`,
+    overwrite: false,
+  });
+  return { url: r.secure_url.replace('/upload/', '/upload/f_auto,q_auto,w_1920/'), publicId: r.public_id };
+}
+
+/**
+ * Copie dans le Cloudinary NexAI une image destinée à un site (image générée
+ * par Grok Imagine, photo trouvée en direct sur Pexels). Les sites ne pointent
+ * JAMAIS vers une adresse externe qui peut expirer ou disparaître : sans cette
+ * copie, l'image disparaîtrait du site du client le jour où la source la
+ * retire. URL publique, format et qualité automatiques.
+ */
+export async function copierImagePourSite(
+  sourceUrl: string,
+  siteId: string,
+  nom: string
+): Promise<{ url: string; publicId: string; width?: number; height?: number }> {
+  ensureConfigured();
+  const r = await cloudinary.uploader.upload(sourceUrl, {
+    resource_type: 'image',
+    type: 'upload',
+    folder: `nexai/sites/${siteId}`,
+    public_id: nom.replace(/[^a-z0-9_-]/gi, '-').slice(0, 80),
+    overwrite: true,
+  });
+  return {
+    url: r.secure_url.replace('/upload/', '/upload/f_auto,q_auto,w_2400,c_limit/'),
+    publicId: r.public_id,
+    // Dimensions RÉELLES du fichier stocké : servent au contrôle de qualité (largeur minimale, cadrage).
+    width: r.width,
+    height: r.height,
+  };
+}
+
+/**
+ * Image envoyée par le client depuis « Modifier les images du site » :
+ * stockée sur le Cloudinary NexAI (dossier du site), dimensions réelles
+ * renvoyées pour le contrôle de qualité.
+ */
+export function uploadImageSiteClient(
+  buffer: Buffer,
+  siteId: string
+): Promise<{ url: string; publicId: string; width: number; height: number }> {
+  ensureConfigured();
+  return new Promise((resolve, reject) => {
+    const upload = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'image',
+        type: 'upload',
+        folder: `nexai/sites/${siteId}/client`,
+        public_id: `image-${Date.now()}`,
+        overwrite: false,
+      },
+      (err, r) => {
+        if (err || !r) return reject(err ?? new Error('Envoi Cloudinary impossible'));
+        resolve({
+          url: r.secure_url.replace('/upload/', '/upload/f_auto,q_auto,w_2400,c_limit/'),
+          publicId: r.public_id,
+          width: r.width,
+          height: r.height,
+        });
+      }
+    );
+    upload.end(buffer);
+  });
+}
+
+/** Version optimisée (format/qualité auto, largeur bornée) d'une image déjà sur le Cloudinary NexAI. */
+export function versionOptimisee(url: string): string {
+  if (!/res\.cloudinary\.com\/[^/]+\/image\/upload\//.test(url) || /\/upload\/[^/]*(f_auto|q_auto)/.test(url)) return url;
+  return url.replace('/image/upload/', '/image/upload/f_auto,q_auto,w_2400,c_limit/');
+}
+
+/** Supprime une image du dossier d'un site (image client refusée au contrôle de qualité). */
+export function supprimerImageSite(publicId: string): Promise<void> {
+  ensureConfigured();
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.destroy(publicId, { resource_type: 'image' }, (err) => (err ? reject(err) : resolve()));
+  });
+}

@@ -88,7 +88,7 @@ ${brief.colors ? `Couleurs : ${brief.colors}` : ''}`;
 
   let variants: string[] = [];
   try {
-    const raw = await callClaude('claude-sonnet-5', system, [{ role: 'user', content: user }], {
+    const raw = await callClaude('claude-sonnet-5-5', system, [{ role: 'user', content: user }], {
       maxTokens: 800,
       temperature: 0.5,
     });

@@ -22,8 +22,8 @@ import { SiteNiche } from './Site';
 export type ChatSessionStatus = 'collecting' | 'reviewing' | 'confirmed' | 'abandoned';
 export type ChatMessageMode = 'choices' | 'input';
 export type ChatMessageRole = 'assistant' | 'user';
-/** Mode du hub chat : site | logo | edit | business (Coach) */
-export type ChatHubMode = 'site' | 'logo' | 'edit' | 'business';
+/** Mode du hub chat : site | logo | edit | business (Coach) | skill (Skill NexAI) */
+export type ChatHubMode = 'site' | 'logo' | 'edit' | 'business' | 'skill';
 
 export interface IChatAttachment {
   url: string;
@@ -66,6 +66,8 @@ export interface IChatSession {
   /** Champs encore manquants après l'extraction — si non vide, on reste en 'collecting' */
   missingFields?: string[];
   siteId?: Types.ObjectId;
+  /** Mode skill : commande envoyée à l'Atelier Skills une fois le brief confirmé */
+  skillRequestId?: Types.ObjectId;
   /** Mode edit : site ciblé pour les modifications */
   editSiteId?: Types.ObjectId;
   /** Uniquement pour les sessions ouvertes depuis l'Espace Agence — le site sera rattaché à ce client */
@@ -87,7 +89,7 @@ const chatMessageSchema = new Schema<IChatMessage>(
     content: { type: String, required: true },
     mode: { type: String, enum: ['choices', 'input'] },
     options: [{ type: String }],
-    suggestMode: { type: String, enum: ['site', 'logo', 'edit', 'business'] },
+    suggestMode: { type: String, enum: ['site', 'logo', 'edit', 'business', 'skill'] },
     attachments: [
       {
         url: String,
@@ -111,7 +113,7 @@ const chatSessionSchema = new Schema<IChatSession>(
     },
     mode: {
       type: String,
-      enum: ['site', 'logo', 'edit', 'business'],
+      enum: ['site', 'logo', 'edit', 'business', 'skill'],
       default: 'site',
       index: true,
     },
@@ -140,6 +142,7 @@ const chatSessionSchema = new Schema<IChatSession>(
     reviewSummary: { type: String },
     missingFields: [{ type: String }],
     siteId: { type: Schema.Types.ObjectId, ref: 'Site' },
+    skillRequestId: { type: Schema.Types.ObjectId, ref: 'SkillRequest' },
     editSiteId: { type: Schema.Types.ObjectId, ref: 'Site' },
     clientId: { type: Schema.Types.ObjectId, ref: 'Client' },
   },

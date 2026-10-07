@@ -33,6 +33,8 @@ const TARIFS: Record<string, { entree: number; sortie: number; lectureCache: num
   'grok-4.3': { entree: 1.25, sortie: 2.5, lectureCache: 0.2, ecritureCache: 1.25 },
   'grok-build-0.1': { entree: 1, sortie: 2, lectureCache: 0.2, ecritureCache: 1 },
   'claude-sonnet-5': { entree: 2, sortie: 10, lectureCache: 0.2, ecritureCache: 2.5 },
+  // Tarif officiel vérifié le 03/10/2026 (platform.claude.com, page Pricing) : 2 $ / 10 $, cache 2,50 $ / 0,20 $.
+  'claude-sonnet-5-5': { entree: 2, sortie: 10, lectureCache: 0.2, ecritureCache: 2.5 },
   'claude-opus-5-5': { entree: 4, sortie: 20, lectureCache: 0.2, ecritureCache: 5 },
   // Ancien modèle, gardé pour chiffrer correctement l'historique.
   'claude-opus-5': { entree: 5, sortie: 25, lectureCache: 0.5, ecritureCache: 6.25 },

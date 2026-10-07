@@ -23,64 +23,58 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
     // depuis ce panneau, sans toucher au code.
     label: 'Chat création de site — sous-mode "site" (dialogue + extraction brief)',
     default: 'claude-haiku-4-5-20251001',
-    alternatives: ['claude-sonnet-5'],
+    alternatives: ['claude-sonnet-5-5'],
   },
   chat_autres_modes: {
     label: 'Chat — sous-modes Logo / Modifier un site / Coach business',
     default: 'claude-haiku-4-5-20251001',
-    alternatives: ['claude-sonnet-5'],
+    alternatives: ['claude-sonnet-5-5'],
+  },
+  chat_skill: {
+    label: 'Chat — Skill NexAI (dialogue + extraction du brief)',
+    default: 'claude-haiku-4-5-20251001',
+    alternatives: ['claude-sonnet-5-5'],
   },
   support_client: {
     label: 'Support client',
     default: 'claude-haiku-4-5-20251001',
     alternatives: ['grok-4.3'],
   },
-  // Codeur de l'essai gratuit ET du premier aperçu Normale. Alternable
-  // entre Grok et Sonnet depuis l'admin, pour comparer les taux de
-  // conversion réels. Le juge visuel s'adapte automatiquement (voir
-  // getJugeVisuelPour) : un modèle ne juge jamais sa propre production.
+  // Codeur de l'essai gratuit ET du Standard (décision du 03/10/2026) :
+  // Grok 4.7 par défaut, Sonnet 5.5 en alternance depuis l'admin. Le modèle
+  // est lu UNE fois au début de la génération : il code l'accueil ET toutes
+  // les pages intérieures du site (un seul codeur par site). Le juge visuel
+  // s'adapte automatiquement (voir getJugeVisuelPour).
   codeur_normale: {
-    label: 'Codeur — essai gratuit et aperçu 1 Normale',
+    label: 'Codeur — essai gratuit et Standard (toutes les pages du site)',
     default: 'grok-4.7',
-    alternatives: ['grok-4.6', 'claude-sonnet-5'],
+    alternatives: ['claude-sonnet-5-5'],
   },
-  // Second aperçu Normale : un moteur différent du premier, pour offrir au
-  // client deux propositions de styles réellement distincts.
-  codeur_normale_apercu2: {
-    label: 'Codeur — aperçu 2 Normale',
-    default: 'claude-sonnet-5',
-    alternatives: ['grok-4.7', 'grok-4.6'],
-  },
-  // Opus 5.5 par défaut depuis le 26/09/2026 (décision admin) : meilleur
-  // classement en création de sites et ≈ 40 % moins cher que Fable 5.1,
-  // qui reste en seconde place, sélectionnable ici.
+  // Premium : Opus 5.5 code l'accueil et toutes les pages intérieures.
   codeur_premium: {
-    label: 'Codeur — qualité Premium (Opus 5.5 par défaut, Fable 5.1 en alternative)',
+    label: 'Codeur — qualité Premium (toutes les pages du site)',
     default: 'claude-opus-5-5',
-    alternatives: ['claude-fable-5-1', 'claude-sonnet-5'],
+    alternatives: ['claude-sonnet-5-5'],
   },
-  // Pages intérieures (menu, contact, à propos…) des sites multi-pages.
-  // Toujours jugées comme l'accueil. Fable y est possible mais ferait
-  // dépasser le plafond de dépense Premium (≈ 2,25 $ pour 3 pages).
-  codeur_pages_premium: {
-    label: 'Codeur — pages intérieures Premium (Opus 5.5 par défaut)',
-    default: 'claude-opus-5-5',
-    alternatives: ['claude-sonnet-5', 'claude-fable-5-1'],
-  },
-  codeur_pages_normale: {
-    label: 'Codeur — pages intérieures essai et Standard (Grok 4.6 par défaut)',
-    default: 'grok-4.6',
-    alternatives: ['grok-4.7', 'claude-sonnet-5'],
+  // Validation visuelle de l'image pro avec logo (décision du 03/10/2026) :
+  // une image refusée est remplacée par la photo de la galerie.
+  verif_image_logo: {
+    label: 'Validation de l’image pro avec logo (vision)',
+    default: 'claude-sonnet-5-5',
+    alternatives: ['claude-opus-5-5'],
   },
   juge_code: {
     label: 'Juge Code (Scan 1 + Scan 2)',
     default: 'grok-4.5',
     alternatives: [],
   },
+  // Réparateur NexAI : Grok Build par défaut, Sonnet 5.5 en alternance.
+  // Lu une seule fois au début de la génération : un site garde le même
+  // réparateur du début à la fin (accueil et pages intérieures).
   reparateur_code: {
-    label: 'Réparateur de code',
+    label: 'Réparateur de code (corrections ciblées)',
     default: 'grok-build-0.1',
-    alternatives: [],
+    alternatives: ['claude-sonnet-5-5'],
   },
   // Architecture v6 : Sonnet 5 juge dans LES DEUX qualités. Opus 5.5
   // n'intervient jamais comme juge, uniquement comme « Aide » en
@@ -91,11 +85,11 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
   juge_visuel: {
     label: 'Juge Visuel (officiel)',
     default: 'claude-opus-5-5',
-    alternatives: ['claude-sonnet-5'],
+    alternatives: ['claude-sonnet-5-5'],
   },
   aide_ia_essai: {
     label: 'Aide IA — essai gratuit',
-    default: 'claude-sonnet-5',
+    default: 'claude-sonnet-5-5',
     alternatives: [],
   },
   aide_ia_payant: {
@@ -105,22 +99,22 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
   },
   amelioration_prompts: {
     label: 'Amélioration des prompts',
-    default: 'claude-sonnet-5',
+    default: 'claude-sonnet-5-5',
     alternatives: [],
   },
   diagnostic_ameliorer_site: {
     label: 'Diagnostic « Améliorer un site »',
-    default: 'claude-fable-5-1',
+    default: 'claude-opus-5-5',
     alternatives: [],
   },
   agent_qualite_alertes: {
     label: 'Agent qualité — alertes payantes',
-    default: 'claude-fable-5-1',
+    default: 'claude-opus-5-5',
     alternatives: [],
   },
   titre_accroche_academy_boutique: {
     label: 'Titre-accroche Academy & Boutique',
-    default: 'claude-sonnet-5',
+    default: 'claude-sonnet-5-5',
     alternatives: [],
   },
 };
@@ -128,6 +122,19 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
 /** Anciens identifiants de modèle → leur remplaçant. */
 const MODELES_REMPLACES: Record<string, string> = {
   'claude-opus-5': 'claude-opus-5-5',
+};
+
+/**
+ * Migration des réglages admin déjà enregistrés en base, UNIQUEMENT pour les rôles de création de site :
+ * Sonnet 5 → Sonnet 5.5, Fable 5.1 → Opus 5.5 (Fable n'est plus utilisé dans le système interne).
+ * Les autres rôles (support, chat hors site, academy…) ne sont pas touchés.
+ */
+const ROLES_SITE_MIGRES = new Set<string>([
+  'chat_creation_site', 'codeur_normale', 'codeur_premium', 'juge_visuel', 'aide_ia_essai', 'diagnostic_ameliorer_site', 'agent_qualite_alertes',
+]);
+const MIGRATION_SITE: Record<string, string> = {
+  'claude-sonnet-5-5': 'claude-sonnet-5-5',
+  'claude-fable-5-1': 'claude-opus-5-5',
 };
 
 const cache = new Map<AiRole, string>();
@@ -141,7 +148,10 @@ async function ensureCache() {
   for (const row of rows) {
     // Opus 5 remplacé par Opus 5.5 : un réglage admin enregistré avant la
     // mise à jour bascule automatiquement sur le nouveau modèle.
-    const modele = MODELES_REMPLACES[row.activeModel] ?? row.activeModel;
+    let modele = MODELES_REMPLACES[row.activeModel] ?? row.activeModel;
+    if (ROLES_SITE_MIGRES.has(String(row.role))) modele = MIGRATION_SITE[modele] ?? modele;
+    // Sonnet 5 → Sonnet 5.5 pour TOUS les rôles (décision du 03/10/2026).
+    if (modele === 'claude-sonnet-5') modele = 'claude-sonnet-5-5';
     cache.set(row.role as AiRole, modele);
   }
   cacheLoadedAt = Date.now();
@@ -154,7 +164,20 @@ async function ensureCache() {
  */
 export async function getModelForRole(role: AiRole): Promise<string> {
   await ensureCache();
-  return cache.get(role) || AI_ROLE_REGISTRY[role].default;
+  return modeleValide(role, cache.get(role));
+}
+
+/**
+ * Un réglage enregistré qui n'est plus autorisé pour ce poste (ex. Grok 4.6
+ * retiré du codeur le 03/10/2026) n'est jamais utilisé : on revient au
+ * modèle par défaut du registre au lieu d'appeler un modèle non prévu.
+ */
+function modeleValide(role: AiRole, enregistre: string | undefined): string {
+  const entree = AI_ROLE_REGISTRY[role];
+  if (!entree) return enregistre || '';
+  if (!enregistre) return entree.default;
+  if (enregistre === entree.default || entree.alternatives.includes(enregistre)) return enregistre;
+  return entree.default;
 }
 
 /**
@@ -188,7 +211,7 @@ export async function listAiTeamConfig() {
   return (Object.keys(AI_ROLE_REGISTRY) as AiRole[]).map((role) => ({
     role,
     label: AI_ROLE_REGISTRY[role].label,
-    activeModel: cache.get(role) || AI_ROLE_REGISTRY[role].default,
+    activeModel: modeleValide(role, cache.get(role)),
     defaultModel: AI_ROLE_REGISTRY[role].default,
     alternatives: AI_ROLE_REGISTRY[role].alternatives,
   }));
@@ -214,7 +237,7 @@ export async function getJugeVisuelPour(modeleCodeur: string): Promise<string> {
   if (officiel !== modeleCodeur) return officiel;
   // Le juge officiel a lui-même codé : on bascule pour ne jamais s'auto-juger.
   if (modeleCodeur.startsWith('claude-fable') || modeleCodeur === 'claude-opus-5-5') {
-    return 'claude-sonnet-5';
+    return 'claude-sonnet-5-5';
   }
-  return officiel === 'claude-sonnet-5' ? 'claude-opus-5-5' : 'claude-sonnet-5';
+  return officiel === 'claude-sonnet-5-5' ? 'claude-opus-5-5' : 'claude-sonnet-5-5';
 }

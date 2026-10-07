@@ -41,7 +41,27 @@ export const LIBRARY_COLLECTIONS = [
   'library_media',
   'library_seo',
   'library_contrast',
+  // Librairie v8 : styles (recettes), couleurs (palettes nommées) et familles
+  // (style × palette testées ≥ 70/100). Le backend choisit une famille par
+  // site (voir combinaison.service.ts).
+  'library_styles',
+  'library_couleurs',
+  'library_familles',
 ] as const;
+
+/**
+ * Génération de la Librairie livrée avec le code. Quand elle change, la
+ * Librairie en base est REMPLACÉE UNE FOIS en entier (y compris les documents
+ * modifiés dans l'admin), après sauvegarde complète dans
+ * `library_sauvegardes`. Ensuite, la règle normale reprend : les documents
+ * modifiés dans l'admin ne sont plus jamais écrasés par une mise à jour.
+ *
+ * Décision du 02/10/2026 : les anciennes modifications faites dans l'admin
+ * sont obsolètes avec la Librairie v8 — la v8 devient la version par défaut.
+ */
+export const GENERATION_LIBRAIRIE = 'v8-2026-10-02';
+const COLLECTION_META = 'library_meta';
+const COLLECTION_SAUVEGARDES = 'library_sauvegardes';
 
 export type LibraryCollection = (typeof LIBRARY_COLLECTIONS)[number];
 
@@ -146,12 +166,64 @@ export async function seedLibraryForce(db: mongoose.mongo.Db): Promise<SeedResul
  * Auto-remplissage et mise à jour au démarrage du serveur (voir la règle en
  * tête de fichier). Ne bloque jamais le démarrage.
  */
+/**
+ * Remplacement complet UNIQUE lors d'un changement de génération de la
+ * Librairie (voir GENERATION_LIBRAIRIE). Sauvegarde d'abord chaque document
+ * existant ; si la sauvegarde échoue, rien n'est remplacé.
+ * Renvoie true si le remplacement a eu lieu.
+ */
+async function remplacementUniqueSiNouvelleGeneration(db: mongoose.mongo.Db): Promise<boolean> {
+  const meta = db.collection<{ _id: string; valeur?: string; le?: Date }>(COLLECTION_META);
+  const actuelle = await meta.findOne({ _id: 'generation' });
+  if (actuelle?.valeur === GENERATION_LIBRAIRIE) return false;
+
+  // Tous les fichiers livrés doivent être lisibles : jamais de remplacement partiel.
+  const manquants = LIBRARY_COLLECTIONS.filter((n) => !lireSeedLocal(n));
+  if (manquants.length > 0) {
+    console.warn(`⚠️  Librairie : remplacement ${GENERATION_LIBRAIRIE} reporté, fichiers manquants : ${manquants.join(', ')}`);
+    return false;
+  }
+
+  const maintenant = new Date();
+  const sauvegardes = db.collection(COLLECTION_SAUVEGARDES);
+  for (const name of LIBRARY_COLLECTIONS) {
+    const existants = await db.collection(name).find({}).toArray();
+    if (existants.length === 0) continue;
+    await sauvegardes.insertMany(
+      existants.map((doc) => ({
+        collectionLib: name,
+        docId: String(doc._id),
+        doc,
+        generationPrecedente: actuelle?.valeur ?? 'avant-v8',
+        sauvegardeLe: maintenant,
+      }))
+    );
+  }
+  for (const name of LIBRARY_COLLECTIONS) await replaceOneCollection(db, name);
+  await meta.updateOne(
+    { _id: 'generation' },
+    { $set: { valeur: GENERATION_LIBRAIRIE, le: maintenant, precedente: actuelle?.valeur ?? 'avant-v8' } },
+    { upsert: true }
+  );
+  console.log(
+    `📚 Librairie NexAI — remplacée par la génération ${GENERATION_LIBRAIRIE} ` +
+      `(ancienne version sauvegardée dans « ${COLLECTION_SAUVEGARDES} »).`
+  );
+  return true;
+}
+
 export async function autoSeedLibraryOnBoot(): Promise<void> {
   try {
     const db = mongoose.connection.db;
     if (!db) {
       console.warn('⚠️  Auto-seed Librairie ignoré : connexion Mongo indisponible.');
       return;
+    }
+
+    try {
+      if (await remplacementUniqueSiNouvelleGeneration(db)) return;
+    } catch (e) {
+      console.error('⚠️  Librairie : remplacement par la nouvelle génération impossible (non bloquant) —', e);
     }
 
     const results: SeedResult[] = [];

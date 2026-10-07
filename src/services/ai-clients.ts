@@ -405,6 +405,7 @@ const ANTHROPIC_BASE = 'https://api.anthropic.com/v1';
 
 export type ClaudeModel =
   | 'claude-sonnet-5'
+  | 'claude-sonnet-5-5'
   | 'claude-opus-5-5'
   | 'claude-haiku-4-5-20251001'
   /** Agent qualité : diagnostic des prompts, alertes payantes, réparations complexes */
@@ -420,6 +421,8 @@ export async function callClaude(
     timeoutMs?: number;
     /** L'appelant va réutiliser ce même début de consigne dans les 5 min. */
     reutilisationPrevue?: boolean;
+    /** Effort de raisonnement (output_config.effort, doc Anthropic 10/2026). Absent = défaut du modèle. */
+    effort?: 'low' | 'medium' | 'high';
   }
 ): Promise<string> {
   if (!env.ANTHROPIC_API_KEY) {
@@ -447,6 +450,7 @@ export async function callClaude(
         max_tokens: opts?.maxTokens ?? 8000,
         system: systemeAnthropic(system, cacheUtile(model, system, opts?.reutilisationPrevue)),
         messages,
+        ...(opts?.effort ? { output_config: { effort: opts.effort } } : {}),
       }),
     },
     `Anthropic/${model}`,

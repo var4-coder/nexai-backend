@@ -5,7 +5,10 @@ import { User } from '@/models/User';
 import { Site } from '@/models/Site';
 import { AppError } from '@/middleware/errorHandler';
 import { env } from '@/config/env';
-import { checkDomainAvailability } from '@/services/godaddy.service';
+import { NETLIFY_APEX_IP } from '@/services/godaddy.service';
+import { checkDomainAvailability } from '@/services/registrar.service';
+import { lireVendeurDomaine } from '@/services/registrar-reglage.service';
+import { estDomaineRacine, getNetlifyHost } from '@/services/netlify.service';
 import {
   getDomainQuotaInfo,
   resolveDomainCharge,
@@ -123,7 +126,7 @@ domainsRouter.get('/quota', requireAuth, async (req: Request, res: Response, nex
         },
         godaddy: {
           label: 'Obtenir ou acheter un nom de domaine',
-          partner: 'GoDaddy',
+          partner: (await lireVendeurDomaine()) === 'porkbun' ? 'Porkbun' : 'GoDaddy',
           freeIfQuota: info.canUseIncluded,
           // Pas de prix générique ici : le coût réel dépend du domaine choisi
           // (prix GoDaddy exact + 5cr), calculé par /domains/check une fois
@@ -394,6 +397,47 @@ domainsRouter.post('/variants', requireAuth, async (req: Request, res: Response,
     }
 
     res.json({ variants: variants.slice(0, 5) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /dns/:siteId — lignes DNS à ajouter chez le fournisseur du client quand
+ * il utilise SON propre domaine. Valeurs exactes (adresse réelle du site chez
+ * Netlify), prêtes à copier. Un site sans domaine ou sans hébergement créé
+ * n'a rien à configurer.
+ */
+domainsRouter.get('/dns/:siteId', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!/^[a-f0-9]{24}$/i.test(req.params.siteId)) throw new AppError('Site introuvable', 404);
+    const site = await Site.findOne({ _id: req.params.siteId, userId: req.auth!.userId }).select(
+      'domainName domainType netlifySiteId'
+    );
+    if (!site) throw new AppError('Site introuvable', 404);
+    if (site.domainType !== 'byod' || !site.domainName) {
+      res.json({ requis: false, domaine: site.domainName ?? null, enregistrements: [] });
+      return;
+    }
+    if (!site.netlifySiteId || String(site.netlifySiteId).startsWith('local_')) {
+      res.json({ requis: true, pret: false, domaine: site.domainName, enregistrements: [] });
+      return;
+    }
+    const hote = await getNetlifyHost(site.netlifySiteId);
+    const racine = estDomaineRacine(site.domainName);
+    const enregistrements = racine
+      ? [
+          { type: 'A', nom: '@', valeur: NETLIFY_APEX_IP },
+          { type: 'CNAME', nom: 'www', valeur: hote },
+        ]
+      : [{ type: 'CNAME', nom: site.domainName.split('.')[0], valeur: hote }];
+    res.json({
+      requis: true,
+      pret: true,
+      domaine: site.domainName,
+      enregistrements,
+      delaiMaxHeures: 24,
+    });
   } catch (err) {
     next(err);
   }

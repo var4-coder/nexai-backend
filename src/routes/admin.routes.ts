@@ -28,6 +28,7 @@ import {
 } from '@/services/cloudinary.service';
 import { buildAutoDraft, regenerateTitleAndDescription } from '@/services/academy-boutique-automation.service';
 import { env } from '@/config/env';
+import { ecrireVendeurDomaine, lireVendeurDomaine } from '@/services/registrar-reglage.service';
 import { genererAvis } from '@/services/avis-generation.service';
 import { getStatutSecurite, demanderChangementEmail, confirmerChangementEmail } from '@/services/admin-security.service';
 import { Avis } from '@/models/Avis';
@@ -102,9 +103,14 @@ import {
   closeTicket,
 } from '@/services/support.service';
 
+import { atelierSkillsRouter } from '@/routes/admin-skills.routes';
+
 export const adminRouter = Router();
 
 adminRouter.use(requireAuth);
+
+// Atelier Skills (option 1 : atelier privé de l'administrateur) — cahier v1, consignes v1.2, avenant v1.3.
+adminRouter.use('/skills', requireRole('admin'), atelierSkillsRouter);
 
 // Upload en mémoire (pas de fichier temp sur disque) — limite 300 Mo pour couvrir les vidéos.
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 300 * 1024 * 1024 } });
@@ -183,19 +189,22 @@ adminRouter.post(
           note: body.note || 'ajustement admin',
         });
       } else {
-        // Débit admin : bypass trial lock
+        // Débit admin : bypass trial lock. Décrément ATOMIQUE et conditionnel : la
+        // base refuse si le solde est insuffisant au moment même de l'écriture
+        // (l'ancienne lecture puis réécriture pouvait écraser un débit concurrent).
         const abs = Math.abs(body.amount);
-        if (user.creditsBalance < abs) {
-          throw new AppError('Solde insuffisant pour ce débit admin', 400);
-        }
-        user.creditsBalance -= abs;
-        await user.save();
+        const debite = await User.findOneAndUpdate(
+          { _id: user._id, creditsBalance: { $gte: abs } },
+          { $inc: { creditsBalance: -abs } },
+          { new: true }
+        );
+        if (!debite) throw new AppError('Solde insuffisant pour ce débit admin', 400);
         const { CreditTransaction } = await import('@/models/CreditTransaction');
         await CreditTransaction.create({
           userId: user._id,
           type: 'ajustement_admin',
           amount: -abs,
-          balanceAfter: user.creditsBalance,
+          balanceAfter: debite.creditsBalance,
           note: body.note || 'ajustement admin',
         });
       }
@@ -289,6 +298,35 @@ adminRouter.get('/domaines', requireRole('admin'), async (req: Request, res: Res
         prelevementsEchoues: d.failedChargeCount ?? 0,
       })),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Vendeur utilisé pour les prochains achats. Les domaines déjà achetés restent chez leur vendeur. */
+adminRouter.get('/domaines/vendeur', requireRole('admin'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const vendeur = await lireVendeurDomaine();
+    res.json({
+      vendeur,
+      godaddyPret: Boolean(env.GODADDY_API_KEY && env.GODADDY_API_SECRET),
+      porkbunPret: Boolean(env.PORKBUN_API_KEY && env.PORKBUN_SECRET_API_KEY),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.patch('/domaines/vendeur', requireRole('admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const vendeur = z.enum(['godaddy', 'porkbun']).parse(req.body?.vendeur);
+    if (vendeur === 'porkbun' && !(env.PORKBUN_API_KEY && env.PORKBUN_SECRET_API_KEY)) {
+      throw new AppError('Ajoutez les clés Porkbun sur le serveur avant de basculer.', 400);
+    }
+    if (vendeur === 'godaddy' && !(env.GODADDY_API_KEY && env.GODADDY_API_SECRET)) {
+      throw new AppError('Ajoutez les clés GoDaddy sur le serveur avant de basculer.', 400);
+    }
+    res.json({ vendeur: await ecrireVendeurDomaine(vendeur) });
   } catch (err) {
     next(err);
   }
@@ -1610,10 +1648,119 @@ adminRouter.post(
 adminRouter.get(
   '/boutique',
   requireRole('admin'),
-  async (_req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const products = await BoutiqueProduct.find().sort({ createdAt: -1 });
+      // Filtre facultatif par pack (?packId=… ; « aucun » = produits hors pack).
+      const packId = typeof req.query.packId === 'string' ? req.query.packId : '';
+      const filtre: Record<string, unknown> =
+        packId === 'aucun' ? { packId: null } : /^[a-f0-9]{24}$/i.test(packId) ? { packId } : {};
+      const products = await BoutiqueProduct.find(filtre).select('-texteACopier').sort({ createdAt: -1 }).limit(500);
       res.json({ products });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** Rôle d'un fichier d'après son nom (skill : SKILL.md, version à coller, guide PDF, zip). */
+function roleFichierBoutique(nom: string): 'skill_md' | 'a_coller' | 'guide_pdf' | 'pdf' | 'zip' | 'autre' {
+  const n = nom.toLowerCase();
+  if (n === 'skill.md' || n.endsWith('/skill.md')) return 'skill_md';
+  if (n.includes('coller') && n.endsWith('.txt')) return 'a_coller';
+  if (n.endsWith('.pdf')) return n.includes('guide') ? 'guide_pdf' : 'pdf';
+  if (n.endsWith('.zip')) return 'zip';
+  return 'autre';
+}
+
+/**
+ * POST /admin/boutique/produit — crée un produit avec UN OU PLUSIEURS fichiers
+ * et sa catégorie (décision du 03/10/2026) :
+ *  · skill   : SKILL.md, version-a-coller.txt, guide.pdf, skill.zip… Le texte
+ *              de la version à coller (ou, à défaut, du SKILL.md) alimente le
+ *              bouton « Copier » du client, après déblocage ;
+ *  · digital : PDF, ZIP… téléchargement seul.
+ * Le produit arrive en brouillon ; l'admin le publie ensuite.
+ */
+adminRouter.post(
+  '/boutique/produit',
+  requireRole('admin'),
+  upload.array('fichiers', 12),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z
+        .object({
+          title: z.string().min(1).max(160),
+          description: z.string().max(3000).optional(),
+          categorie: z.enum(['skill', 'digital']).default('digital'),
+          creditsCost: z.coerce.number().min(0).default(0),
+          isFreeForSubscriber: z
+            .union([z.boolean(), z.enum(['true', 'false'])])
+            .transform((v) => v === true || v === 'true')
+            .default(false),
+          audience: z.enum(['starter_formation', 'all_paid', 'everyone']).default('all_paid'),
+          packId: z.string().regex(/^[a-f0-9]{24}$/i).optional().or(z.literal('')),
+        })
+        .parse(req.body ?? {});
+      const fichiers = (req.files as Express.Multer.File[] | undefined) ?? [];
+      if (fichiers.length === 0) throw new AppError('Ajoutez au moins un fichier.', 400);
+      if (body.packId && !(await BoutiquePack.exists({ _id: body.packId }))) throw new AppError('Pack introuvable.', 404);
+
+      const enregistres: { nom: string; publicId: string; resourceType: 'raw'; role: ReturnType<typeof roleFichierBoutique>; taille: number }[] = [];
+      let texteACopier: string | undefined;
+      let texteSkillMd: string | undefined;
+      for (const f of fichiers) {
+        const role = roleFichierBoutique(f.originalname);
+        if (role === 'a_coller') texteACopier = f.buffer.toString('utf-8');
+        if (role === 'skill_md') texteSkillMd = f.buffer.toString('utf-8');
+        const publicId = await uploadBoutiqueProduct(f.buffer, f.originalname, role === 'pdf' || role === 'guide_pdf' ? 'pdf' : 'archive');
+        enregistres.push({ nom: f.originalname, publicId, resourceType: 'raw', role, taille: f.size });
+      }
+      if (body.categorie === 'skill' && !texteACopier && !texteSkillMd) {
+        throw new AppError('Un skill doit contenir version-a-coller.txt ou SKILL.md (texte du bouton « Copier »).', 400);
+      }
+      const principal =
+        enregistres.find((f) => f.role === 'guide_pdf' || f.role === 'pdf') ?? enregistres.find((f) => f.role === 'zip') ?? enregistres[0];
+
+      const product = await BoutiqueProduct.create({
+        title: body.title,
+        description: body.description,
+        categorie: body.categorie,
+        creditsCost: body.creditsCost,
+        isFreeForSubscriber: body.isFreeForSubscriber,
+        audience: body.audience,
+        ...(body.packId ? { packId: body.packId } : {}),
+        type: principal.role === 'zip' ? 'archive' : 'pdf',
+        cloudinaryPublicId: principal.publicId,
+        fichiers: enregistres,
+        ...(body.categorie === 'skill' ? { texteACopier: texteACopier ?? texteSkillMd } : {}),
+        status: 'brouillon',
+      });
+      res.status(201).json({ product });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** DELETE /admin/boutique/:id/fichiers/:index — retire un fichier d'un produit (jamais le dernier). */
+adminRouter.delete(
+  '/boutique/:id/fichiers/:index',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const produit = await BoutiqueProduct.findById(req.params.id);
+      if (!produit) throw new AppError('Produit introuvable', 404);
+      const i = Number(req.params.index);
+      const liste = produit.fichiers ?? [];
+      if (!Number.isInteger(i) || i < 0 || i >= liste.length) throw new AppError('Fichier introuvable', 404);
+      if (liste.length <= 1) throw new AppError('Un produit garde au moins un fichier.', 400);
+      const [retire] = liste.splice(i, 1);
+      if (retire.publicId === produit.cloudinaryPublicId) produit.cloudinaryPublicId = liste[0].publicId;
+      produit.fichiers = liste;
+      produit.markModified('fichiers');
+      await produit.save();
+      void deleteBoutiqueResource(retire.publicId, 'raw');
+      res.json({ produit });
     } catch (err) {
       next(err);
     }
@@ -1703,6 +1850,9 @@ adminRouter.patch(
           audience: z.enum(['starter_formation', 'all_paid', 'everyone']).optional(),
           type: z.enum(['pdf', 'video', 'image', 'archive']).optional(),
           cloudinaryPublicId: z.string().min(1).optional(),
+          categorie: z.enum(['skill', 'digital']).optional(),
+          packId: z.string().regex(/^[a-f0-9]{24}$/i).nullable().optional(),
+          texteACopier: z.string().max(200_000).optional(),
           // Publication possible depuis l'édition, en plus des routes
           // dédiées /publish et /unpublish.
           status: z.enum(['brouillon', 'publié']).optional(),
@@ -1737,7 +1887,8 @@ adminRouter.delete(
       const deleted = await BoutiqueProduct.findByIdAndDelete(req.params.id);
       if (!deleted) throw new AppError('Produit introuvable', 404);
       const resourceType = 'raw' as const;
-      void deleteBoutiqueResource(deleted.cloudinaryPublicId, resourceType);
+      const aSupprimer = new Set([deleted.cloudinaryPublicId, ...(deleted.fichiers ?? []).map((f) => f.publicId)]);
+      for (const id of aSupprimer) void deleteBoutiqueResource(id, resourceType);
       res.json({ deleted: true });
     } catch (err) {
       next(err);
@@ -1779,13 +1930,22 @@ adminRouter.patch(
             });
           } else {
             const abs = Math.abs(delta);
-            user.creditsBalance = Math.max(0, user.creditsBalance - abs);
+            // Baisse ATOMIQUE : si le solde a bougé depuis la lecture (un débit
+            // client, par exemple), on refuse plutôt que d'écraser la valeur.
+            const debite = await User.findOneAndUpdate(
+              { _id: user._id, creditsBalance: { $gte: abs } },
+              { $inc: { creditsBalance: -abs } },
+              { new: true }
+            );
+            if (!debite) {
+              throw new AppError('Le solde de ce client vient de changer. Rechargez la fiche puis réessayez.', 409);
+            }
             const { CreditTransaction } = await import('@/models/CreditTransaction');
             await CreditTransaction.create({
               userId: user._id,
               type: 'ajustement_admin',
               amount: -abs,
-              balanceAfter: user.creditsBalance,
+              balanceAfter: debite.creditsBalance,
               note: 'admin_patch_credits',
             });
           }
@@ -2066,7 +2226,7 @@ adminRouter.post(
       } catch {
         // Fallback Claude
         reply = await callClaude(
-          'claude-sonnet-5',
+          'claude-sonnet-5-5',
           system,
           [{ role: 'user', content: body.message }],
           { maxTokens: 4000, temperature: 0.4 }
@@ -3366,6 +3526,36 @@ adminRouter.post(
 // Voir / modifier les règles lues par le codeur et les juges, historique,
 // retour arrière, retour à la version livrée, aperçu par niche.
 // ══════════════════════════════════════════════════════════════════
+
+/**
+ * GET /admin/combinaisons/usage — usage des combinaisons de design par métier
+ * (rappel 02/10, point 4) : cycle en cours, combinaisons utilisées et
+ * restantes, 8 dernières attributions.
+ */
+adminRouter.get('/combinaisons/usage', requireRole('admin'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { chargerLibrairie, NICHE_SITE_VERS_LIBRAIRIE } = await import('@/services/library.service');
+    const { combinaisonsDuMetier } = await import('@/services/combinaison.service');
+    const { CombinaisonUsage, CombinaisonCycle } = await import('@/models/CombinaisonUsage');
+    const lib = await chargerLibrairie();
+    const metiers = await Promise.all(
+      Object.entries(NICHE_SITE_VERS_LIBRAIRIE).map(async ([nicheSite, idNiche]) => {
+        const total = combinaisonsDuMetier(lib, nicheSite).length;
+        const cycle = (await CombinaisonCycle.findById(idNiche).lean())?.cycle ?? 1;
+        const utilisees = await CombinaisonUsage.countDocuments({ niche: idNiche, cycle });
+        const dernieres = await CombinaisonUsage.find({ niche: idNiche })
+          .sort({ createdAt: -1 })
+          .limit(8)
+          .select('famille hero nav densite cycle siteId createdAt')
+          .lean();
+        return { nicheSite, idNiche, cycle, total, utilisees, restantes: Math.max(0, total - utilisees), dernieres };
+      })
+    );
+    res.json({ metiers });
+  } catch (err) {
+    next(err);
+  }
+});
 
 adminRouter.get('/librairie', requireRole('admin'), async (_req: Request, res: Response, next: NextFunction) => {
   try {

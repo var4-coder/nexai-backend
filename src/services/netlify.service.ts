@@ -27,11 +27,31 @@ async function netlifyFetch(path: string, init?: RequestInit) {
  * Architecture A.13 / §10.
  */
 export async function createNetlifySite(name: string): Promise<{ id: string; url: string; ssl_url: string }> {
-  const data = (await netlifyFetch('/sites', {
-    method: 'POST',
-    body: JSON.stringify({ name, force_ssl: true }),
-  })) as { id: string; url: string; ssl_url: string };
-  return { id: data.id, url: data.url, ssl_url: data.ssl_url };
+  // Le nom d'un site Netlify est unique au monde : si « nexai-xxx » est déjà
+  // pris (422), on retente avec un suffixe aléatoire plutôt que d'échouer.
+  let essai = name;
+  for (let tentative = 0; ; tentative++) {
+    try {
+      const data = (await netlifyFetch('/sites', {
+        method: 'POST',
+        body: JSON.stringify({ name: essai, force_ssl: true }),
+      })) as { id: string; url: string; ssl_url: string };
+      return { id: data.id, url: data.url, ssl_url: data.ssl_url };
+    } catch (err) {
+      const nomPris = err instanceof AppError && /\b422\b/.test(err.message);
+      if (!nomPris || tentative >= 3) throw err;
+      const suffixe = Math.random().toString(36).slice(2, 6);
+      essai = `${name.slice(0, 55)}-${suffixe}`;
+    }
+  }
+}
+
+/** Adresse réelle du site chez Netlify (ex. « nexai-monsite-a1b2.netlify.app »), jamais reconstituée à la main. */
+export async function getNetlifyHost(siteId: string): Promise<string> {
+  const data = (await netlifyFetch(`/sites/${siteId}`)) as { default_domain?: string; url?: string; ssl_url?: string };
+  const host = data.default_domain || (data.ssl_url || data.url || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+  if (!host) throw new AppError('Adresse Netlify du site introuvable', 502);
+  return host;
 }
 
 /**
@@ -64,6 +84,14 @@ export async function deploySite(siteId: string, zipBuffer: Buffer): Promise<{ d
  * Attache un domaine personnalisé (GoDaddy ou BYOD) au site Netlify.
  * Déclenche la génération SSL automatique.
  */
+/** Vrai pour « monsite.com » ou « monsite.co.uk » ; faux pour « boutique.monsite.com » ou « www.monsite.com ». */
+export function estDomaineRacine(domain: string): boolean {
+  const labels = domain.toLowerCase().split('.');
+  if (labels.length === 2) return true;
+  const secondNiveau = new Set(['co', 'com', 'org', 'net', 'gov', 'edu', 'ac']);
+  return labels.length === 3 && labels[2].length === 2 && secondNiveau.has(labels[1]);
+}
+
 export async function attachDomain(
   siteId: string,
   domain: string,
@@ -81,6 +109,8 @@ export async function attachDomain(
   const aliases = subdomainAlias
     ? [`${subdomainAlias}.${env.NEXAI_SUBDOMAIN_BASE_DOMAIN}`]
     : [];
+  // Domaine racine : « www » est servi aussi (le CNAME www est posé en DNS).
+  if (estDomaineRacine(domain)) aliases.push(`www.${domain}`);
   await netlifyFetch(`/sites/${siteId}`, {
     method: 'PATCH',
     body: JSON.stringify({ custom_domain: domain, domain_aliases: aliases }),

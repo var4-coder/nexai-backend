@@ -14,7 +14,7 @@ export type JobStatus = 'queued' | 'active' | 'completed' | 'failed';
 export interface IJob {
   _id: Types.ObjectId;
   type: JobType;
-  siteId: Types.ObjectId;
+  siteId?: Types.ObjectId;
   status: JobStatus;
   bullJobId: string;
   error?: string;
@@ -38,7 +38,7 @@ const jobSchema = new Schema<IJob>(
       ],
       required: true,
     },
-    siteId: { type: Schema.Types.ObjectId, ref: 'Site', required: true, index: true },
+    siteId: { type: Schema.Types.ObjectId, ref: 'Site', index: true },
     status: { type: String, enum: ['queued', 'active', 'completed', 'failed'], default: 'queued' },
     bullJobId: { type: String, required: true },
     error: { type: String },

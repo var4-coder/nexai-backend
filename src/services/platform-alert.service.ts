@@ -122,7 +122,7 @@ export async function diagnostiquerIncident(alerteId: string): Promise<void> {
 
   try {
     const brut = await callClaude(
-      'claude-fable-5-1',
+      'claude-opus-5-5',
       PROMPT_FABLE,
       [
         {

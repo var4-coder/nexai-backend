@@ -55,6 +55,13 @@ export function injectPublicBackendScript(params: {
       form.appendChild(el);
     }
     el.textContent = message;
+    // Formulaire du kit NexAI (Librairie v8) : message aux couleurs de la
+    // famille (classe nx-msg de form.css), jamais une couleur hors palette.
+    if (form.classList && form.classList.contains('nx-form')) {
+      el.className = 'nx-msg';
+      el.setAttribute('data-k', isError ? 'ko' : 'ok');
+      return;
+    }
     el.style.color = isError ? '#B91C1C' : '#15803D';
   }
 

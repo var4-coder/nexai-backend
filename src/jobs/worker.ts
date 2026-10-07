@@ -11,23 +11,24 @@ import {
   registerPurchasedDomain,
 } from '@/services/domain-renewal.service';
 import { processFinalisation, processGeneration, processAiModify } from '@/services/ia-pipeline.service';
-import { processVideoAd } from '@/services/video-pipeline.service';
+import { processVideoAd, recupererVideosBloquees } from '@/services/video-pipeline.service';
 import { provisionSiteRuntime } from '@/services/site-runtime.service';
 import {
   createNetlifySite,
   attachSubdomain,
   attachDomain,
   deploySite,
+  getNetlifyHost,
 } from '@/services/netlify.service';
 import {
   purchaseDomain,
   addNetlifyDnsRecord,
   checkDomainAvailability,
-} from '@/services/godaddy.service';
+} from '@/services/registrar.service';
+import { lireVendeurDomaine } from '@/services/registrar-reglage.service';
 import { refundLaunchCharges, type LaunchCharges } from '@/services/credits.service';
 import { createZipBuffer } from '@/utils/zip';
-import { injectPublicBackendScript, injectPaymentLink } from '@/utils/injectBackend';
-import { retirerContenuExemple } from '@/utils/contenuExemple';
+import { adresseDuSite, fichiersStatiques, preparerPagesPourPublication } from '@/services/publication.service';
 import { generatePublicApiKey } from '@/utils/crypto';
 import { traiterAlertesEnAttente, livrerAlertesBloquees } from '@/services/fable-alerte.service';
 import { signalerIncident } from '@/services/platform-alert.service';
@@ -45,7 +46,6 @@ import { enregistrerVersion } from '@/services/site-versions.service';
 import { appliquerCandidatsExpires } from '@/services/prompt-diagnostic.service';
 import { scaffoldNextjsProject } from '@/services/nextjs-pipeline.service';
 import { buildAndDeployNextjsSite } from '@/services/netlify-nextjs.service';
-import { injecterSuivi } from '@/services/site-visits.service';
 import { env } from '@/config/env';
 import { Site } from '@/models/Site';
 import { Job } from '@/models/Job';
@@ -66,6 +66,9 @@ type PipelineJobData = {
   siteId: string;
   userId: string;
   type: string;
+  /** Atelier Skills : exécution et tâche à traiter (job 'skill_etape'). */
+  runId?: string;
+  etape?: string;
   domainType?: 'sous_domaine' | 'godaddy' | 'byod';
   domainName?: string;
   subdomainSlug?: string;
@@ -85,7 +88,6 @@ type PipelineJobData = {
    * rouvrir une alerte que Fable reprendrait — ce qui produirait une boucle
    * sans fin, chaque tour refabriquant le site à nos frais.
    */
-  refabricationFable?: boolean;
   /** Crédits NexAI débités à l'enqueue (traçabilité). */
   creditsCharged?: number;
   /** true = déjà la relance gratuite système (pas de 2e cadeau). */
@@ -96,7 +98,6 @@ async function handleGeneration(data: PipelineJobData) {
   await Job.updateOne({ siteId: data.siteId, status: 'queued' }, { status: 'active' }).catch(() => {});
   const proposals = await processGeneration(data.siteId, {
     forceVariation: data.forceVariation,
-    refabricationFable: data.refabricationFable,
   });
   await Job.updateOne(
     { siteId: data.siteId, bullJobId: { $exists: true } },
@@ -118,9 +119,10 @@ async function handleAiModify(data: PipelineJobData) {
 
 async function handleVideoAd(data: PipelineJobData) {
   if (!data.videoAdId) throw new Error('videoAdId manquant sur le job video_ad');
-  await Job.updateOne({ siteId: data.siteId, status: 'queued', type: 'video_ad' }, { status: 'active' }).catch(
-    () => {}
-  );
+  await Job.updateOne(
+    { type: 'video_ad', status: 'queued', 'meta.videoAdId': data.videoAdId },
+    { status: 'active' }
+  ).catch(() => {});
   // processVideoAd gère elle-même son propre statut (completed/failed). Aucun
   // remboursement en crédits n'existe plus sur ce chemin : un échec total
   // conserve les crédits sur la vidéo et ouvre une relance gratuite au client
@@ -128,7 +130,7 @@ async function handleVideoAd(data: PipelineJobData) {
   // générique du catch ci-dessous pour ce type de job.
   await processVideoAd(data.videoAdId);
   await Job.updateOne(
-    { siteId: data.siteId, type: 'video_ad', 'meta.videoAdId': data.videoAdId },
+    { type: 'video_ad', 'meta.videoAdId': data.videoAdId },
     { status: 'completed' }
   ).catch(() => {});
   console.log(`[worker] Vidéo pub terminée videoAdId=${data.videoAdId}`);
@@ -146,42 +148,23 @@ async function handleLaunch(data: PipelineJobData) {
     throw new Error('HTML de la proposition choisie introuvable — impossible de déployer');
   }
 
-  // Script de statistiques injecté à la mise en ligne (Analytics).
-  // Sans cookie ni donnée personnelle : le client n'a pas de bandeau de
-  // consentement à afficher. Injecté ici plutôt qu'à la génération, pour
-  // que l'aperçu privé ne compte pas comme une visite.
-  const html = injecterSuivi(htmlBrut, String(site._id));
-  // Toutes les pages du site : l'accueil (html, ci-dessus) + les pages
-  // secondaires générées pour les sites multi-pages (voir resolvePagePlan /
-  // generateSecondaryPagesForProposal dans ia-pipeline.service.ts). Vide pour
-  // un site à page unique — comportement historique inchangé dans ce cas.
-  let allPages: { slug: string; title: string; html: string }[] = [
-    { slug: 'index', title: 'Accueil', html },
-    // Les pages secondaires reçoivent le même script : sans cela, seules
-    // les visites de l'accueil seraient comptées sur un site multi-pages.
-    ...(chosen?.pages || []).map((p) => ({
-      ...p,
-      html: injecterSuivi(p.html ?? '', String(site._id)),
-    })),
+  // Toutes les pages du site : l'accueil + les pages secondaires (sites
+  // multi-pages). La préparation pour la mise en ligne (suivi des visites,
+  // lien de paiement, avis d'exemple retirés, adresse réelle à la place de
+  // __SITE_URL__, pages légales, kit NexAI, formulaires) est faite plus bas
+  // par publication.service, une fois l'adresse du site connue.
+  const pagesBrutes: { slug: string; title: string; html: string }[] = [
+    { slug: 'index', title: 'Accueil', html: htmlBrut },
+    ...(chosen?.pages || []).map((p) => ({ slug: p.slug, title: p.title, html: p.html ?? '' })),
   ];
-
-  // Injection du lien de paiement réel (déjà validé en amont, voir
-  // enqueueLaunch/payment-link.service.ts) — remplace le repère
-  // data-nexai-payment-link généré par le Codeur. Sans effet si le Codeur
-  // n'a généré aucun bouton de paiement (site sans besoin de paiement).
   const resolvedPaymentLink = data.paymentLink || site.paymentLink;
-  if (resolvedPaymentLink) {
-    allPages = allPages.map((p) => ({ ...p, html: injectPaymentLink(p.html, resolvedPaymentLink) }));
-  }
-
-  // Avis d'EXEMPLE de l'aperçu (data-origin="generated", badge « Exemple ») :
-  // retirés du HTML à la mise en ligne — jamais visibles par un visiteur.
-  allPages = allPages.map((p) => ({ ...p, html: retirerContenuExemple(p.html).html }));
 
   // Slug Netlify / sous-domaine
   const slug = (
     data.subdomainSlug ||
-    data.domainName?.replace(/\.nexai\.com$/i, '') ||
+    // Domaine de base réel des sous-domaines NexAI (variable d'environnement),
+    // et non plus « .nexai.com » écrit en dur.
+    data.domainName?.replace(new RegExp(`\\.${env.NEXAI_SUBDOMAIN_BASE_DOMAIN.replace(/\./g, '\\.')}$`, 'i'), '') ||
     `site-${data.siteId}`
   )
     .replace(/[^a-z0-9-]/gi, '-')
@@ -221,6 +204,24 @@ async function handleLaunch(data: PipelineJobData) {
     await site.save();
   }
 
+  // Adresse publique définitive (domaine du client ou sous-domaine NexAI) :
+  // remplace __SITE_URL__ et figure dans les mentions légales.
+  const siteUrl =
+    adresseDuSite({
+      domainName: data.domainName || site.domainName,
+      subdomainSlug: data.domainType === 'sous_domaine' ? slug : undefined,
+    }) || `https://nexai-${slug}.netlify.app`;
+  const preparation = preparerPagesPourPublication({
+    siteId: String(site._id),
+    publicApiKey: site.publicApiKey!,
+    pages: pagesBrutes,
+    brief: site.brief ?? {},
+    nomSite: site.name || String((site.brief as { brandName?: string })?.brandName ?? ''),
+    siteUrl,
+    paymentLink: resolvedPaymentLink,
+  });
+  const fichiers = fichiersStatiques(preparation.pages, preparation.gsap);
+
   // 2. Déploiement du contenu — deux chemins selon le type de site.
   if (!String(netlifySiteId).startsWith('local_')) {
     if (site.siteType === 'nextjs') {
@@ -232,12 +233,12 @@ async function handleLaunch(data: PipelineJobData) {
           targetDir: projectDir,
           siteId: String(site._id),
           siteName: site.name || String(site._id),
-          pages: allPages,
+          fichiers,
           publicApiKey: site.publicApiKey,
           publicApiBaseUrl: env.PUBLIC_API_BASE_URL,
         });
         const deploy = await buildAndDeployNextjsSite({ projectDir, netlifySiteId: String(netlifySiteId) });
-        console.log(`[worker] Deploy Next.js OK site=${data.siteId} url=${deploy.url} pages=${allPages.length}`);
+        console.log(`[worker] Deploy Next.js OK site=${data.siteId} url=${deploy.url} pages=${preparation.pages.length}`);
       } catch (err) {
         console.error('[worker] Deploy Next.js failed', err);
         throw err; // déclenche remboursement
@@ -245,22 +246,12 @@ async function handleLaunch(data: PipelineJobData) {
         await rm(projectDir, { recursive: true, force: true }).catch(() => {});
       }
     } else {
-      // Site statique : une page HTML par entrée du plan, chacune avec les
-      // formulaires câblés sur le backend public (sinon ils n'envoient les
-      // données nulle part).
-      const zipEntries = allPages.map((p) => ({
-        path: p.slug === 'index' ? 'index.html' : `${p.slug}.html`,
-        content: injectPublicBackendScript({
-          html: p.html,
-          siteId: String(site._id),
-          publicApiKey: site.publicApiKey!,
-          apiBaseUrl: env.PUBLIC_API_BASE_URL,
-        }),
-      }));
-      const zipBuffer = createZipBuffer(zipEntries);
+      // Site statique : une page HTML par entrée du plan (+ pages légales et
+      // kit), chacune avec les formulaires câblés sur le backend public.
+      const zipBuffer = createZipBuffer(fichiers);
       try {
         const deploy = await deploySite(netlifySiteId, zipBuffer);
-        console.log(`[worker] Deploy OK site=${data.siteId} url=${deploy.url} pages=${allPages.length}`);
+        console.log(`[worker] Deploy OK site=${data.siteId} url=${deploy.url} pages=${preparation.pages.length}`);
       } catch (err) {
         console.error('[worker] Deploy failed', err);
         throw err; // déclenche remboursement
@@ -302,6 +293,7 @@ async function handleLaunch(data: PipelineJobData) {
             freeBudgetSpentUsd: data.charges?.domainBudgetSpentUsd ?? 0,
             creditsChargedAtPurchase: data.charges?.domainCredits ?? 0,
             observedPriceUsd: priceUsd,
+            registrar: await lireVendeurDomaine(),
           });
         } catch (regErr) {
           // Ne doit jamais faire échouer un lancement réussi : on signale.
@@ -311,9 +303,10 @@ async function handleLaunch(data: PipelineJobData) {
         // Déjà vérifié à l'enqueue — si plus dispo, échec dur pour remboursement
         throw new Error(`Domaine ${data.domainName} plus disponible au moment de l'achat`);
       }
-      const netlifyTarget = `${slug}.netlify.app`;
       try {
-        await addNetlifyDnsRecord(data.domainName, netlifyTarget);
+        // Adresse réelle du site chez Netlify (préfixe « nexai- », suffixe éventuel).
+        const netlifyHost = await getNetlifyHost(netlifySiteId);
+        await addNetlifyDnsRecord(data.domainName, netlifyHost);
       } catch (dnsErr) {
         console.warn('[worker] addNetlifyDnsRecord failed', dnsErr);
       }
@@ -390,6 +383,14 @@ async function processJob(job: BullJob<PipelineJobData>) {
       case 'video_ad':
         await handleVideoAd(job.data);
         break;
+      case 'skill_etape': {
+        // Atelier Skills (admin) : une tâche du pipeline. Les erreurs sont
+        // enregistrées sur l'exécution elle-même (reprenable depuis l'admin) :
+        // elles ne remontent jamais comme incident de site.
+        const { executerEtapeSkill } = await import('@/services/atelier-skills/pipeline');
+        await executerEtapeSkill(String(job.data.runId), job.data.etape as Parameters<typeof executerEtapeSkill>[1]);
+        break;
+      }
       // 'logo', 'repair', 'modification_bloc', 'modification_structurelle' :
       // ces types existent dans le modèle Job comme LIBELLÉS de suivi, mais
       // ne transitent jamais par la file. Les logos sont générés en direct
@@ -486,7 +487,7 @@ async function processJob(job: BullJob<PipelineJobData>) {
 /**
  * Filet automatique : sites / jobs restés "generating" ou "active" trop longtemps
  * (worker crash, Redis, job zombie). Sans IA — pure règle de temps.
- * Seuil : 15 minutes. Passe en failed + lastError admin (pas de relance auto ici :
+ * Seuil : 30 minutes. Passe en failed + lastError admin (pas de relance auto ici :
  * la relance gratuite s'applique déjà sur les fails système "vivants").
  */
 /**
@@ -517,13 +518,13 @@ async function recupererGenerationsBloquees(): Promise<number> {
     await Site.findByIdAndUpdate(s._id, {
       status: 'failed',
       lastError:
-        'Timeout automatique : génération bloquée plus de 15 minutes (worker/job interrompu). Relance possible depuis l\'admin.',
+        'Timeout automatique : génération bloquée plus de 30 minutes (worker/job interrompu). Relance possible depuis l\'admin.',
     }).catch(() => {});
     await Job.updateMany(
       { siteId: s._id, status: { $in: ['queued', 'active'] } },
       {
         status: 'failed',
-        error: 'Timeout automatique > 15 min — job considéré bloqué',
+        error: 'Timeout automatique > 30 min — job considéré bloqué',
       }
     ).catch(() => {});
     n += 1;
@@ -703,7 +704,7 @@ export async function startWorker() {
     },
     { connection: redisConnection, concurrency: 1 }
   );
-  remindersWorker.on('failed', (job, err) => {
+  remindersWorker.on('failed', (_job, err) => {
     console.error(`[worker] ❌ Relance Coach business échouée`, err.message);
   });
 
@@ -731,6 +732,13 @@ export async function startWorker() {
         await recupererGenerationsBloquees();
       } catch (e) {
         console.error('[worker] Récupération générations bloquées échouée', e);
+      }
+      try {
+        await recupererVideosBloquees();
+        const { recupererSkillsBloques } = await import('@/services/atelier-skills/pipeline');
+        await recupererSkillsBloques();
+      } catch (e) {
+        console.error('[worker] Récupération vidéos/skills bloqués échouée', e);
       }
 
       const alertes = await traiterAlertesEnAttente();

@@ -108,6 +108,11 @@ export interface IVideoAd {
   /** Renseigné sur la NOUVELLE vidéo créée par une relance corrective — référence la vidéo d'origine. */
   isRelaunchOf?: Types.ObjectId;
   /**
+   * Renseigné sur la vidéo SOURCE dès qu'une relance est réservée : une vidéo
+   * ne se relance qu'une fois (réservation atomique, voir enqueueVideoAdRelaunch).
+   */
+  relanceVideoId?: Types.ObjectId;
+  /**
    * Publication dans la galerie d'exemples, visible par tous les visiteurs.
    *
    * Seul l'administrateur peut y placer une vidéo : ce sont de vraies
@@ -249,6 +254,7 @@ const videoAdSchema = new Schema<IVideoAd>(
     },
     partialRelaunchCount: { type: Number, default: 0, min: 0 },
     isRelaunchOf: { type: Schema.Types.ObjectId, ref: 'VideoAd' },
+    relanceVideoId: { type: Schema.Types.ObjectId, ref: 'VideoAd' },
     offerte: { type: Boolean, default: false },
     vitrineImportee: { type: Boolean, default: false },
     echecRelanceCount: { type: Number, default: 0 },

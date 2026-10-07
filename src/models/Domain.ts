@@ -35,6 +35,8 @@ export interface IDomain extends Document {
   siteId?: Types.ObjectId;
   /** Nom complet, ex. "mon-site.com" (minuscules). */
   domainName: string;
+  /** Vendeur réel. Les anciens domaines restent chez GoDaddy. */
+  registrar?: 'godaddy' | 'porkbun';
   /** Extension, ex. ".com". */
   tld: string;
 
@@ -76,6 +78,7 @@ const domainSchema = new Schema<IDomain>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     siteId: { type: Schema.Types.ObjectId, ref: 'Site', index: true },
     domainName: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    registrar: { type: String, enum: ['godaddy', 'porkbun'], default: 'godaddy' },
     tld: { type: String, required: true, lowercase: true },
 
     usedFreeQuota: { type: Boolean, default: false },

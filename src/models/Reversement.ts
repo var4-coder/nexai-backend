@@ -19,6 +19,8 @@ export interface IReversement {
   reversedAt?: Date;
   reference?: string; // référence manuelle saisie par l'admin (virement, etc.)
   note?: string;
+  /** Clé d'idempotence d'un encaissement (`encaissement:<référence>`) : unique quand présente. */
+  cleIdempotence?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +35,7 @@ const reversementSchema = new Schema<IReversement>(
     reversedAt: { type: Date },
     reference: { type: String },
     note: { type: String },
+    cleIdempotence: { type: String, unique: true, sparse: true },
   },
   { timestamps: true }
 );

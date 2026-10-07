@@ -96,6 +96,7 @@ export async function listerVersions(siteId: Types.ObjectId | string, userId: Ty
     mise_en_ligne: 'Mise en ligne',
     modification_ia: 'Modification IA',
     edition_manuelle: 'Édition manuelle',
+    modification_images: 'Modification des images',
     restauration: 'Restauration',
   };
 

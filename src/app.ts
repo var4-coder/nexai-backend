@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import { env, isProd } from '@/config/env';
 import { router } from '@/routes';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
+import { KIT_DIR } from '@/services/kit.service';
 
 export function createApp() {
   const app = express();
@@ -47,6 +48,21 @@ export function createApp() {
   );
   app.use(cookieParser());
   app.use(morgan(isProd ? 'combined' : 'dev'));
+
+  // Kit NexAI (GSAP, formulaire, mouvement) chargé par les APERÇUS de site,
+  // affichés sur le domaine du tableau de bord : lecture seule, autorisée
+  // depuis n'importe quelle origine (helmet bloque par défaut les ressources
+  // d'une autre origine). Une fois en ligne, le site sert ses propres copies.
+  // Avant la limite de requêtes : un aperçu charge ces fichiers à chaque affichage.
+  app.use(
+    '/kit',
+    (_req, res, next) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      next();
+    },
+    express.static(KIT_DIR, { maxAge: '7d', index: false })
+  );
 
   // Rate limiting global — protection de base (voir Partie 11 - Sécurité).
   //

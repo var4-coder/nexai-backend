@@ -280,6 +280,8 @@ export function separerParNiche(markdown: string): { commun: string; parNiche: R
 const DOCS_COMMUNS: Array<[string, LibraryCollection, string]> = [
   ['AI_RULES.md', 'library_rules', 'ai_rules'],
   ['REGLES_GENERATION.md', 'library_rules', 'regles_generation'],
+  // Loi des familles (v8) : commune à tous les sites, mise en cache avec le reste.
+  ['FAMILLES.md', 'library_rules', 'regles_themes'],
   ['PERF.md', 'library_rules', 'perf'],
   ['SCHEMA.md', 'library_rules', 'schema'],
   ['CONTRAST.md', 'library_contrast', 'contrast'],
@@ -335,11 +337,11 @@ export function construireBlocCommun(lib: LibrairieComplete): string {
     `LIBRAIRIE DESIGN NEXAI — version ${lib.version}\n` +
     'Règles communes au codeur et aux juges. Chaque règle numérotée (M1, C1, S3, PAY1…) ' +
     'est citée par son numéro dans les verdicts.' +
-    DOCS_COMMUNS.slice(0, 4)
+    DOCS_COMMUNS.slice(0, 5)
       .map(([nom, coll, id]) => section(nom, mdCommun(lib, coll, id)))
       .join('') +
     section('TOKENS (global)', tokensTexte) +
-    DOCS_COMMUNS.slice(4)
+    DOCS_COMMUNS.slice(5)
       .map(([nom, coll, id]) => section(nom, mdCommun(lib, coll, id)))
       .join('')
   );
@@ -365,6 +367,10 @@ export interface BlocNiche {
    * c'est tout ce dont le juge visuel a besoin pour juger un rendu.
    */
   texteFiche: string;
+  /** Palette de secours de la niche (utilisée seulement sans famille). */
+  paletteSecours: string;
+  /** `secours_backend` de la fiche (utilisé seulement sans famille). */
+  secoursFiche: string;
 }
 
 /**
@@ -375,7 +381,14 @@ export interface BlocNiche {
  */
 export function construireBlocNiche(lib: LibrairieComplete, nicheSite: string): BlocNiche {
   const idNiche = idNicheLibrairie(nicheSite);
-  const fiche = doc(lib, 'library_niches', idNiche);
+  let fiche = doc(lib, 'library_niches', idNiche);
+  // Filet v8 (rappel 02/10, point 8) : une fiche ou des composants absents de
+  // la base (supprimés par erreur dans l'admin) sont repris des fichiers v8
+  // livrés AVANT de descendre à la librairie interne, bien plus ancienne.
+  if (!fiche) {
+    const livree = (lireSeedLocal('library_niches') ?? []).find((d) => String(d._id) === idNiche || d.id === idNiche);
+    if (livree) fiche = livree;
+  }
   const palette = lib.docs.library_palettes.find((p) => p.niche === idNiche || String(p._id) === idNiche);
   const copy = doc(lib, 'library_copy', 'copy') ?? lib.docs.library_copy[0];
   const redactionNiche = (
@@ -383,15 +396,28 @@ export function construireBlocNiche(lib: LibrairieComplete, nicheSite: string): 
   ).find((n) => n.id === idNiche);
 
   let composants = composantsDeLaNiche(lib, idNiche);
-  let ficheTexte = fiche ? JSON.stringify(sansMeta(fiche)) : '';
-  let paletteTexte = palette ? JSON.stringify(sansMeta(palette)) : '';
+  if (composants.length === 0) {
+    const livres = lireSeedLocal('library_components') ?? [];
+    composants = livres.filter((c) => {
+      const niches = Array.isArray(c.niches) ? (c.niches as string[]) : [];
+      return niches.length === 0 || niches.includes(idNiche) || niches.some((n) => TAGS_UNIVERSELS.has(n));
+    });
+  }
+  // La fiche métier est envoyée SANS ses champs de secours (`secours_backend` :
+  // polices et couleurs de repli) ni la liste des familles : c'est la famille
+  // imposée par le backend qui fixe couleurs, polices et ouverture. Les
+  // envoyer pousserait le codeur à mélanger deux identités (VETO K2/K4).
+  let ficheTexte = fiche ? JSON.stringify(ficheSansSecours(fiche)) : '';
+  // Palette « de secours » de la niche : envoyée seulement quand aucune
+  // famille n'est disponible (voir construireBlocFamille).
+  let paletteTexte = '';
 
   // Dernier filet : librairie interne embarquée (niche inconnue de la
   // Librairie ou base et fichiers illisibles).
   if (!fiche || composants.length === 0) {
     const interne = loadInternalLibraryForNiche(nicheSite);
     if (!fiche && interne.niche) ficheTexte = JSON.stringify(interne.niche);
-    if (!palette && interne.palette) paletteTexte = JSON.stringify(interne.palette);
+    if (!fiche && !palette && interne.palette) paletteTexte = JSON.stringify(interne.palette);
     if (composants.length === 0) {
       composants = interne.components.map((c) => ({ ...(c as unknown as LibraryDoc), _id: (c as { id: string }).id }));
     }
@@ -424,7 +450,15 @@ export function construireBlocNiche(lib: LibrairieComplete, nicheSite: string): 
     texteFiche,
     composants: composants.map((c) => String(c._id)),
     ficheTrouvee: !!fiche,
+    paletteSecours: palette ? JSON.stringify(sansMeta(palette)) : '',
+    secoursFiche: fiche && fiche.secours_backend ? JSON.stringify(fiche.secours_backend) : '',
   };
+}
+
+/** Fiche métier sans les champs réservés au backend. */
+function ficheSansSecours(fiche: LibraryDoc): Record<string, unknown> {
+  const { secours_backend: _s, familles: _f, famille_par_defaut: _d, ...reste } = sansMeta(fiche) ?? {};
+  return reste;
 }
 
 /** BLOC JUGES — comment décider (veto puis note /100). Identique pour tous. */
@@ -443,6 +477,7 @@ export function construireBlocJugeVisuel(lib: LibrairieComplete): string {
   return (
     `LIBRAIRIE DESIGN NEXAI — version ${lib.version} — règles visuelles` +
     section('REGLES_GENERATION.md', mdCommun(lib, 'library_rules', 'regles_generation')) +
+    section('FAMILLES.md', mdCommun(lib, 'library_rules', 'regles_themes')) +
     section('LAYOUTS.md', mdCommun(lib, 'library_layouts', 'layouts')) +
     section('SLOP.md', mdCommun(lib, 'library_anti_slop', 'slop')) +
     section('JUDGES.md', md(lib, 'library_judges', 'judges'))
@@ -463,4 +498,137 @@ export async function loadLibraryForNiche(niche: string) {
     components: bloc.composants.map((id) => ({ _id: id })),
     blocNiche: bloc.texte,
   };
+}
+
+
+/**
+ * Index « numéro de règle → texte » (M3, C1, PAY1, V9…), construit une fois par
+ * version de Librairie. Sert à (1) compléter sans nouvel appel IA un verdict de
+ * juge qui n'aurait pas donné de solution précise, (2) envoyer à l'IA Aide et au
+ * réparateur UNIQUEMENT les règles citées par les juges, pas toute la Librairie.
+ */
+export function indexerRegles(lib: LibrairieComplete): Record<string, string> {
+  const sources: Array<[LibraryCollection, string]> = [
+    ['library_rules', 'regles_generation'], ['library_rules', 'regles_themes'], ['library_rules', 'perf'], ['library_rules', 'schema'], ['library_rules', 'ai_rules'],
+    ['library_contrast', 'contrast'], ['library_layouts', 'layouts'], ['library_anti_slop', 'slop'],
+    ['library_copy', 'copy'], ['library_seo', 'seo'], ['library_legal', 'legal'], ['library_media', 'media'], ['library_judges', 'judges'],
+  ];
+  const out: Record<string, string> = {};
+  // « - K1 (VETO) … » : la gravité entre parenthèses est tolérée après le numéro.
+  const re = /^\s*(?:[-*]|\|)\s*\**([A-Z]{1,4}\d{1,2})\**(?:\s*\((?:VETO|MAJEUR|WARN|MINEUR)\)\s*(?:\.|:|\||—|-)?|\s*(?:\.|:|\||—|-))\s*(.+?)\s*\|?\s*$/gm;
+  for (const [coll, id] of sources) {
+    const t = md(lib, coll, id);
+    if (!t) continue;
+    for (const m of t.matchAll(re)) if (!out[m[1]]) out[m[1]] = m[2].slice(0, 420);
+  }
+  return out;
+}
+
+// ─── Librairie v8 : allowlist, familles, styles ───────────────────────────
+
+/** Données structurées de `library_rules/allowlist` (familles par niche, kit, pages, photos, gestes). */
+export interface Allowlist {
+  kit?: { heroes?: string[]; navs?: string[]; densities?: string[] };
+  familles_actives?: string[];
+  familles_par_niche?: Record<string, string[]>;
+  famille_par_defaut?: Record<string, string>;
+  pages?: Record<string, unknown> & {
+    titres?: Record<string, string>;
+    nombre_par_niche?: Record<string, number>;
+  };
+  photo_slots?: Record<string, { a_choisir?: number; slots?: Array<{ slot: string; ratio?: string; label?: string }> }>;
+  formulaires?: Record<string, string[]>;
+  geste_motion?: Record<string, string>;
+  gestes_motion_kit?: Record<string, string>;
+  hero_h1_sur_photo?: Record<string, unknown>;
+  [k: string]: unknown;
+}
+
+export function allowlistDe(lib: LibrairieComplete): Allowlist {
+  const d = doc(lib, 'library_rules', 'allowlist');
+  const s = d?.structured;
+  return s && typeof s === 'object' ? (s as Allowlist) : {};
+}
+
+export function familleDe(lib: LibrairieComplete, id: string): LibraryDoc | undefined {
+  return lib.docs.library_familles.find((f) => String(f._id) === id || f.famille_id === id);
+}
+
+export function styleDe(lib: LibrairieComplete, id: string): LibraryDoc | undefined {
+  return lib.docs.library_styles.find((s) => String(s._id) === id || s.id === id || s.code === id);
+}
+
+/**
+ * Plan de pages d'un métier (v8) : le nombre de pages dépend du métier
+ * (`allowlist.pages.nombre_par_niche`, 2 ou 3), pas du palier. 3 pages =
+ * liste « standard » du métier ; 2 pages = liste « essai ». Titres :
+ * `allowlist.pages.titres`. Renvoie null si l'allowlist ne couvre pas le métier.
+ */
+export function planDePagesLibrairie(lib: LibrairieComplete, nicheSite: string): { slug: string; title: string }[] | null {
+  const idNiche = idNicheLibrairie(nicheSite);
+  const pages = allowlistDe(lib).pages;
+  const parPalier = pages?.[idNiche] as { essai?: string[]; standard?: string[] } | undefined;
+  if (!parPalier) return null;
+  const nombre = pages?.nombre_par_niche?.[idNiche] ?? 3;
+  const liste = (nombre <= 2 ? parPalier.essai : parPalier.standard) ?? parPalier.standard ?? parPalier.essai;
+  if (!Array.isArray(liste) || liste.length === 0) return null;
+  const titres = pages?.titres ?? {};
+  const plan = liste.slice(0, 3).map((slug) => ({ slug, title: titres[slug] ?? slug }));
+  if (!plan.some((p) => p.slug === 'index')) plan.unshift({ slug: 'index', title: titres.index ?? 'Accueil' });
+  return plan;
+}
+
+/** Combinaison imposée à un site (famille + ouverture + nav + densité + geste). */
+export interface CombinaisonSite {
+  famille: string;
+  style: string;
+  palette: string;
+  hero: string;
+  nav: string;
+  densite: string;
+  /** Valeur de `<html data-geste>` lue par kit/motion.js : entree | parallax | mots | aucun. */
+  geste: string;
+  /** Geste porté par un composant CSS (portfolio, mode, SaaS) — vide sinon. */
+  gesteComposant?: string;
+}
+
+/** Attributs de `<html>` imposés (TH4). */
+export function declarationHtml(c: CombinaisonSite): string {
+  return (
+    `data-theme="${c.famille}" data-style="${c.style}" data-palette="${c.palette}" ` +
+    `data-hero="${c.hero}" data-nav="${c.nav}" data-density="${c.densite}" data-env="preview" data-geste="${c.geste}"`
+  );
+}
+
+/**
+ * BLOC FAMILLE — propre au site (jamais mis en cache) : la famille imposée
+ * (variables `:root`, lien des polices), la recette de son style et la
+ * combinaison imposée. Sans famille disponible : polices et couleurs de
+ * secours de la fiche métier (dernier filet).
+ */
+export function construireBlocFamille(lib: LibrairieComplete, nicheSite: string, c: CombinaisonSite | null): string {
+  if (!c) {
+    const niche = construireBlocNiche(lib, nicheSite);
+    return (
+      'IDENTITÉ VISUELLE DE SECOURS (aucune famille disponible pour ce métier)' +
+      section('POLICES ET COULEURS DE SECOURS', niche.secoursFiche) +
+      section('PALETTE DE SECOURS', niche.paletteSecours)
+    );
+  }
+  const famille = familleDe(lib, c.famille);
+  const style = styleDe(lib, c.style);
+  const geste = c.gesteComposant
+    ? `aucun geste GSAP (\`data-geste="aucun"\`) : le mouvement de ce métier est « ${c.gesteComposant} », porté par son composant, en CSS seulement.`
+    : `\`data-geste="${c.geste}"\` (kit/motion.js, inséré par le système).`;
+  return (
+    `FAMILLE IMPOSÉE À CE SITE : ${c.famille} (style ${c.style} × palette ${c.palette}) — TH1 à TH6.` +
+    section(`FAMILLE ${c.famille}`, typeof famille?.content_md === 'string' ? famille.content_md : JSON.stringify(sansMeta(famille))) +
+    section(`RECETTE DU STYLE ${c.style}`, typeof style?.content_md === 'string' ? style.content_md : '') +
+    section(
+      'COMBINAISON IMPOSÉE (ne jamais en changer — K1, K5)',
+      `<html lang="…" ${declarationHtml(c)}>\n` +
+        `- Ouverture (hero) : ${c.hero} · navigation : ${c.nav} · densité : ${c.densite}.\n` +
+        `- Geste de mouvement : ${geste}`
+    )
+  );
 }

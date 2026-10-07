@@ -2,7 +2,6 @@
  * ZIP minimal (store only) pour un ou plusieurs fichiers texte.
  * Suffisant pour déployer un index.html sur Netlify sans dépendance externe.
  */
-import { deflateRawSync } from 'zlib';
 import { createHash } from 'crypto';
 
 type ZipEntry = { path: string; content: Buffer | string };

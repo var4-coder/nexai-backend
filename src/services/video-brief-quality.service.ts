@@ -83,7 +83,7 @@ Nom de marque déjà renseigné : ${params.brandName || '(aucun)'}
 Texte du CTA déjà renseigné : ${params.ctaText || '(aucun)'}`;
 
   try {
-    const raw = await callClaude('claude-sonnet-5', system, [{ role: 'user', content: user }], {
+    const raw = await callClaude('claude-sonnet-5-5', system, [{ role: 'user', content: user }], {
       maxTokens: 300,
       temperature: 0.2,
     });

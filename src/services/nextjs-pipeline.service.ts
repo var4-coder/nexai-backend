@@ -9,46 +9,32 @@ export interface NextjsPageInput {
 
 /**
  * Génère les fichiers d'un projet Next.js pour les sites marqués
- * `siteType: 'nextjs'` (voir models/Site.ts). Utilisé pour les sites
- * "complexes" qui ont besoin d'un vrai backend applicatif (route API propre
- * au site) en plus du stockage central NexAI (MongoDB, via /api/v1/public).
+ * `siteType: 'nextjs'` (voir models/Site.ts) : hôtellerie, immobilier, mode.
  *
- * Multi-pages : une route Next.js par page du plan généré par le pipeline IA
- * (voir resolvePagePlan / PAGES_PAR_NICHE dans ia-pipeline.service.ts) — pour
- * un site à page unique, `pages` ne contient que l'entrée 'index'.
- *
- * Le rendu visuel généré par le pipeline IA (HTML par page) est réinjecté
- * tel quel dans chaque route Next.js correspondante, pour ne pas dupliquer
- * la logique de génération de design — seule la couche technique change
- * (React/Next au lieu de HTML statique), avec en plus une vraie route API
- * serveur fonctionnelle.
+ * CORRECTIF du 02/10/2026 — avant, chaque page HTML était collée dans un
+ * bloc React (dangerouslySetInnerHTML). Conséquences : ses scripts ne
+ * s'exécutaient JAMAIS (formulaire de réservation vide, menu mobile inerte,
+ * animation absente) et les réglages posés sur <html> (famille, densité,
+ * geste) étaient perdus. Désormais, les pages préparées pour la mise en
+ * ligne (publication.service) sont servies TELLES QUELLES, comme fichiers
+ * statiques du dossier public/, avec des réécritures d'adresses (/ → index,
+ * /menu → menu.html…). Les formulaires sont envoyés au backend NexAI comme
+ * sur un site statique ; la route serveur propre au site (/api/submit) reste
+ * disponible pour la logique serveur à venir.
  */
-/**
- * Les pages générées par le pipeline IA se lient entre elles via des hrefs
- * de type "biens.html", "contact.html" (format adapté au déploiement HTML
- * statique, voir buildSecondaryPageSystemPrompt côté ia-pipeline.service.ts).
- * En Next.js le routing se fait par chemin ("/biens", "/") et non par nom de
- * fichier : sans cette réécriture, la navigation entre pages casserait au
- * clic (Netlify chercherait un fichier biens.html inexistant dans un site
- * Next.js). On ne touche à rien d'autre dans le HTML.
- */
-function rewriteLinksForNextjs(html: string): string {
-  return html
-    .replace(/href=(["'])(?:\.\/)?index\.html\1/gi, 'href=$1/$1')
-    .replace(/href=(["'])(?:\.\/)?([a-z0-9_-]+)\.html\1/gi, 'href=$1/$2$1');
-}
-
 export async function scaffoldNextjsProject(params: {
   targetDir: string;
   siteId: string;
   siteName: string;
-  pages: NextjsPageInput[];
+  /** Fichiers du site déjà préparés (voir fichiersStatiques) : pages, pages légales, kit. */
+  fichiers: { path: string; content: string | Buffer }[];
   publicApiKey: string;
   publicApiBaseUrl: string;
 }): Promise<void> {
-  const { targetDir, siteId, siteName, pages, publicApiKey, publicApiBaseUrl } = params;
+  const { targetDir, siteId, siteName, fichiers, publicApiKey, publicApiBaseUrl } = params;
 
   await mkdir(path.join(targetDir, 'pages', 'api'), { recursive: true });
+  await mkdir(path.join(targetDir, 'public'), { recursive: true });
 
   await writeFile(
     path.join(targetDir, 'package.json'),
@@ -75,7 +61,23 @@ export async function scaffoldNextjsProject(params: {
     `[build]\n  command = "npm run build"\n\n[[plugins]]\n  package = "@netlify/plugin-nextjs"\n`
   );
 
-  await writeFile(path.join(targetDir, 'next.config.js'), `module.exports = { reactStrictMode: true };\n`);
+  // Pages du site = fichiers statiques de public/ (servis tels quels).
+  const slugs = new Set<string>();
+  for (const f of fichiers) {
+    const cible = path.join(targetDir, 'public', f.path);
+    await mkdir(path.dirname(cible), { recursive: true });
+    await writeFile(cible, f.content);
+    const m = /^([a-z0-9_-]+)\.html$/i.exec(f.path);
+    if (m && m[1] !== 'index') slugs.add(m[1]);
+  }
+  const reecritures = [
+    { source: '/', destination: '/index.html' },
+    ...[...slugs].map((s) => ({ source: `/${s}`, destination: `/${s}.html` })),
+  ];
+  await writeFile(
+    path.join(targetDir, 'next.config.js'),
+    `module.exports = {\n  reactStrictMode: true,\n  async rewrites() {\n    return { beforeFiles: ${JSON.stringify(reecritures)} };\n  },\n};\n`
+  );
 
   // La clé publique du site n'est pas un secret critique (voir Site.publicApiKey) :
   // on peut l'exposer côté client sans risque, comme une clé publique Stripe.
@@ -85,61 +87,10 @@ export async function scaffoldNextjsProject(params: {
   );
 
   await writeFile(
-    path.join(targetDir, 'pages', '_app.tsx'),
-    `import type { AppProps } from 'next/app';\nexport default function App({ Component, pageProps }: AppProps) {\n  return <Component {...pageProps} />;\n}\n`
+    // JavaScript simple (pas de TypeScript) : le build n'a besoin que de next et react.
+    path.join(targetDir, 'pages', '_app.js'),
+    `export default function App({ Component, pageProps }) {\n  return <Component {...pageProps} />;\n}\n`
   );
-
-  // Câblage des formulaires (data-nexai-id="form-contact", ou
-  // data-nexai-type="reservation"/"commande") vers /api/submit, factorisé
-  // pour être réutilisé identiquement sur chaque page générée ci-dessous.
-  const wiringHook =
-    `  const rootRef = useRef<HTMLDivElement>(null);\n` +
-    `  useEffect(() => {\n` +
-    `    const root = rootRef.current;\n` +
-    `    if (!root) return;\n` +
-    `    function toObject(form: HTMLFormElement) {\n` +
-    `      const data: Record<string, string> = {};\n` +
-    `      new FormData(form).forEach((v, k) => { data[k] = String(v); });\n` +
-    `      return data;\n` +
-    `    }\n` +
-    `    function wire(form: HTMLFormElement, type: string) {\n` +
-    `      form.addEventListener('submit', async (evt) => {\n` +
-    `        evt.preventDefault();\n` +
-    `        const honeypot = form.querySelector('input[name="website"], input[name="_honeypot"]') as HTMLInputElement | null;\n` +
-    `        if (honeypot && honeypot.value) return;\n` +
-    `        try {\n` +
-    `          const res = await fetch('/api/submit', {\n` +
-    `            method: 'POST',\n` +
-    `            headers: { 'Content-Type': 'application/json' },\n` +
-    `            body: JSON.stringify({ type, data: toObject(form) }),\n` +
-    `          });\n` +
-    `          if (!res.ok) throw new Error('submit_failed');\n` +
-    `          form.reset();\n` +
-    `        } catch {\n` +
-    `          /* feedback visuel géré par le composant généré (aria-live) */\n` +
-    `        }\n` +
-    `      });\n` +
-    `    }\n` +
-    `    root.querySelectorAll('[data-nexai-id="form-contact"], form[data-nexai-type="contact"]').forEach((f) => wire(f as HTMLFormElement, 'contact'));\n` +
-    `    root.querySelectorAll('form[data-nexai-type="reservation"]').forEach((f) => wire(f as HTMLFormElement, 'reservation'));\n` +
-    `    root.querySelectorAll('form[data-nexai-type="commande"]').forEach((f) => wire(f as HTMLFormElement, 'commande'));\n` +
-    `  }, []);\n`;
-
-  for (const page of pages) {
-    const fileName = page.slug === 'index' ? 'index.tsx' : `${page.slug}.tsx`;
-    const safeHtml = JSON.stringify(rewriteLinksForNextjs(page.html));
-    await writeFile(
-      path.join(targetDir, 'pages', fileName),
-      `import { useEffect, useRef } from 'react';\n\n` +
-        `// Page "${page.title}" générée par le pipeline IA NexAI, injectée telle quelle\n` +
-        `// (voir services/ia-pipeline.service.ts côté backend). Le contrat\n` +
-        `// data-nexai-id des composants reste identique à la version statique.\n` +
-        `const NEXAI_HTML = ${safeHtml};\n\n` +
-        `export default function Page() {\n${wiringHook}` +
-        `  return <div ref={rootRef} dangerouslySetInnerHTML={{ __html: NEXAI_HTML }} />;\n` +
-        `}\n`
-    );
-  }
 
   // Route API serveur du site — c'est LE vrai backend applicatif propre au
   // site (exécuté par Netlify Functions via le plugin Next.js), commune à
@@ -148,12 +99,11 @@ export async function scaffoldNextjsProject(params: {
   // site (validation avancée, calculs, intégrations tierces...) sans toucher
   // au backend central.
   await writeFile(
-    path.join(targetDir, 'pages', 'api', 'submit.ts'),
-    `import type { NextApiRequest, NextApiResponse } from 'next';\n\n` +
+    path.join(targetDir, 'pages', 'api', 'submit.js'),
       `const NEXAI_API_BASE = process.env.NEXT_PUBLIC_NEXAI_API_BASE;\n` +
       `const NEXAI_SITE_ID = process.env.NEXT_PUBLIC_NEXAI_SITE_ID;\n` +
       `const NEXAI_SITE_KEY = process.env.NEXT_PUBLIC_NEXAI_SITE_KEY;\n\n` +
-      `export default async function handler(req: NextApiRequest, res: NextApiResponse) {\n` +
+      `export default async function handler(req, res) {\n` +
       `  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });\n` +
       `  try {\n` +
       `    const upstream = await fetch(\`\${NEXAI_API_BASE}/api/v1/public/sites/\${NEXAI_SITE_ID}/submit\`, {\n` +
@@ -169,33 +119,10 @@ export async function scaffoldNextjsProject(params: {
       `}\n`
   );
 
-  await writeFile(
-    path.join(targetDir, 'tsconfig.json'),
-    JSON.stringify(
-      {
-        compilerOptions: {
-          target: 'ES2020',
-          lib: ['dom', 'ES2020'],
-          jsx: 'preserve',
-          module: 'esnext',
-          moduleResolution: 'node',
-          strict: false,
-          skipLibCheck: true,
-          esModuleInterop: true,
-          resolveJsonModule: true,
-          isolatedModules: true,
-          incremental: true,
-        },
-        include: ['**/*.ts', '**/*.tsx'],
-        exclude: ['node_modules'],
-      },
-      null,
-      2
-    )
-  );
+
 
   await writeFile(
     path.join(targetDir, 'README.md'),
-    `# ${siteName}\n\nProjet Next.js généré par NexAI (site ${siteId}).\nPages : ${pages.map((p) => p.slug).join(', ')}\n`
+    `# ${siteName}\n\nProjet Next.js généré par NexAI (site ${siteId}).\nPages (public/) : ${['index', ...slugs].join(', ')}\n`
   );
 }

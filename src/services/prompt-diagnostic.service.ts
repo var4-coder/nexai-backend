@@ -122,7 +122,7 @@ export async function lancerDiagnosticPrompts(options?: { forcer?: boolean }): P
   );
 
   const diagnosticRaw = await callClaude(
-    'claude-fable-5-1',
+    'claude-opus-5-5',
     PROMPT_DIAGNOSTIC_FABLE,
     [{ role: 'user', content: `Rapport qualité (30 derniers jours) :\n${rapportTexte}` }],
     { maxTokens: 1500, temperature: 0.2 }
@@ -144,7 +144,7 @@ export async function lancerDiagnosticPrompts(options?: { forcer?: boolean }): P
   }
 
   const redactionRaw = await callClaude(
-    modeleDiagnostic as 'claude-sonnet-5',
+    modeleDiagnostic as 'claude-sonnet-5-5',
     PROMPT_REDACTION_SONNET,
     [
       {

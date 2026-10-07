@@ -1,26 +1,26 @@
 [
   {
     "_id": "judges",
-    "source_file": "JUDGES.md (v3.1 — motivation ajoutée)",
-    "content_md": "# JUDGES.md — comment les juges NexAI décident (v4)\n\nLes juges appliquent EXACTEMENT les règles données au codeur (bloc commun :\nAI_RULES, REGLES_GENERATION, PERF, SCHEMA, CONTRAST, LAYOUTS, SLOP, COPY, SEO,\nLEGAL, MEDIA et la fiche de la niche). Chaque erreur relevée cite le numéro de\nla règle violée (ex. C1, M3, S3, PAY1). Une remarque qui ne correspond à\naucune règle numérotée est un simple conseil, jamais un veto.\n\n## Décision en 2 temps\n\n1. **VETO** — une seule règle marquée VETO violée = page refusée, quelle que\n   soit la note. Le réparateur corrige les vetos en priorité.\n2. **NOTE /100** — la page est notée avec le barème de son juge. La note sert\n   au routage : réparation si < 80, IA Aide si < 70 (plans payants), rapport\n   qualité, comparaison des codeurs (test A/B). Une page qui garde un veto\n   voit sa note finale plafonnée à 59.\n\nUn WARN seul n'est pas un veto. 3 WARN SLOP = 1 VETO (voir SLOP.md).\n\n## Juge code — tests\n\n| ID | Test | Gravité |\n|---|---|---|\n| M1 | viewport présent | VETO |\n| M3 | aucun débordement horizontal à 360 px | VETO |\n| T1 | Aucune couleur écrite hors des variables `:root` (hex/rgb/hsl) | MAJEUR |\n| T2 | Espacements ∈ {0,4,8,16,24,32,48,64} px (tokens) | MAJEUR |\n| T3 | Rayons = tokens de la niche | MAJEUR |\n| T4 | Typo : 2 familles max, 2 poids max, corps 16 px | VETO |\n| C1 | Paires texte/fond = PASS dans CONTRAST.md | VETO |\n| C2 | Cibles ≥ 44×44 | VETO |\n| C3 | `:focus-visible` visible (anneau 3 px), jamais `outline:none` seul | VETO |\n| C4 | `label[for]` sur chaque champ ; erreur liée par `aria-describedby` | VETO |\n| C5 | H1 unique, titres sans saut (h1→h2→h3) | VETO |\n| C6 | Lien d'évitement, `lang` = langue du client, `title` unique | VETO |\n| L1 | 1 CTA principal visible sans défiler, ordinateur ET mobile | VETO |\n| L2 | 1 seul bouton principal dans le hero | VETO |\n| L3 | Pied de page : mentions légales (+ confidentialité si formulaire, CGV si boutique) | WARN |\n| N1 | JSON-LD du type de la niche (SCHEMA.md), un seul bloc | VETO |\n| N2 | Nom/adresse/téléphone identiques en-tête, pied de page et schema (niche locale) | VETO |\n| P1 | Image LCP : `fetchpriority=high`, pas lazy, width+height | VETO |\n| P2 | Images sous la ligne de flottaison : `loading=lazy` + width/height | VETO |\n| P3 | `font-display:swap`, ≤ 1 préchargement de police | VETO |\n| P4 | `prefers-reduced-motion` respecté | VETO |\n| P5 | Pas de JS bloquant dans le hero | WARN |\n| A1 | Bouton / Nav / Formulaire / Pied de page = recettes de la Librairie | VETO |\n| A2 | États survol / focus / désactivé / chargement sur boutons et champs | VETO |\n| S1 | Aucun tell ★ de SLOP.md (dégradé violet, flou décoratif, halo…) | VETO |\n| R2 | Aucun chiffre, avis, note ou client inventé (un avis d'exemple balisé selon R4 n'est PAS une violation) | VETO |\n| R4 | Avis d'exemple : `data-origin=\"generated\"` + badge « Exemple » + aucune note chiffrée | VETO si un avis d'exemple n'est pas balisé |\n| PAY1–PAY5 | Bloc paiement conforme à la clientèle visée | MAJEUR |\n\nT1–T3 : vérifiés par le juge code (aucun script séparé). MAJEUR = pèse\nfortement dans la note, sans bloquer la page à lui seul.\n\n## Juge code — barème /100\n\n| Critère | Points | Règles regardées |\n|---|---|---|\n| responsive | 18 | M1–M7, C2 |\n| contraste_wcag | 12 | C1–C4 |\n| hierarchie_visuelle | 12 | L1, L2, C5, LAYOUTS |\n| distinctivite_anti_slop | 10 | S1–S21, W1–W10 |\n| espacement_coherent | 8 | T2, rythme LAYOUTS |\n| alignement_grille | 8 | grille 12 colonnes, conteneur |\n| coherence_palette | 8 | T1, S11, palette de la niche |\n| typographie | 6 | T4, S9, W9 |\n| sensation_pro | 6 | ensemble |\n| personnalite_niche | 6 | fiche niche, COPY, R1, PAY |\n| performance_percue | 4 | P1–P5 |\n| microinteractions_feedback | 2 | A2 |\n\n## Juge visuel — tests (captures 390 px téléphone + 1 280 px ordinateur)\n\n| ID | Test | Gravité |\n|---|---|---|\n| V1 | Vu en tout petit (test du plissement d'yeux) ≠ modèle « 3 cartes » | VETO |\n| V2 | Métier reconnaissable en 1 seconde | VETO |\n| V3 | Aucun tell ★ de SLOP.md | VETO |\n| V4 | 1 H1 ≤ 12 mots, propre à ce client (test du changement de nom) | VETO |\n| V5 | 1 CTA principal, contraste perçu nettement | VETO |\n| V6 | Preuve de confiance dans les 2 premiers écrans | VETO si local/santé/restaurant/hôtel, WARN sinon |\n| V7 | Rythme : écarts internes nettement plus petits que les écarts entre groupes | VETO si tout est équidistant |\n| V8 | Photo/interface réelle dans la direction de la niche | VETO si banque d'images générique |\n| V9 | Mobile 390 : CTA au pouce, 5 liens de menu max, aucun défilement horizontal | VETO |\n| V10 | Fond, clair/sombre et arrondis conformes à la niche | VETO |\n\n## Juge visuel — barème /100\n\n| Critère | Points | Tests |\n|---|---|---|\n| mobile_390 | 25 | V9, M3 |\n| premiere_impression_pro | 20 | V1, V3 |\n| hierarchie_cta | 15 | V4, V5 |\n| niche_reconnaissable | 10 | V2, V10 |\n| photos_medias | 10 | V8 |\n| rythme_espacement | 10 | V7 |\n| preuve_confiance | 10 | V6 |\n\n## Obligation de motivation (tous plans, tous juges)\n\nChaque juge renvoie, en plus de la note : la liste des VETO et WARN\ndéclenchés (numéros), une explication courte et actionnable par erreur, et\ndes conseils concrets. Ces motivations sont réutilisées par le réparateur,\nl'IA Aide et les alertes de l'administration.\n",
+    "source_file": "JUDGES.md (v5 — familles, M8–M10, TY, CO, K1–K7, V11–V12)",
+    "content_md": "# JUDGES.md — comment les juges NexAI décident (v5)\n\nLes juges appliquent EXACTEMENT les règles données au codeur (bloc commun + famille + fiche niche). Chaque erreur cite un numéro de règle. Sans numéro = conseil, jamais veto.\n\n## Décision en 2 temps\n1. **VETO** : une règle VETO violée = page refusée (note finale plafonnée à 59). Le réparateur corrige les vetos d'abord.\n2. **NOTE /100** : réparation si < 80, IA Aide si < 70 (plans payants).\n3. **LIVRAISON** : une page qui reste sous 70/100 (ou garde un veto) après les réparations est quand même livrée si ses défauts sont réparables par le client lui-même (« Modifier mon site » : textes, photos, couleurs, sections). Elle n'est **pas livrable** seulement si un défaut GRAVE non réparable par le client reste : page blanche, page coupée ou cassée, contenu invisible, texte illisible sur une grande partie de la page. Dans ce cas seulement : nouvelle génération avec une nouvelle combinaison. Note finale = 0,6 × code + 0,4 × visuel.\nUn WARN seul n'est pas un veto. 3 WARN SLOP = 1 VETO.\n\n## Méthode (obligatoire)\n- Juge code : lire le `<head>` (viewport, polices, `:root`), puis chaque section. Vérifier chaque valeur de couleur contre les variables de la famille, chaque interligne de titre contre TY1, chaque prix contre M8.\n- Juge visuel : téléphone 390 px d'abord, puis ordinateur 1 280 px. Pour chaque écran : (1) masse dominante et CTA, (2) textes qui se touchent ou sont coupés, (3) texte sur photo lisible, (4) cohérence avec la famille (fond, accent unique, style reconnaissable).\n- Motiver chaque veto par ce qui est VU (« prix « 9 000 F » coupé sur 2 lignes, carte 3, 390 px »), pas par une supposition.\n\n## Juge code — tests\n| ID | Test | Gravité |\n|---|---|---|\n| M1 | viewport présent | VETO |\n| M3 | aucun débordement horizontal à 360 px | VETO |\n| M8 | prix / horaires / téléphones en `nowrap` | MAJEUR |\n| M10 | aucun élément positionné (absolute, fixed, transform) ne recouvre un texte | VETO |\n| TY1 | interlignes des titres ≥ minimums | VETO |\n| TY3 | mono jamais en paragraphe | MAJEUR |\n| T1 | aucune couleur hors variables `:root` de la famille | VETO (= K2) |\n| T2 | espacements = tokens (`--space-*`, `--section-y`) | MAJEUR |\n| T3 | rayons = ceux du style | MAJEUR |\n| T4 | 2 familles de polices (+ mono du style Plan), graisses de la recette, corps 16 px | VETO |\n| CO1–CO5 | accent en texte, décor, voile, bouton photo, pas d'opacité sur texte | VETO si contraste < seuil, sinon MAJEUR |\n| C1 | contrastes des paires utilisées ≥ seuils de CONTRAST.md | VETO |\n| C2 | cibles ≥ 44 × 44 | VETO |\n| C3 | `:focus-visible` visible (anneau 3 px), jamais `outline:none` seul | VETO |\n| C4 | `label[for]` sur chaque champ, erreur liée par `aria-describedby` | VETO |\n| C5 | H1 unique, titres sans saut | VETO |\n| C6 | lien d'évitement, `lang`, `title` unique | VETO |\n| L1 | 1 CTA principal visible sans défiler, ordinateur ET mobile | VETO |\n| L2 | 1 seul bouton principal dans le hero | VETO |\n| L3 | pied de page : mentions légales (+ confidentialité si formulaire, CGV si boutique) | WARN |\n| N1 | JSON-LD du type de la niche, un seul bloc | VETO |\n| N2 | NAP identique en-tête, pied de page et schema | VETO |\n| P1 | image LCP : `fetchpriority=high`, pas lazy, width+height | VETO |\n| P2 | images sous la ligne de flottaison : `loading=lazy` + width/height | VETO |\n| P3 | polices : lien Google Fonts `display=swap` + `preconnect`, ≤ 2 familles | VETO |\n| P4 | `prefers-reduced-motion` respecté (bandeau défilant arrêté) | VETO |\n| P5 | pas de JS bloquant dans le hero | WARN |\n| A1 | bouton / nav / formulaire / pied de page = recettes de la Librairie | VETO |\n| A2 | états survol / focus / désactivé / chargement | VETO |\n| K1–K7 | contrôles des familles (FAMILLES.md) | VETO sauf K7 MAJEUR |\n| S1 | aucun tell ★ de SLOP.md | VETO |\n| R2 | aucune donnée inventée (un avis d'exemple balisé R4 n'est pas une violation) | VETO |\n| R4 | avis d'exemple balisés | VETO si non balisé |\n| PAY1–PAY5 | bloc paiement conforme à la clientèle | MAJEUR |\n\n### Vetos ajoutés (règles V10, 02/10)\n- Couleur écrite en dur hors variables de la famille.\n- Style, famille ou type de hero différent de celui imposé par le backend.\n- H1 posé sur photo : `max-width` > 16ch ou zone de texte > 42 % de la largeur à 1 280 px.\n- `prefers-reduced-motion` non respecté ; contenu caché tant qu'un script n'a pas tourné (page testée aussi SANS JS).\n- Image cassée, `.ph-empty` visible, URL photo hors liste.\n\n## Juge code — barème /100\n| Critère | Points | Règles |\n|---|---|---|\n| responsive | 18 | M1–M10, C2 |\n| contraste_wcag | 12 | C1–C4, CO1–CO5 |\n| hierarchie_visuelle | 12 | L1, L2, C5, M9, LAYOUTS |\n| fidelite_famille | 10 | K1–K7, T1, T3, T4 |\n| distinctivite_anti_slop | 10 | S1–S22, W1–W9 |\n| typographie | 8 | TY1–TY5 |\n| espacement_coherent | 8 | T2, rythme |\n| alignement_grille | 6 | grille, conteneur |\n| personnalite_niche | 6 | fiche niche, COPY, R1, PAY |\n| performance_percue | 6 | P1–P5 |\n| microinteractions_feedback | 4 | A2 |\n\n## Juge visuel — tests (390 px puis 1 280 px)\n| ID | Test | Gravité |\n|---|---|---|\n| V1 | vu en tout petit ≠ modèle « rectangle + 3 cartes » | VETO |\n| V2 | métier reconnaissable en 1 seconde | VETO |\n| V3 | aucun tell ★ de SLOP.md | VETO |\n| V4 | 1 H1 ≤ 12 mots, propre au client (test du changement de nom) | VETO |\n| V5 | 1 CTA principal, nettement contrasté | VETO |\n| V6 | preuve de confiance dans les 2 premiers écrans | VETO local / santé / restaurant / hôtel, WARN sinon |\n| V7 | rythme : écarts internes < écarts entre groupes | VETO si tout est équidistant |\n| V8 | photo / interface réelle dans la direction de la niche | VETO si banque d'images générique |\n| V9 | mobile 390 : CTA au pouce, 5 liens max, aucun défilement horizontal | VETO |\n| V10 | la page ressemble à SA famille (style reconnaissable, palette respectée, 1 accent) | VETO |\n| V11 | aucun texte coupé, collé, chevauché ou masqué (titres, prix, légendes, boutons) | VETO |\n| V12 | texte sur photo lisible sans effort | VETO |\n\n## Juge visuel — barème /100 et repères\n| Critère | Points | Tests |\n|---|---|---|\n| mobile_390 | 25 | V9, V11 |\n| premiere_impression_pro | 20 | V1, V3, V10 |\n| hierarchie_cta | 15 | V4, V5 |\n| niche_reconnaissable | 10 | V2 |\n| photos_medias | 10 | V8, V12 |\n| rythme_espacement | 10 | V7 |\n| preuve_confiance | 10 | V6 |\n\nRepères de notation : **90+** = on la mettrait dans un portfolio d'agence (aucun défaut visible, style net, contenu réel). **80–89** = pro, 1 ou 2 défauts mineurs. **70–79** = correcte mais générique ou 1 défaut visible (réparer). **< 70** = amateur : à réparer en priorité (livrée sauf défaut grave non réparable par le client).\n\n### Ce qui fait une note ≥ 90 (repris de la V10)\n- Haut de page lisible en 1 seconde : titre, phrase, bouton ; sujet de la photo libre.\n- Typographie soignée : tailles fluides (`clamp`), titres serrés sans lettres qui se touchent.\n- Un seul mouvement utile, ou aucun.\n- Téléphone 390 px aussi propre que l'ordinateur.\n- SaaS : interface qui paraît utilisée (états réels).\n- Espacements réguliers (échelle de 4/8 px), aucun vide au hasard.\n- Photos cohérentes entre elles (même lumière, même étalonnage), aucune photo de banque d'images cliché.\n\n## Obligation de motivation\nChaque juge renvoie : les VETO et WARN (numéros), une explication courte et actionnable par erreur, des conseils concrets.",
     "severity_weights": {
       "_comment": "Poids utilisés UNIQUEMENT pour calculer un score de routage post-jugement. Ne remplace jamais la règle VETO=FAIL de JUDGES.md/ROUTING.md — un seul VETO présent bloque le ship, quel que soit le score obtenu ici. bloquant=15, majeur=8, mineur=4, warn=2 (générique).",
       "code_judge": {
         "T1": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "T2": {
           "gravite": "majeur",
           "poids": 8
         },
-        "T2": {
-          "gravite": "mineur",
-          "poids": 4
-        },
         "T3": {
-          "gravite": "mineur",
-          "poids": 4
+          "gravite": "majeur",
+          "poids": 8
         },
         "T4": {
-          "gravite": "mineur",
-          "poids": 4
+          "gravite": "bloquant",
+          "poids": 15
         },
         "C1": {
           "gravite": "bloquant",
@@ -89,6 +89,70 @@
         "S1": {
           "gravite": "bloquant",
           "poids": 15
+        },
+        "M8": {
+          "gravite": "majeur",
+          "poids": 8
+        },
+        "M10": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "TY1": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "TY3": {
+          "gravite": "majeur",
+          "poids": 8
+        },
+        "CO1": {
+          "gravite": "majeur",
+          "poids": 8
+        },
+        "CO2": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "CO3": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "CO4": {
+          "gravite": "majeur",
+          "poids": 8
+        },
+        "CO5": {
+          "gravite": "majeur",
+          "poids": 8
+        },
+        "K1": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "K2": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "K3": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "K4": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "K5": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "K6": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "K7": {
+          "gravite": "majeur",
+          "poids": 8
         }
       },
       "visual_judge": {
@@ -129,8 +193,16 @@
           "poids": 15
         },
         "V10": {
-          "gravite": "mineur",
-          "poids": 4
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "V11": {
+          "gravite": "bloquant",
+          "poids": 15
+        },
+        "V12": {
+          "gravite": "bloquant",
+          "poids": 15
         }
       },
       "warn_default_poids": 2,
@@ -139,6 +211,6 @@
         "visuel": 0.4
       }
     },
-    "seed_version": 5
+    "seed_version": 8
   }
 ]

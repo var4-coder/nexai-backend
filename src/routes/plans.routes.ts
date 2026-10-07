@@ -132,12 +132,22 @@ plansRouter.post('/acheter', requireAuth, async (req: Request, res: Response, ne
       .parse(req.body);
 
     const user = await User.findById(req.auth!.userId).select(
-      'email plan prenom nom telephone telephonePays'
+      'email plan prenom nom telephone telephonePays planExpiresAt'
     );
     if (!user) throw new AppError('Utilisateur introuvable', 404);
 
-    if (user.plan === body.plan) {
-      throw new AppError('Vous êtes déjà abonné à cette formule.', 400);
+    // Renouvellement : un abonnement arrivé à échéance garde son nom de plan
+    // mais n'ouvre plus de droits. Le refuser ici (« déjà abonné ») empêchait
+    // le client de renouveler. On ne bloque donc que s'il reste plus de 7 jours
+    // (le webhook ajoute la nouvelle période aux jours restants, rien n'est perdu).
+    const SEPT_JOURS_MS = 7 * 24 * 3600 * 1000;
+    const joursRestantsMs = user.planExpiresAt ? user.planExpiresAt.getTime() - Date.now() : 0;
+    if (user.plan === body.plan && joursRestantsMs > SEPT_JOURS_MS) {
+      const jusquau = user.planExpiresAt!.toLocaleDateString('fr-FR');
+      throw new AppError(
+        `Votre abonnement est actif jusqu'au ${jusquau}. Vous pourrez le renouveler dans les 7 derniers jours.`,
+        400
+      );
     }
 
     const plan = PLANS.find((p) => p.id === body.plan);

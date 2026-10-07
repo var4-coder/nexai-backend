@@ -289,3 +289,10 @@ Environ **24 à 33 $/mois** pour démarrer.
 
 > Évitez le plan gratuit Render pour l'API : le service s'endort après
 > inactivité, ce qui interrompt les générations en cours.
+
+## Librairie v8 (02/10/2026)
+
+- Au premier démarrage, la Librairie en base est remplacée UNE fois par la v8 (génération `v8-2026-10-02`) ; l'ancienne version est sauvegardée dans la collection `library_sauvegardes`. Ensuite, les documents modifiés dans l'admin restent protégés comme avant.
+- Nouveaux fichiers servis par l'API : `/kit/gsap.min.js`, `/kit/ScrollTrigger.min.js`, `/kit/form.js`, `/kit/form.css`, `/kit/motion.js` (dossier `seed-data/kit`). `PUBLIC_API_BASE_URL` doit être l'adresse publique de l'API (les aperçus chargent GSAP depuis elle).
+- Variable facultative `PHOTO_NETTETE_MIN` (défaut 0 = filtre de netteté désactivé). La netteté de chaque nouvelle photo de la galerie est mesurée et enregistrée (champ `nettete`) : choisir le seuil après avoir regardé ~50 photos, puis le régler.
+- Le pré-juge par programme (`seed-data/labo/checks2.js`) utilise le Chromium déjà installé par le Dockerfile.

@@ -15,7 +15,7 @@ import { AppError } from '@/middleware/errorHandler';
  * limite — sans que personne ne le voie avant les clients.
  */
 
-const MODELE = 'claude-sonnet-5';
+const MODELE = 'claude-sonnet-5-5';
 
 const CONSIGNE = `Tu mets à jour les textes commerciaux d'une plateforme de création de sites web.
 

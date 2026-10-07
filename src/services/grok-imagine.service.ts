@@ -41,6 +41,13 @@ export async function generateGrokImagine(params: {
    * précisent rien gardent exactement le comportement et le coût d'avant.
    */
   tier?: GrokImageTier;
+  /**
+   * Définition de sortie (grok-imagine-image-2.0 uniquement) : '1k' par
+   * défaut chez xAI, '2k' pour les images de site (exigence de qualité
+   * NexAI). Tarif vérifié le 03/10/2026 : ≈ 0,09 $ l'image en 2K qualité
+   * moyenne, image de référence comprise.
+   */
+  resolution?: '1k' | '2k';
 }): Promise<{ url: string }> {
   if (!env.XAI_API_KEY) {
     throw new AppError('XAI_API_KEY manquante — configure-la sur Render', 503);
@@ -58,6 +65,9 @@ export async function generateGrokImagine(params: {
 
   if (params.aspectRatio) {
     body.aspect_ratio = params.aspectRatio;
+  }
+  if (params.resolution && params.tier === 'v2') {
+    body.resolution = params.resolution;
   }
 
   if (isEdit && params.imageUrl) {
@@ -91,10 +101,12 @@ export async function generateGrokImagine(params: {
     data?: Array<{ url?: string }>;
     url?: string;
     images?: Array<{ url?: string }>;
+    image?: { url?: string };
   };
-  // Formats possibles selon version API
+  // Formats possibles selon version API (l'édition renvoie « image.url », doc xAI 10/2026).
   const url =
     data.data?.[0]?.url ||
+    data.image?.url ||
     data.url ||
     data.images?.[0]?.url ||
     null;

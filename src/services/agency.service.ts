@@ -8,8 +8,7 @@ import { User, UserPlan } from '@/models/User';
 import { AppError } from '@/middleware/errorHandler';
 import { deploySite } from '@/services/netlify.service';
 import { createZipBuffer } from '@/utils/zip';
-import { injectPublicBackendScript } from '@/utils/injectBackend';
-import { retirerContenuExemple } from '@/utils/contenuExemple';
+import { adresseDuSite, fichiersStatiques, preparerPagesPourPublication } from '@/services/publication.service';
 import { generatePublicApiKey } from '@/utils/crypto';
 import { scaffoldNextjsProject } from '@/services/nextjs-pipeline.service';
 import { buildAndDeployNextjsSite } from '@/services/netlify-nextjs.service';
@@ -287,11 +286,22 @@ export async function quickEditSite(
     if (!site.publicApiKey) {
       site.publicApiKey = generatePublicApiKey();
     }
-    // Avis d'EXEMPLE de l'aperçu retirés avant toute mise en ligne.
-    const allPages: { slug: string; title: string; html: string }[] = [
-      { slug: 'index', title: 'Accueil', html: chosen.htmlDemo },
-      ...(chosen.pages || []),
-    ].map((p) => ({ ...p, html: retirerContenuExemple(p.html || '').html }));
+    // Même préparation qu'à la mise en ligne (publication.service) : suivi
+    // des visites, lien de paiement, avis d'exemple retirés, adresse réelle,
+    // pages légales, kit NexAI, formulaires branchés.
+    const preparation = preparerPagesPourPublication({
+      siteId: String(site._id),
+      publicApiKey: site.publicApiKey!,
+      pages: [
+        { slug: 'index', title: 'Accueil', html: chosen.htmlDemo },
+        ...(chosen.pages || []).map((p) => ({ slug: p.slug, title: p.title, html: p.html || '' })),
+      ],
+      brief: site.brief ?? {},
+      nomSite: site.name || String((site.brief as { brandName?: string })?.brandName ?? ''),
+      siteUrl: adresseDuSite({ domainName: site.domainName, subdomainSlug: site.subdomainSlug }),
+      paymentLink: site.paymentLink,
+    });
+    const fichiers = fichiersStatiques(preparation.pages, preparation.gsap);
 
     try {
       if (site.siteType === 'nextjs') {
@@ -304,8 +314,8 @@ export async function quickEditSite(
             targetDir: projectDir,
             siteId: String(site._id),
             siteName: site.name || String(site._id),
-            pages: allPages,
-            publicApiKey: site.publicApiKey,
+            fichiers,
+            publicApiKey: site.publicApiKey!,
             publicApiBaseUrl: env.PUBLIC_API_BASE_URL,
           });
           await buildAndDeployNextjsSite({ projectDir, netlifySiteId: site.netlifySiteId });
@@ -313,16 +323,7 @@ export async function quickEditSite(
           await rm(projectDir, { recursive: true, force: true }).catch(() => {});
         }
       } else {
-        const zipEntries = allPages.map((p) => ({
-          path: p.slug === 'index' ? 'index.html' : `${p.slug}.html`,
-          content: injectPublicBackendScript({
-            html: p.html,
-            siteId: String(site._id),
-            publicApiKey: site.publicApiKey!,
-            apiBaseUrl: env.PUBLIC_API_BASE_URL,
-          }),
-        }));
-        const zipBuffer = createZipBuffer(zipEntries);
+        const zipBuffer = createZipBuffer(fichiers);
         await deploySite(site.netlifySiteId, zipBuffer);
       }
       redeployed = true;

@@ -96,7 +96,6 @@ async function relancerEnVariation(siteId: string, userId: string): Promise<stri
     // reproduction : nouveau seed de direction artistique + pool de
     // composants à réagencer différemment.
     forceVariation: true,
-    refabricationFable: true,
     seedOverride: `retry_${Date.now()}`,
     composantsAlternatifs,
   });
@@ -146,7 +145,7 @@ export async function fableDeciderSurAlerte(alerteId: string): Promise<{
   let decision: DecisionFable | null = null;
   try {
     const raw = await callClaude(
-      'claude-fable-5-1',
+      'claude-opus-5-5',
       PROMPT_FABLE_ALERTE,
       [
         {

@@ -2,7 +2,120 @@
   {
     "_id": "media",
     "source_file": "MEDIA.md",
-    "content_md": "# MEDIA.md — contraintes média (Pexels / Imagine / Alexya)\n\n## Principe\n\nLa librairie ne shippe aucune photo. Elle shippe des contraintes. Chaque\nniche (`niches/{slug}.json`) contient un bloc `photo` avec `style`, `ratio`,\net `dont`. Le fournisseur d'image (Pexels, Imagine, Alexya) doit lire ce\nbloc **avant** d'appeler son API — pas re-choisir après coup une image qui\n\"a l'air bien\".\n\n## Ce que le fournisseur média doit faire, dans l'ordre\n\n1. Charger `niches/{slug}.json` → extraire `photo.style`, `photo.ratio`, `photo.dont`\n2. Construire la requête de recherche/génération à partir de `photo.style`\n   (ex. sante → \"lumière naturelle, plantes, portraits rassurants non stock,\n   cabinet réel\", jamais une requête générique \"healthcare office\")\n3. Filtrer les résultats contre `photo.dont` de la niche ET contre S14 de\n   SLOP.md (stock \"équipe qui rit\", caducée clipart, 3D splat, illustration\n   générique)\n4. Recadrer/exporter au ratio exact attendu (`photo.ratio` ou `media` dans\n   `global.json` : hero 16/9, card 4/3, portrait 3/4, product 4/5, story 9/16)\n5. Exporter en WebP/AVIF, respecter le budget LCP (PERF.md)\n\n## Ce qui est un check média (indépendant des juges design)\n\nCes points ne sont **jamais** notés par le Juge visuel —\nc'est un check technique à part, même famille que P1/P2 de JUDGES.md :\n\n- [ ] `alt` renseigné et descriptif (pas \"image1\", pas vide)\n- [ ] Ratio exporté = ratio attendu par la niche/le composant\n- [ ] Format WebP/AVIF, poids compressé raisonnable\n- [ ] `width`/`height` posés (CLS)\n- [ ] Image LCP : `fetchpriority=\"high\"`, jamais `loading=\"lazy\"`\n- [ ] Image below-fold : `loading=\"lazy\"`\n\n## Ce qui reste un check design (Juge visuel, PAS média)\n\nLe Juge visuel note la composition et la cohérence photo/marque — jamais\n\"est-ce que Pexels a bien compris le brief\". Concrètement il vérifie :\n\n- V8 (JUDGES.md) : photo/UI réelle dans la direction de la niche, pas de\n  stock générique reconnaissable — c'est un jugement de composition et de\n  ton, pas une vérification que le bon mot-clé a été cherché.\n- S13 (SLOP.md) : overlay ≥ 40% si texte sur photo, contraste mesuré.\n- S14 (SLOP.md) : tells de stock cliché.\n\n## Pourquoi cette séparation\n\nUn juge LLM qui essaierait de noter \"la photo correspond-elle bien à la\nrequête envoyée à Pexels\" inventerait un critère non mesurable (il ne voit\npas la requête, seulement le résultat). Le seul critère fiable pour lui est\nvisuel : est-ce que la photo, telle qu'elle apparaît sur la page, a l'air\nd'un stock générique ou d'une direction de marque cohérente. Le reste (alt,\nratio, format, lazy) est un fait binaire vérifiable par script, pas par un\njugement esthétique — donc traité comme MEDIA.md, pas comme JUDGES.md.\n",
-    "seed_version": 4
+    "content_md": "# MEDIA.md — contraintes média (Pexels / Imagine / Alexya)\n\n## Principe\n\nLa librairie ne shippe aucune photo. Elle shippe des contraintes. Chaque\nniche (`niches/{slug}.json`) contient un bloc `photo` avec `style`, `ratio`,\net `dont`. Le fournisseur d'image (Pexels, Imagine, Alexya) doit lire ce\nbloc **avant** d'appeler son API — pas re-choisir après coup une image qui\n\"a l'air bien\".\n\n## Ce que le fournisseur média doit faire, dans l'ordre\n\n1. Charger `niches/{slug}.json` → extraire `photo.style`, `photo.ratio`, `photo.dont`\n2. Construire la requête de recherche/génération à partir de `photo.style`\n   (ex. sante → \"lumière naturelle, plantes, portraits rassurants non stock,\n   cabinet réel\", jamais une requête générique \"healthcare office\")\n3. Filtrer les résultats contre `photo.dont` de la niche ET contre S14 de\n   SLOP.md (stock \"équipe qui rit\", caducée clipart, 3D splat, illustration\n   générique)\n4. Recadrer/exporter au ratio exact attendu (`photo.ratio` ou `media` dans\n   `global.json` : hero 16/9, card 4/3, portrait 3/4, product 4/5, story 9/16)\n5. Exporter en WebP/AVIF, respecter le budget LCP (PERF.md)\n\n## Ce qui est un check média (indépendant des juges design)\n\nCes points ne sont **jamais** notés par le Juge visuel —\nc'est un check technique à part, même famille que P1/P2 de JUDGES.md :\n\n- [ ] `alt` renseigné et descriptif (pas \"image1\", pas vide)\n- [ ] Ratio exporté = ratio attendu par la niche/le composant\n- [ ] Format WebP/AVIF, poids compressé raisonnable\n- [ ] `width`/`height` posés (CLS)\n- [ ] Image LCP : `fetchpriority=\"high\"`, jamais `loading=\"lazy\"`\n- [ ] Image below-fold : `loading=\"lazy\"`\n\n## Ce qui reste un check design (Juge visuel, PAS média)\n\nLe Juge visuel note la composition et la cohérence photo/marque — jamais\n\"est-ce que Pexels a bien compris le brief\". Concrètement il vérifie :\n\n- V8 (JUDGES.md) : photo/UI réelle dans la direction de la niche, pas de\n  stock générique reconnaissable — c'est un jugement de composition et de\n  ton, pas une vérification que le bon mot-clé a été cherché.\n- S13 (SLOP.md) : voile ≥ 55 % sous un texte posé sur photo (CO3), contraste mesuré.\n- S14 (SLOP.md) : tells de stock cliché.\n\n## Pourquoi cette séparation\n\nUn juge LLM qui essaierait de noter \"la photo correspond-elle bien à la\nrequête envoyée à Pexels\" inventerait un critère non mesurable (il ne voit\npas la requête, seulement le résultat). Le seul critère fiable pour lui est\nvisuel : est-ce que la photo, telle qu'elle apparaît sur la page, a l'air\nd'un stock générique ou d'une direction de marque cohérente. Le reste (alt,\nratio, format, lazy) est un fait binaire vérifiable par script, pas par un\njugement esthétique — donc traité comme MEDIA.md, pas comme JUDGES.md.\n\n\n## Photos autorisées (repris de la V10)\n1. Le backend remplit la liste « PHOTOS AUTORISÉES » AVANT le codeur, dans cet ordre : (a) photos validées du client ; (b) galerie Pexels NexAI de la niche ; (c) si (a) et (b) ne couvrent pas tous les emplacements : collecte automatique Pexels (requête construite depuis `photo.style` de la niche, ratio de l'emplacement, largeur ≥ 1600 px, contrôles `photo.dont`). Le codeur n'utilise QUE les URL de cette liste : il n'appelle jamais Pexels lui-même et n'invente jamais d'URL. **VETO** si une URL hors liste apparaît.\n2. **Le client ne voit jamais d'emplacement vide.** `.ph-empty` n'est qu'un état technique interne : si un emplacement reste sans photo après (c), le backend relance la collecte ; si elle échoue encore, le codeur passe à la variante de la section SANS photo (texte seul ou aplat de la famille), jamais un bloc vide. **VETO** du juge visuel si un `.ph-empty` ou une image cassée est visible sur une page à publier.\n3. Nombre et ratios des emplacements par niche : `allowlist.photo_slots`.\n\n## Filtre de qualité des photos Pexels (galerie NexAI et collecte automatique)\nCe filtre est appliqué par le **backend**, avant le codeur, à chaque photo candidate. Une photo qui échoue à un point passe à la suivante.\n\n**Repris de la V10** : refus des photos floues ; largeur ≥ 1 600 px ; le client choisit dans 6 propositions de SA niche (`a_choisir`) ; étalonnage léger par style (`--img-filter`, `--grade` ≤ 0,05) pour que des photos de sources différentes paraissent de la même série.\n**Repris de ta librairie** : requête construite depuis `photo.style` de la niche ; exclusions `photo.dont`.\n\n| Contrôle | Règle | Vérifiable par |\n|---|---|---|\n| Taille | ≥ 1 600 px de large en section, ≥ 2 400 px en photo plein écran | API Pexels (`width`) |\n| Cadrage | ratio d'origine proche de l'emplacement : recadrage ≤ 25 % de l'image | API Pexels (`width`, `height`) + `photo_slots` |\n| Netteté | refus si flou (variance du Laplacien sous le seuil ; seuil à calibrer sur 50 photos de la galerie) | script backend |\n| Sujet | mots de `photo.dont` et clichés absents du texte `alt` Pexels : poignée de main, pouce levé, fond blanc détouré, open space posé, mains sur clavier, ampoule « idée » | API Pexels (`alt`) |\n| Marché | si des personnes sont visibles : personnes et lieux cohérents avec la clientèle du client (Afrique de l'Ouest par défaut) | requête + juge visuel |\n| Texte sur la photo | zone du titre (bas gauche, ou centre pour Luxe) assez calme et sombre pour que le voile suffise ; le contraste final est **mesuré sur la page** ; s'il échoue, photo suivante | juge code |\n| Cohérence | même photographe ou même lumière sur un site quand c'est possible ; style sombre = photos sombres | API Pexels (`photographer_id`, `avg_color`) |\n| Anti-clone | une même photo (identifiant Pexels) jamais en haut de page pour deux clients du même métier | base backend |\n\nLe juge visuel garde le dernier mot : **VETO** sur une photo cliché de banque d'images (S14) ou une série incohérente.",
+    "seed_version": 7,
+    "structured": {
+      "photo_slots": {
+        "restaurant_gastronomie": {
+          "a_choisir": 2,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Salle / service"
+            },
+            {
+              "slot": "plat",
+              "ratio": "4:5",
+              "label": "Plat"
+            }
+          ]
+        },
+        "hotellerie_evenementiel": {
+          "a_choisir": 2,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Façade / vue"
+            },
+            {
+              "slot": "chambre",
+              "ratio": "4:3",
+              "label": "Chambre"
+            }
+          ]
+        },
+        "ecommerce_mode": {
+          "a_choisir": 2,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Look"
+            },
+            {
+              "slot": "piece",
+              "ratio": "3:4",
+              "label": "Pièce"
+            }
+          ]
+        },
+        "immobilier_architecture": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Façade"
+            }
+          ]
+        },
+        "sante_bienetre": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "accueil",
+              "ratio": "4:3",
+              "label": "Salle d'attente"
+            }
+          ]
+        },
+        "services_locaux": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "21:9",
+              "label": "Chantier / local"
+            }
+          ]
+        },
+        "education_formation": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Plateau / salle"
+            }
+          ]
+        },
+        "business_vitrine": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "16:9",
+              "label": "Local / vitrine"
+            }
+          ]
+        },
+        "portfolio_creatif": {
+          "a_choisir": 1,
+          "slots": [
+            {
+              "slot": "hero",
+              "ratio": "4:3",
+              "label": "Atelier / œuvre"
+            }
+          ]
+        },
+        "tech_startup_saas": {
+          "a_choisir": 0,
+          "slots": []
+        }
+      }
+    }
   }
 ]

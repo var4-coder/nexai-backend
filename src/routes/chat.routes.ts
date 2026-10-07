@@ -44,7 +44,7 @@ chatRouter.post('/start', requireAuth, chatLimiter, async (req: Request, res: Re
     const body = z
       .object({
         clientId: z.string().optional(),
-        mode: z.enum(['site', 'logo', 'edit', 'business']).optional().default('site'),
+        mode: z.enum(['site', 'logo', 'edit', 'business', 'skill']).optional().default('site'),
         editSiteId: z.string().optional(),
       })
       .parse(req.body ?? {});
@@ -76,7 +76,7 @@ chatRouter.post(
     try {
       const body = z
         .object({
-          mode: z.enum(['site', 'logo', 'edit', 'business']),
+          mode: z.enum(['site', 'logo', 'edit', 'business', 'skill']),
           editSiteId: z.string().optional(),
         })
         .parse(req.body);
@@ -134,7 +134,8 @@ chatRouter.post(
                 name: z.string().optional(),
               })
             )
-            .max(5)
+            // 8 : le client peut envoyer en une fois toutes les photos de son site.
+            .max(8)
             .optional(),
         })
         .refine((v) => v.reply.length > 0 || (v.attachments && v.attachments.length > 0), {

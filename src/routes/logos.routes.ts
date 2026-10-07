@@ -4,7 +4,14 @@ import { requireAuth } from '@/middleware/auth';
 import { User } from '@/models/User';
 import { Site } from '@/models/Site';
 import { Logo } from '@/models/Logo';
-import { debitCredits, creditCredits, CREDIT_COSTS, getLogoQuotaInfo } from '@/services/credits.service';
+import {
+  debitCredits,
+  creditCredits,
+  CREDIT_COSTS,
+  getLogoQuotaInfo,
+  reserverLogoInclus,
+  restituerLogoInclus,
+} from '@/services/credits.service';
 import { generateLogoProposals, generateEmbellishmentImage } from '@/services/recraft.service';
 import { AppError } from '@/middleware/errorHandler';
 
@@ -53,15 +60,12 @@ logosRouter.post('/generate', requireAuth, async (req: Request, res: Response, n
       .parse(req.body);
 
     // Quota logos inclus (Agence 2 / Pro Max 3) — gratuit tant qu'il reste du quota
-    const quota = getLogoQuotaInfo(user.plan, user.logosUsed || 0);
     let creditsSpent = 0;
     let usedIncludedQuota = false;
     // Solde renvoyé dans la réponse (voir plus bas) pour rafraîchir l'affichage
     // frontend immédiatement, sans dépendre d'un second appel.
     let creditsBalanceAfter = user.creditsBalance;
-    if (quota.canUseIncluded) {
-      user.logosUsed = (user.logosUsed || 0) + 1;
-      await user.save();
+    if (await reserverLogoInclus(user._id, user.plan)) {
       creditsSpent = 0;
       usedIncludedQuota = true;
     } else {
@@ -86,8 +90,7 @@ logosRouter.post('/generate', requireAuth, async (req: Request, res: Response, n
       // ce qui a été consommé plutôt que de faire perdre du quota/crédits
       // au client pour un logo qu'il n'a jamais reçu.
       if (usedIncludedQuota) {
-        user.logosUsed = Math.max(0, (user.logosUsed || 0) - 1);
-        await user.save();
+        await restituerLogoInclus(user._id);
       } else if (creditsSpent > 0) {
         creditsBalanceAfter = await creditCredits(user._id, creditsSpent, 'ajustement_admin', {
           relatedSiteId: body.siteId,
@@ -120,10 +123,12 @@ logosRouter.post('/generate', requireAuth, async (req: Request, res: Response, n
       }
     }
 
+    // Quota restant relu en base après la réservation atomique.
+    const apres = await User.findById(user._id).select('logosUsed');
     res.status(201).json({
       proposals,
       creditsSpent,
-      logosRemaining: Math.max(0, quota.remaining - (creditsSpent === 0 ? 1 : 0)),
+      logosRemaining: getLogoQuotaInfo(user.plan, apres?.logosUsed ?? 0).remaining,
       creditsBalance: creditsBalanceAfter,
     });
   } catch (err) {

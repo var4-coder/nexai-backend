@@ -347,10 +347,9 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
 
   if (metaType === 'credit_purchase') {
     const transactionId = String(meta.transactionId || '');
-    const quantity = meta.quantity ? parseInt(String(meta.quantity), 10) : undefined;
     if (transactionId) {
       const { CreditsService } = await import('@/services/credits.service');
-      await CreditsService.fulfillCreditPurchase(transactionId, quantity);
+      await CreditsService.fulfillCreditPurchase(transactionId);
     }
     return {
       _id: transactionId || payload.reference,
@@ -370,48 +369,80 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
     const { PLAN_CREDITS } = await import('@/services/credits.service');
     const { CreditTransaction } = await import('@/models/CreditTransaction');
 
-    const dejaTraite = await CreditTransaction.findOne({
-      type: 'achat_abonnement',
-      referencePaiement: payload.reference,
-    });
-    if (dejaTraite) {
-      console.log(`[chariow] Abonnement déjà traité pour la réf. ${payload.reference} — rejeu ignoré.`);
-      return {
-        _id: userId,
-        type: 'plan_purchase',
-        referenceChariow: payload.reference,
-      } as unknown as InstanceType<typeof PaiementChariow>;
-    }
+    const reponseRejeu = {
+      _id: userId,
+      type: 'plan_purchase',
+      referenceChariow: payload.reference,
+    } as unknown as InstanceType<typeof PaiementChariow>;
 
     const user = await User.findById(userId);
     if (!user) throw new AppError('Utilisateur introuvable pour ce paiement', 404);
 
-    const wasTrial = user.plan === 'trial';
-    user.plan = plan;
-    user.creditsBalance = (user.creditsBalance ?? 0) + (PLAN_CREDITS[plan] ?? 0);
-    user.trialEndsAt = undefined;
-    // Ouvre ou prolonge la période payée. Sans cette date, un seul paiement
-    // donnait accès au plan pour toujours. Un renouvellement anticipé
-    // s'ajoute aux jours restants, il n'en fait perdre aucun.
-    user.planExpiresAt = prolongerAbonnement(user.planExpiresAt);
-    // Cadeau de bienvenue : première souscription d'un plan avec vidéo.
-    // Starter n'est pas concerné, il ne génère pas de vidéo.
-    if (VIDEO_AD_ALLOWED_PLANS.has(plan) && !user.cadeauBienvenueAttribue) {
-      user.videoOfferteDisponible = true;
-      user.cadeauBienvenueAttribue = true;
-    }
-    await user.save();
-
+    // ── Idempotence ATOMIQUE ──
+    //
+    // Chariow peut renvoyer le même webhook plusieurs fois, parfois en même
+    // temps. Un « chercher puis créer » laissait passer deux livraisons
+    // simultanées : double crédit d'abonnement et double prime de parrainage.
+    // On pose donc d'abord la ligne de transaction : l'index unique
+    // (type + référence) fait échouer la seconde livraison. Le solde n'est
+    // touché qu'après cette réservation.
+    const creditsPlan = PLAN_CREDITS[plan] ?? 0;
     const montantFcfa = Number(meta.montantFcfa ?? payload.montant ?? 0);
-    await CreditTransaction.create({
-      userId: user._id,
-      type: 'achat_abonnement',
-      amount: PLAN_CREDITS[plan] ?? 0,
-      balanceAfter: user.creditsBalance,
-      montantFcfa,
-      referencePaiement: payload.reference,
-      note: `Abonnement ${plan}`,
-    });
+    let reservation;
+    try {
+      reservation = await CreditTransaction.create({
+        userId: user._id,
+        type: 'achat_abonnement',
+        amount: creditsPlan,
+        balanceAfter: user.creditsBalance ?? 0,
+        montantFcfa,
+        referencePaiement: payload.reference,
+        cleIdempotence: `abo:${payload.reference}`,
+        note: `Abonnement ${plan}`,
+      });
+    } catch (err) {
+      if ((err as { code?: number }).code === 11000) {
+        console.log(`[chariow] Abonnement déjà traité pour la réf. ${payload.reference} — rejeu ignoré.`);
+        return reponseRejeu;
+      }
+      throw err;
+    }
+
+    const wasTrial = user.plan === 'trial';
+    try {
+      // Cadeau de bienvenue : première souscription d'un plan avec vidéo
+      // (Starter n'est pas concerné). L'attribution est conditionnelle en
+      // base : deux paiements simultanés ne donnent jamais deux cadeaux.
+      if (VIDEO_AD_ALLOWED_PLANS.has(plan)) {
+        await User.findOneAndUpdate(
+          { _id: user._id, cadeauBienvenueAttribue: { $ne: true } },
+          { $set: { videoOfferteDisponible: true, cadeauBienvenueAttribue: true } }
+        );
+      }
+
+      // Ouvre ou prolonge la période payée. Sans cette date, un seul paiement
+      // donnait accès au plan pour toujours. Un renouvellement anticipé
+      // s'ajoute aux jours restants, il n'en fait perdre aucun.
+      const misAJour = await User.findByIdAndUpdate(
+        user._id,
+        {
+          $set: { plan, planExpiresAt: prolongerAbonnement(user.planExpiresAt) },
+          $unset: { trialEndsAt: '' },
+          $inc: { creditsBalance: creditsPlan },
+        },
+        { new: true }
+      );
+      if (!misAJour) throw new AppError('Utilisateur introuvable pour ce paiement', 404);
+      await CreditTransaction.updateOne(
+        { _id: reservation._id },
+        { $set: { balanceAfter: misAJour.creditsBalance } }
+      );
+    } catch (err) {
+      // Rien n'a été crédité : on libère la référence pour que la nouvelle
+      // livraison du webhook puisse aboutir, au lieu de perdre le paiement.
+      await CreditTransaction.deleteOne({ _id: reservation._id }).catch(() => undefined);
+      throw err;
+    }
 
     const { grantReferralRewardOnFirstPayment } = await import('@/services/referral.service');
     await grantReferralRewardOnFirstPayment(user._id);
@@ -427,11 +458,6 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
     } as unknown as InstanceType<typeof PaiementChariow>;
   }
 
-  const existing = await PaiementChariow.findOne({ referenceChariow: payload.reference });
-  if (existing) {
-    return existing;
-  }
-
   if (!payload.site_id) {
     throw new AppError('site_id manquant dans le webhook Chariow', 400);
   }
@@ -441,16 +467,30 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
 
   const commissionNexai = Math.round(payload.montant * COMMISSION_NEXAI_TAUX);
 
-  const paiement = await PaiementChariow.create({
-    siteId: site._id,
-    referenceChariow: payload.reference,
-    montant: payload.montant,
-    statut: 'en_attente',
-    commissionNexai,
-    webhookReceivedAt: new Date(),
-  });
+  // Paiement déjà connu (rejeu) ou créé par une livraison simultanée : on ne
+  // le recrée pas, mais on repasse par l'inscription au registre plus bas,
+  // qui est idempotente. Un échec passé du registre est ainsi rattrapé.
+  let paiement = await PaiementChariow.findOne({ referenceChariow: payload.reference });
+  if (!paiement) {
+    try {
+      paiement = await PaiementChariow.create({
+        siteId: site._id,
+        referenceChariow: payload.reference,
+        montant: payload.montant,
+        statut: 'en_attente',
+        commissionNexai,
+        webhookReceivedAt: new Date(),
+      });
+    } catch (err) {
+      if ((err as { code?: number }).code !== 11000) throw err;
+      paiement = await PaiementChariow.findOne({ referenceChariow: payload.reference });
+      if (!paiement) throw err;
+    }
+  }
 
-  if (site.paymentMode === 'chariow' && site.userId) {
+  // Un montant net nul ou négatif n'a rien à inscrire (et ne doit pas faire
+  // rejouer le webhook indéfiniment).
+  if (site.paymentMode === 'chariow' && site.userId && payload.montant - commissionNexai > 0) {
     try {
       const { enregistrerEncaissement } = await import('@/services/reversement.service');
       await enregistrerEncaissement({
@@ -461,7 +501,10 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
         note: 'Vente encaissée via Compte NexAI',
       });
     } catch (err) {
+      // Le webhook répond en erreur : Chariow le rejouera, et l'inscription
+      // (idempotente) sera retentée au lieu d'être perdue en silence.
       console.error('[chariow] Échec enregistrement ledger reversement :', err);
+      throw err;
     }
   }
 

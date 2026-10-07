@@ -34,21 +34,6 @@ export async function assertTrialNotExpired(user: {
   }
 }
 
-export async function getBalance(userId: Types.ObjectId | string) {
-  const user = await User.findById(userId).select('creditsBalance plan trialEndsAt domainsUsed');
-  if (!user) throw new AppError('Utilisateur introuvable', 404);
-  const quota = PLAN_DOMAIN_QUOTA[user.plan] ?? 0;
-  return {
-    creditsBalance: user.creditsBalance,
-    plan: user.plan,
-    canPurchase: user.plan !== 'trial',
-    trialEndsAt: user.trialEndsAt,
-    domainsUsed: user.domainsUsed ?? 0,
-    domainsIncluded: quota,
-    domainsRemaining: Math.max(0, quota - (user.domainsUsed ?? 0)),
-  };
-}
-
 export async function debitCredits(
   userId: Types.ObjectId | string,
   amount: number,
@@ -136,22 +121,26 @@ export async function creditCredits(
 ) {
   if (amount <= 0) throw new AppError('Montant de crédit invalide', 400);
 
-  const user = await User.findById(userId);
-  if (!user) throw new AppError('Utilisateur introuvable', 404);
-
-  user.creditsBalance += amount;
-  await user.save();
+  // Incrément ATOMIQUE côté base. L'ancienne version lisait le solde, l'augmentait
+  // en mémoire puis le réécrivait : un débit passé entre la lecture et
+  // l'écriture était écrasé, et des crédits apparaissaient ou disparaissaient.
+  const updated = await User.findByIdAndUpdate(
+    userId,
+    { $inc: { creditsBalance: amount } },
+    { new: true }
+  ).select('creditsBalance');
+  if (!updated) throw new AppError('Utilisateur introuvable', 404);
 
   await CreditTransaction.create({
-    userId: user._id,
+    userId: updated._id,
     type,
     amount,
-    balanceAfter: user.creditsBalance,
+    balanceAfter: updated.creditsBalance,
     relatedSiteId: opts?.relatedSiteId,
     note: opts?.note,
   });
 
-  return user.creditsBalance;
+  return updated.creditsBalance;
 }
 
 export const CREDIT_COSTS = {
@@ -162,6 +151,17 @@ export const CREDIT_COSTS = {
   MODIF_IA: 8,
   REGENERER_SITE: 15,
   LOGO: 6,
+  // ── Skill NexAI (création d'un skill sur mesure par l'Atelier Skills) ──
+  //
+  // 25 crédits = 3 750 FCFA au tarif de 150 FCFA le crédit (pack).
+  // Calcul (octobre 2026, 1 $ ≈ 580 FCFA) : recette 6,47 $ ; coût fournisseur
+  // d'une exécution standard « commande client » ≈ 1,42 $ + 0,05 $ de dialogue
+  // = 1,47 $ → marge ≈ 77 %. Le plancher de 75 % tient tant que la moyenne
+  // des coûts reste ≤ 1,62 $ par commande (soit au plus ~15 % de relances
+  // internes et ~5 % de seconds essais). À surveiller dans l'admin (coût réel
+  // de chaque exécution). Ne PAS descendre sous 25 sans refaire ce calcul.
+  SKILL_NEXAI: 25,
+
   // Coach business volontairement bon marché : sur l'essai gratuit (15
   // crédits), 3 + 12 = 15 permet EXACTEMENT de trouver son idée de business
   // PUIS de générer son premier site. C'est l'argument de conversion le plus
@@ -308,6 +308,24 @@ export function assertVideoAdPlanAllowed(plan: UserPlan) {
       403
     );
   }
+}
+
+/**
+ * Skill NexAI : réservé à Créateur+, Agence et Pro Max. L'essai gratuit et
+ * Starter VOIENT l'option (barre latérale + écran de présentation) mais ne
+ * peuvent pas entrer dans la conversation : aucune session, donc aucun coût IA.
+ * Les comptes admin passent toujours.
+ */
+export const SKILL_ALLOWED_PLANS: ReadonlySet<UserPlan> = new Set(['createur', 'agence', 'pro_max']);
+
+export function assertSkillPlanAllowed(plan: UserPlan, role?: string) {
+  if (role === 'admin' || SKILL_ALLOWED_PLANS.has(plan)) return;
+  throw new AppError(
+    plan === 'trial'
+      ? "Skill NexAI est réservé aux abonnements Créateur+, Agence et Pro Max. Vous pouvez découvrir l'option, mais pas encore l'utiliser : passez à Créateur+ pour créer vos propres skills."
+      : "Skill NexAI est réservé aux abonnements Créateur+, Agence et Pro Max. Passez à Créateur+ pour créer vos propres skills spécialisés.",
+    403
+  );
 }
 
 export function assertLogoGenerationPlanAllowed(plan: UserPlan) {
@@ -534,6 +552,23 @@ export function getLogoQuotaInfo(plan: UserPlan, logosUsed: number): LogoQuotaIn
   };
 }
 
+/**
+ * Réserve un logo du quota inclus, de façon ATOMIQUE : la condition « il reste
+ * du quota » est vérifiée par la base au moment même de l'incrément. Deux
+ * demandes simultanées ne peuvent plus consommer le même logo inclus.
+ */
+export async function reserverLogoInclus(userId: Types.ObjectId | string, plan: UserPlan): Promise<boolean> {
+  const inclus = PLAN_LOGO_QUOTA[plan] ?? 0;
+  if (inclus <= 0) return false;
+  const maj = await User.findOneAndUpdate({ _id: userId, logosUsed: { $lt: inclus } }, { $inc: { logosUsed: 1 } });
+  return !!maj;
+}
+
+/** Restitue un logo inclus réservé (génération échouée). Ne descend jamais sous zéro. */
+export async function restituerLogoInclus(userId: Types.ObjectId | string): Promise<void> {
+  await User.updateOne({ _id: userId, logosUsed: { $gt: 0 } }, { $inc: { logosUsed: -1 } });
+}
+
 export const PROPOSAL_MIN_SCORE = 65;
 
 export const CREDIT_PACKS = [
@@ -543,16 +578,6 @@ export const CREDIT_PACKS = [
   { id: 'pack_100', credits: 100, label: 'Pack 100 crédits' },
   { id: 'pack_200', credits: 200, label: 'Pack 200 crédits' },
 ] as const;
-
-export function assertTrialActionAllowed(plan: string, action: keyof typeof CREDIT_COSTS) {
-  if (plan !== 'trial') return;
-  if (!TRIAL_ALLOWED_ACTIONS.has(action)) {
-    throw new AppError(
-      'Cette action est réservée aux abonnés. Passez à un abonnement pour continuer.',
-      403
-    );
-  }
-}
 
 export type DomainQuotaInfo = {
   included: number;
@@ -687,9 +712,9 @@ export async function resolveDomainCostAndConsume(
   userId: Types.ObjectId | string,
   domainType: 'sous_domaine' | 'godaddy' | 'byod',
   opts?: { relatedSiteId?: Types.ObjectId | string; domainName?: string; priceUsd?: number | null }
-): Promise<{ chargedCredits: number; usedQuota: boolean }> {
+): Promise<{ chargedCredits: number; usedQuota: boolean; budgetSpentUsd: number }> {
   if (domainType === 'sous_domaine' || domainType === 'byod') {
-    return { chargedCredits: 0, usedQuota: false };
+    return { chargedCredits: 0, usedQuota: false, budgetSpentUsd: 0 };
   }
 
   const user = await User.findById(userId);
@@ -757,17 +782,34 @@ export async function resolveDomainCostAndConsume(
     : getDomainPriceCredits(opts.priceUsd);
 
   if (chargedCredits > 0) {
-    await debitCredits(userId, chargedCredits, 'achat_domaine', {
-      relatedSiteId: opts?.relatedSiteId,
-      note: `domaine:${opts.domainName}`,
-    });
+    try {
+      await debitCredits(userId, chargedCredits, 'achat_domaine', {
+        relatedSiteId: opts?.relatedSiteId,
+        note: `domaine:${opts.domainName}`,
+      });
+    } catch (err) {
+      // Débit refusé (solde insuffisant, abonnement expiré…) : le quota offert
+      // réservé plus haut doit être restitué, sinon le client perd son domaine
+      // inclus sans rien recevoir.
+      if (usedQuota) {
+        await User.findByIdAndUpdate(userId, {
+          $inc: { domainsUsed: -1, domainFreeBudgetUsedUsd: -charge.budgetSpentUsd },
+        }).catch((e) => console.error('[credits] Restitution du quota domaine impossible :', e));
+        await User.updateOne({ _id: userId, domainsUsed: { $lt: 0 } }, { $set: { domainsUsed: 0 } }).catch(() => undefined);
+        await User.updateOne(
+          { _id: userId, domainFreeBudgetUsedUsd: { $lt: 0 } },
+          { $set: { domainFreeBudgetUsedUsd: 0 } }
+        ).catch(() => undefined);
+      }
+      throw err;
+    }
   }
 
   if (!usedQuota) {
     await User.findByIdAndUpdate(userId, { $inc: { domainsUsed: 1 } });
   }
 
-  return { chargedCredits, usedQuota };
+  return { chargedCredits, usedQuota, budgetSpentUsd: usedQuota ? charge.budgetSpentUsd : 0 };
 }
 
 export type LaunchCharges = {
@@ -880,27 +922,51 @@ export class CreditsService {
     };
   }
 
-  public static async fulfillCreditPurchase(transactionId: string, quantity?: number) {
+  /**
+   * Crédite un pack payé. La quantité qui fait foi est celle ENREGISTRÉE à la
+   * création de la commande (`pending:<quantité>`), jamais celle renvoyée par
+   * le webhook : une donnée reçue de l'extérieur ne doit pas décider d'un
+   * montant à créditer.
+   */
+  public static async fulfillCreditPurchase(transactionId: string) {
+    if (!Types.ObjectId.isValid(transactionId)) {
+      console.error(`[credits] Identifiant de commande invalide dans le webhook : ${transactionId}`);
+      return;
+    }
     const transaction = await CreditTransaction.findById(transactionId);
-    if (!transaction) return;
+    if (!transaction) {
+      console.error(`[credits] Paiement reçu pour une commande inconnue : ${transactionId}`);
+      return;
+    }
+    if (!transaction.note?.startsWith('pending:')) return; // déjà traitée
 
-    const qty =
-      quantity ??
-      (transaction.note?.startsWith('pending:')
-        ? parseInt(transaction.note.split(':')[1] || '0', 10)
-        : 0);
-    if (!qty || qty <= 0) return;
-    if (transaction.note?.startsWith('completed:')) return;
+    const qty = parseInt(transaction.note.split(':')[1] || '0', 10);
+    if (!qty || qty <= 0) {
+      console.error(`[credits] Quantité illisible sur la commande ${transactionId} : ${transaction.note}`);
+      return;
+    }
 
+    const noteEnAttente = transaction.note;
     const claimed = await CreditTransaction.findOneAndUpdate(
-      { _id: transactionId, note: { $regex: '^pending:' } },
+      { _id: transactionId, note: noteEnAttente },
       { $set: { note: `completed:${qty}` } },
       { new: true }
     );
     if (!claimed) return;
 
-    await creditCredits(claimed.userId, qty, 'achat_pack', {
-      note: 'Achat validé via Chariow',
-    });
+    try {
+      await creditCredits(claimed.userId, qty, 'achat_pack', {
+        note: 'Achat validé via Chariow',
+      });
+    } catch (err) {
+      // Les crédits n'ont pas été versés : on remet la commande en attente
+      // pour que la prochaine livraison du webhook puisse aboutir. Sans cela,
+      // le client aurait payé sans rien recevoir et le rejeu serait ignoré.
+      await CreditTransaction.updateOne(
+        { _id: transactionId, note: `completed:${qty}` },
+        { $set: { note: noteEnAttente } }
+      ).catch((e) => console.error('[credits] Remise en attente impossible :', e));
+      throw err;
+    }
   }
 }

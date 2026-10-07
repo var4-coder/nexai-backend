@@ -198,7 +198,7 @@ export async function regenererTextes(cible: { type: 'domaine' | 'formation'; sl
     const actuel = await AcademyDomaine.findOne({ slug: m.slug });
     const r = lireJson(
       await callClaude(
-        'claude-sonnet-5',
+        'claude-sonnet-5-5',
         CONSIGNE_TEXTES,
         [
           {
@@ -223,7 +223,7 @@ Propose une version plus attirante : {"accroche": "une phrase de 12 mots maximum
   const actuel = await AcademyPack.findOne({ slug: cible.slug });
   const r = lireJson(
     await callClaude(
-      'claude-sonnet-5',
+      'claude-sonnet-5-5',
       CONSIGNE_TEXTES,
       [
         {

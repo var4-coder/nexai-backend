@@ -1,0 +1,17 @@
+/* Formulaire NexAI — repris de la V10, corrigé : variables des FAMILLES uniquement (--ink --muted --accent --line --bg),
+   rayon du style, erreur signalée par texte + bordure épaisse (jamais par une couleur hors palette), anneau de focus --accent. */
+.nx-form{display:grid;gap:1.25rem;max-width:640px}
+.nx-form .nx-row{display:grid;gap:1.25rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+.nx-f{display:grid;gap:.5rem}.nx-f label{font:600 .875rem/1.3 var(--font-u);color:var(--ink)}
+.nx-f input,.nx-f select,.nx-f textarea{width:100%;min-height:52px;padding:.85rem 1rem;font:inherit;font-size:1rem;color:var(--ink);background:var(--bg);border:1px solid var(--muted);border-radius:var(--radius,0);transition:border-color .2s,box-shadow .2s}
+.nx-f textarea{min-height:140px;resize:vertical}
+.nx-f input:focus-visible,.nx-f select:focus-visible,.nx-f textarea:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent)}
+.nx-f[data-err] input,.nx-f[data-err] select,.nx-f[data-err] textarea{border:2px solid var(--ink)}
+.nx-f .nx-e{color:var(--ink);font-size:.875rem;font-weight:600;min-height:1.2em}
+.nx-f[data-err] .nx-e::before{content:"⚠ "}
+.nx-hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.nx-form button[type=submit]{min-height:52px;justify-self:start;border-radius:var(--radius-btn,var(--radius,0))}
+.nx-form[data-state=sending] button{pointer-events:none}
+.nx-msg{padding:1rem 1.25rem;border:1px solid var(--line);color:var(--ink);background:var(--surface)}
+.nx-msg[data-k=ko]{border:2px solid var(--ink)}
+@media (prefers-reduced-motion:reduce){.nx-f input,.nx-f select,.nx-f textarea{transition:none}}

@@ -38,12 +38,12 @@
     "_id": "button",
     "component": "button",
     "title": "Button",
-    "content_md": "# Button\n\nRôle : action unique. 1 primary par vue.\n\n## Props\n\n- `variant`: primary | secondary | ghost | link | destructive\n- `size`: sm (44) | md (48) | lg (48, px 32)\n- `state`: default | hover | focus | active | disabled | loading\n- `href?`: si présent → `<a>` stylée comme bouton (pas `<button>` vide)\n- `icon?`: lucide 20px, jamais seul sans `aria-label`\n\n## Tokens\n\n- bg primary : `var(--color-action)`\n- color primary : `var(--color-on-action)`\n- bg hover : `var(--color-action-hover)`\n- h : 48px (sm 44) — px : 24 — radius : `var(--radius-control)`\n- font : `600 16px/1 var(--font-body)`\n- focus : ring 3px action, offset 2px\n- disabled : opacity 0.5, `pointer-events: none`, pas de hover\n- loading : `aria-busy=\"true\"`, spinner 16px, texte inchangé (\"Réserver\" pas \"Loading\")\n- transition : 160ms ease-out\n\nExceptions niche :\n- portfolio : radius 0, shadow none, primary = jaune fill / texte `#101010`\n- mode panier : primary full-width mobile, sticky\n\n## Anti-patterns\n\n- 2 primary côte à côte\n- `outline: none` sans `:focus-visible`\n- hex en dur\n- height 36/40 (défaut shadcn) — jamais sous 44px\n- disabled comme seul moyen de bloquer un form (préférer submit + erreurs, GOV.UK)\n- \"En savoir plus\" en primary\n\n## Gold (exemple conforme)\n\n```html\n<button class=\"btn btn-primary\">Réserver une table</button>\n<a class=\"btn btn-secondary\" href=\"/menu\">Voir le menu</a>\n```\n",
+    "content_md": "# Button\n\nRôle : action unique. 1 primary par vue.\n\n## Props\n\n- `variant`: primary | secondary | ghost | link | destructive\n- `size`: sm (44) | md (48) | lg (48, px 32)\n- `state`: default | hover | focus | active | disabled | loading\n- `href?`: si présent → `<a>` stylée comme bouton (pas `<button>` vide)\n- `icon?`: lucide 20px, jamais seul sans `aria-label`\n\n## Tokens\n\n- bg primary : `var(--accent)`\n- color primary : `var(--on-accent)`\n- bg hover : `color-mix(in srgb, var(--accent) 88%, var(--ink))`\n- h : 48px (sm 44) — px : 24 — radius : `rayon du style`\n- font : `600 16px/1 var(--font-u)`\n- focus : ring 3px action, offset 2px\n- disabled : opacity 0.5, `pointer-events: none`, pas de hover\n- loading : `aria-busy=\"true\"`, spinner 16px, texte inchangé (\"Réserver\" pas \"Loading\")\n- transition : 160ms ease-out\n\nSur une photo : fond `var(--btn-photo-bg)`, texte `var(--btn-photo-ink)`.\n\n## Anti-patterns\n\n- 2 primary côte à côte\n- `outline: none` sans `:focus-visible`\n- hex en dur\n- height 36/40 (défaut shadcn) — jamais sous 44px\n- disabled comme seul moyen de bloquer un form (préférer submit + erreurs, GOV.UK)\n- \"En savoir plus\" en primary\n\n## Gold (exemple conforme)\n\n```html\n<button class=\"btn btn-primary\">Réserver une table</button>\n<a class=\"btn btn-secondary\" href=\"/menu\">Voir le menu</a>\n```\n",
     "covers": [],
     "data_nexai_ids": [],
     "structure": null,
     "niches": [],
-    "seed_version": 4
+    "seed_version": 5
   },
   {
     "_id": "card",
@@ -186,18 +186,24 @@
     "_id": "footer",
     "component": "footer",
     "title": "Footer",
-    "content_md": "# Footer\n\nShared. 4 colonnes desktop → stack mobile. pad-y 48.\n\nToujours : mentions, privacy, cookies.\n\n- Local : NAP + tel + horaires (identiques au schema)\n- Hôtel/resto : Instagram + réserver\n- SaaS : liens denses (product, legal)\n\n## Anti-patterns\n\n- 12 colonnes\n- Newsletter fake (formulaire qui ne fait rien)\n- \"Made with ❤️\"\n",
-    "covers": [],
+    "content_md": "# Footer\n\nShared. 4 colonnes desktop → stack mobile. pad-y 48.\n\nToujours : mentions, privacy, cookies.\n\n- Local : NAP + tel + horaires (identiques au schema)\n- Hôtel/resto : Instagram + réserver\n- SaaS : liens denses (product, legal)\n\n## Anti-patterns\n\n- 12 colonnes\n- Newsletter fake (formulaire qui ne fait rien)\n- \"Made with ❤️\"\n\n\n## Mesuré (audit 02/10)\n- Colonnes : 1 sous 768 px, **2 de 768 à 1 023 px**, 4 à partir de 1 024 px (à 768 px, 4 colonnes font chevaucher une adresse e-mail et un lien — défaut trouvé sur le site test hôtel).\n- Adresses e-mail et URL : `overflow-wrap:anywhere`.",
+    "covers": [
+      "footer-dense",
+      "footer-nap",
+      "footer-premium",
+      "footer-shop",
+      "footer-tiny"
+    ],
     "data_nexai_ids": [],
     "structure": null,
     "niches": [],
-    "seed_version": 4
+    "seed_version": 6
   },
   {
     "_id": "form",
     "component": "form",
     "title": "Form (GOV.UK)",
-    "content_md": "# Form (GOV.UK)\n\nLabel AU-DESSUS. Placeholder ≠ label.\n1 colonne mobile. 2 colonnes max desktop (prénom/nom uniquement).\n\n## Field anatomy\n\n```html\n<label for=\"id\">…</label>\n<span class=\"hint\" id=\"id-hint\">…</span> <!-- optionnel, pas de lien dedans -->\n<p class=\"error\" id=\"id-error\">Erreur : …</p> <!-- si error -->\n<input aria-describedby=\"id-hint id-error\" aria-invalid=\"true|false\"\n       autocomplete=\"…\" style=\"height:48px; border-radius: var(--radius-control); border: 1px solid var(--color-border)\">\n```\n\nFocus input : border 2px action + ring 3px.\nError : border danger + message 13px danger.\n\n## Group\n\n- radios/checkboxes : `fieldset` + `legend`. Hit-area 44.\n- Checkbox box 20px visuel, hit-area 44.\n\n## Submit\n\n- Error summary EN HAUT (`role=\"alert\"`) + liens vers `#champ` — après submit, pas `oninput`.\n- Button primary aligné à gauche, jamais disabled pour \"form incomplet\".\n- Pas de captcha visible above-fold.\n\n## Anti-patterns\n\n- Label flottant / placeholder-only\n- Validation en live pendant la frappe\n- Bouton à droite du form\n- Plus de 7 champs sans découpe en étapes\n",
+    "content_md": "# Form (GOV.UK)\n\nLabel AU-DESSUS. Placeholder ≠ label.\n1 colonne mobile. 2 colonnes max desktop (prénom/nom uniquement).\n\n## Field anatomy\n\n```html\n<label for=\"id\">…</label>\n<span class=\"hint\" id=\"id-hint\">…</span> <!-- optionnel, pas de lien dedans -->\n<p class=\"error\" id=\"id-error\">Erreur : …</p> <!-- si error -->\n<input aria-describedby=\"id-hint id-error\" aria-invalid=\"true|false\"\n       autocomplete=\"…\" style=\"height:48px; border-radius: var(--radius-control); border: 1px solid var(--color-border)\">\n```\n\nFocus input : border 2px action + ring 3px.\nError : border danger + message 13px danger.\n\n## Group\n\n- radios/checkboxes : `fieldset` + `legend`. Hit-area 44.\n- Checkbox box 20px visuel, hit-area 44.\n\n## Submit\n\n- Error summary EN HAUT (`role=\"alert\"`) + liens vers `#champ` — après submit, pas `oninput`.\n- Bouton d'envoi plein aligné à gauche (seul bouton plein de son écran, K3), jamais disabled pour \"form incomplet\".\n- Pas de captcha visible above-fold.\n\n## Anti-patterns\n\n- Label flottant / placeholder-only\n- Validation en live pendant la frappe\n- Bouton à droite du form\n- Plus de 7 champs sans découpe en étapes\n",
     "covers": [],
     "data_nexai_ids": [],
     "structure": null,
@@ -208,12 +214,12 @@
     "_id": "hero",
     "component": "hero",
     "title": "Hero",
-    "content_md": "# Hero\n\n1 par page d'atterrissage. Pattern = LAYOUTS.md par niche, pas un prop libre.\n\n## Anatomy\n\n- Eyebrow optionnel (interdit pill \"New/AI\" sauf changelog SaaS réel)\n- H1 ≤ 12 mots\n- Lead 1 phrase (20px desktop / 18 mobile)\n- 1 Button primary\n- 1 Button secondary optionnel (ghost)\n- Preuve 1 ligne (NAP, note, 1 logo, 1 diplôme)\n- Media : photo OU product UI selon niche\n\n## Media rules\n\n- full-bleed : img `object-fit: cover`, overlay gradient 40% bas, H1 en\n  `--on-dark` (#fff) uniquement si contraste ≥ 4.5\n- split : media 44–50%, jamais crop visages au fold\n- product-ui : screenshot réel, `radius-image`, `shadow-md`, pas de mockup 3D\n- typographic : pas d'image obligatoire\n\nLCP = media hero ou H1. Img : width/height + `fetchpriority=\"high\"`.\n\n## Anti-patterns\n\n- 3 CTA\n- gradient CSS en fond\n- illustration undraw\n- H1 centré hors `education`\n",
+    "content_md": "# Hero\n\n1 par page d'atterrissage. Ouverture = celle choisie DANS la famille (`fullbleed`, `split`, `type-only`), pas un prop libre.\n\n## Anatomy\n\n- Eyebrow optionnel (interdit pill \"New/AI\" sauf changelog SaaS réel)\n- H1 ≤ 12 mots\n- Lead 1 phrase (20px desktop / 18 mobile)\n- 1 bouton plein (le seul de l'écran, K3)\n- 1 Button secondary optionnel (ghost)\n- Preuve 1 ligne (NAP, note, 1 logo, 1 diplôme)\n- Media : photo OU product UI selon niche\n\n## Media rules\n\n- full-bleed : img `object-fit: cover`, voile ≥ 55 % sous le texte (CO3), bouton `--btn-photo-bg` (composant texte-sur-photo)\n- split : media 44–50%, jamais crop visages au fold\n- product-ui : screenshot réel, `radius-image`, `shadow-md`, pas de mockup 3D\n- typographic : pas d'image obligatoire\n\nLCP = media hero ou H1. Img : width/height + `fetchpriority=\"high\"`.\n\n## Anti-patterns\n\n- 3 CTA\n- gradient CSS en fond\n- illustration undraw\n- H1 centré hors styles Luxe, Carte imprimée, Tunnel de vente\n",
     "covers": [],
     "data_nexai_ids": [],
     "structure": null,
     "niches": [],
-    "seed_version": 4
+    "seed_version": 6
   },
   {
     "_id": "logo-cloud",
@@ -243,9 +249,10 @@
     "_id": "menu-preview",
     "component": "menu-preview",
     "title": "Aperçu de carte / menu",
-    "content_md": "# Aperçu de carte / menu\n\nCouvre : `menu-preview`. Spécifique `restaurant`.\n\n## Anatomy\n\n- HTML sémantique par catégorie (Entrées / Plats / Desserts…), **jamais un menu\n  en image ou PDF seul** (bloque l'indexation et l'accessibilité)\n- Nom du plat + description courte + prix visible\n- Lien \"Voir la carte complète\" si le menu réel est plus long\n\n## Obligatoire\n\n- Schema `Menu` ou `hasMenu` sur `Restaurant` (voir SCHEMA.md)\n- Cohérence avec `horaires-map` / NAP si prix ou dispo change selon service\n\n## Interdit\n\n- Photos de plats stock non liées au menu réel\n- Prix absents (\"sur demande\" seulement si réellement variable)\n\n## data-nexai-id\n\n`menu-item-{n}`\n",
+    "content_md": "# Aperçu de carte / menu\n\nCouvre : `menu-preview`. Spécifique `restaurant`.\n\n## Anatomy\n\n- HTML sémantique par catégorie (Entrées / Plats / Desserts…), **jamais un menu\n  en image ou PDF seul** (bloque l'indexation et l'accessibilité)\n- Nom du plat + description courte + prix visible (composant `ligne-prix`, prix en `nowrap`)\n- Lien \"Voir la carte complète\" si le menu réel est plus long\n\n## Obligatoire\n\n- Schema `Menu` ou `hasMenu` sur `Restaurant` (voir SCHEMA.md)\n- Cohérence avec `horaires-map` / NAP si prix ou dispo change selon service\n\n## Interdit\n\n- Photos de plats stock non liées au menu réel\n- Prix absents (\"sur demande\" seulement si réellement variable)\n\n## data-nexai-id\n\n`menu-item-{n}`\n\n\n`signature-1-plus-list` : 1 plat signature mis en avant + la liste `ligne-prix` ; fusionnable avec `menu-preview` (une seule section carte).",
     "covers": [
-      "menu-preview"
+      "menu-preview",
+      "signature-1-plus-list"
     ],
     "data_nexai_ids": [
       "menu-item-{n}"
@@ -254,18 +261,24 @@
     "niches": [
       "restaurant"
     ],
-    "seed_version": 4
+    "seed_version": 6
   },
   {
     "_id": "nav",
     "component": "nav",
     "title": "Nav",
-    "content_md": "# Nav\n\nShared sur toutes les pages.\n\n## Props\n\n- `links`: ≤ 5 `{label, href}`\n- `cta?`: Button primary\n- `variant`: solid | transparent (hôtel, resto, mode)\n- `phone?`: `tel:` obligatoire services/santé/resto\n\n## Spec\n\n- height 72 desktop / 64 mobile\n- transparent : fond 0, au scroll Y>8 → surface 86% + `backdrop-filter: blur(12px)` **sur la nav uniquement**\n- mobile : bouton menu `aria-expanded`, drawer 100vh, cibles 48px, focus trap\n- logo : img ou wordmark, lien home, pas de SVG décoratif lourd\n- z-index : sticky\n\n## Anti-patterns\n\n- Plus de 5 liens\n- Mega-menu\n- Blur sur toute la page\n- CTA ghost + primary de poids visuel égal\n",
-    "covers": [],
+    "content_md": "# Nav\n\nShared sur toutes les pages.\n\n## Props\n\n- `links`: ≤ 5 `{label, href}`\n- `cta?`: lien d'action (texte ou contour). Bouton PLEIN seulement si aucun autre bouton plein n'est visible dans la même fenêtre (K3). Menu mobile utilisable sans JS (`<details>` ou liens visibles).\n- `variant`: solid | transparent (hôtel, resto, mode)\n- `phone?`: `tel:` obligatoire services/santé/resto\n\n## Spec\n\n- height 72 desktop / 64 mobile\n- transparent : fond 0, au scroll Y>8 → surface 86% + `backdrop-filter: blur(12px)` **sur la nav uniquement**\n- mobile : bouton menu `aria-expanded`, drawer 100vh, cibles 48px, focus trap\n- logo : img ou wordmark, lien home, pas de SVG décoratif lourd\n- z-index : sticky\n\n## Anti-patterns\n\n- Plus de 5 liens\n- Mega-menu\n- Blur sur toute la page\n- CTA ghost + primary de poids visuel égal\n",
+    "covers": [
+      "nav-minimal",
+      "nav-saas",
+      "nav-shop",
+      "nav-tel-visible",
+      "nav-transparent"
+    ],
     "data_nexai_ids": [],
     "structure": null,
     "niches": [],
-    "seed_version": 4
+    "seed_version": 5
   },
   {
     "_id": "pricing",
@@ -294,7 +307,8 @@
     "covers": [
       "process-steps",
       "method-steps",
-      "pedagogy-steps"
+      "pedagogy-steps",
+      "how-it-works-zigzag"
     ],
     "data_nexai_ids": [
       "process-step-{n}"
@@ -305,7 +319,7 @@
       "sante",
       "education"
     ],
-    "seed_version": 4
+    "seed_version": 5
   },
   {
     "_id": "programmes",
@@ -361,7 +375,11 @@
       "expertise-split",
       "feature-split-or-bento-4-max",
       "services-zigzag",
-      "editorial-split"
+      "editorial-split",
+      "about-short",
+      "chef-split",
+      "events-teaser",
+      "experiences-split"
     ],
     "data_nexai_ids": [
       "split-{n}"
@@ -373,15 +391,16 @@
       "services",
       "mode"
     ],
-    "seed_version": 4
+    "seed_version": 5
   },
   {
     "_id": "stats-bandeau",
     "component": "stats-bandeau",
     "title": "Stats bandeau",
-    "content_md": "# Stats bandeau\n\nCouvre : `stats-3-sourced`. Voir SLOP.md W3 : 3 stats non sourcées = WARN, cluster = VETO.\n\n## Anatomy\n\n- 3 à 4 chiffres max, structure `<dl>` : `<dt>` = valeur, `<dd>` = label\n- Chaque chiffre doit être **traçable au brief client** (pas de \"10k+ / 99.9% / 24/7\"\n  générique) : si aucune donnée réelle n'existe, ce composant n'est pas généré —\n  jamais de placeholder chiffré (règle COPY.md « Preuve »)\n- Source visible si pertinent (ex. \"sur 120 avis Google\", \"depuis 2019\")\n\n## États\n\n- default. Animation compteur autorisée uniquement si `prefers-reduced-motion` ne\n  restreint pas (sinon valeur affichée directement, statique)\n\n## Interdit\n\n- Compteur qui s'anime en boucle\n- Icône par stat en icône générique Heroicons (S14)\n- Fond violet/gradient (S1)\n\n## data-nexai-id\n\n`stats-bandeau-{n}` par valeur (édition indépendante de chaque chiffre)\n",
+    "content_md": "# Stats bandeau\n\nCouvre : `stats-3-sourced`. Voir SLOP.md W3 : 3 stats non sourcées = WARN, cluster = VETO.\n\n## Anatomy\n\n- 3 à 4 chiffres max, structure `<dl>` : `<dt>` = valeur, `<dd>` = label\n- Chaque chiffre doit être **traçable au brief client** (pas de \"10k+ / 99.9% / 24/7\"\n  générique) : si aucune donnée réelle n'existe, ce composant n'est pas généré —\n  jamais de placeholder chiffré (règle COPY.md « Preuve »)\n- Source visible si pertinent (ex. \"sur 120 avis Google\", \"depuis 2019\")\n\n## États\n\n- default. Animation compteur autorisée uniquement si `prefers-reduced-motion` ne\n  restreint pas (sinon valeur affichée directement, statique)\n\n## Interdit\n\n- Compteur qui s'anime en boucle\n- Icône par stat en icône générique Heroicons (S14)\n- Fond violet/gradient (S1)\n\n## data-nexai-id\n\n`stats-bandeau-{n}` par valeur (édition indépendante de chaque chiffre)\n\n\n`reassurance-diplomes` : même bandeau, mais avec des FAITS du brief (diplôme, ordre, années d'exercice), jamais des chiffres inventés.",
     "covers": [
-      "stats-3-sourced"
+      "stats-3-sourced",
+      "reassurance-diplomes"
     ],
     "data_nexai_ids": [
       "stats-bandeau-{n}"
@@ -391,7 +410,7 @@
       "education",
       "saas"
     ],
-    "seed_version": 4
+    "seed_version": 5
   },
   {
     "_id": "testimonial",
@@ -436,7 +455,7 @@
     "_id": "zone-horaires",
     "component": "zone-horaires",
     "title": "Zone d'intervention / horaires / carte",
-    "content_md": "# Zone d'intervention / horaires / carte\n\nCouvre : `zone-intervention-map`, `zone-map`, `location-map`, `horaires-map`.\nComposant NAP-critique (N2 dans JUDGES.md) : les infos ici doivent être\nstrictement identiques au header/footer/Schema.\n\n## Anatomy\n\n- Carte (embed statique ou image) + liste des villes/zones desservies\n- Bloc horaires structuré (jour → créneau), avec mention \"Aujourd'hui\" mise en\n  avant si l'info est dynamiquement calculable\n- CTA contact/devis à proximité immédiate\n\n## États\n\n- default. Si carte interactive (embed) : alternative textuelle obligatoire\n  (liste des zones en clair, pas seulement visible sur la carte)\n\n## Obligatoire\n\n- NAP (Nom/Adresse/Téléphone) identique à celui du header, du footer et du\n  Schema.org `LocalBusiness`/`openingHoursSpecification` — vérifié par N2 (Juge\n  Code)\n- Pas de carte sans alternative texte (accessibilité)\n\n## data-nexai-id\n\n`zone-carte` / `horaires-bloc`\n",
+    "content_md": "# Zone d'intervention / horaires / carte\n\nCouvre : `zone-intervention-map`, `zone-map`, `location-map`, `horaires-map`.\nComposant NAP-critique (N2 dans JUDGES.md) : les infos ici doivent être\nstrictement identiques au header/footer/Schema.\n\n## Anatomy\n\n- Carte (embed statique ou image) + liste des villes/zones desservies\n- Bloc horaires structuré (jour → créneau), avec mention \"Aujourd'hui\" mise en\n  avant si l'info est dynamiquement calculable\n- CTA contact/devis à proximité immédiate\n\n## États\n\n- default. Si carte interactive (embed) : alternative textuelle obligatoire\n  (liste des zones en clair, pas seulement visible sur la carte)\n\n## Obligatoire\n\n- NAP (Nom/Adresse/Téléphone) identique à celui du header, du footer et du\n  Schema.org `LocalBusiness`/`openingHoursSpecification` — vérifié par N2 (Juge\n  Code)\n- Pas de carte sans alternative texte (accessibilité)\n\n## data-nexai-id\n\n`zone-carte` / `horaires-bloc`\n\n\nCarte : jamais d'iframe Google Maps (poids) ; lien « Itinéraire » vers `https://www.google.com/maps/search/?api=1&query=<adresse du brief encodée>`.",
     "covers": [
       "zone-intervention-map",
       "zone-map",
@@ -454,5 +473,122 @@
       "restaurant"
     ],
     "seed_version": 4
+  },
+  {
+    "_id": "ligne-prix",
+    "component": "ligne-prix",
+    "title": "Ligne de prix (carte, tarifs, chambres)",
+    "content_md": "# Ligne de prix\n\nCouvre : cartes de restaurant, tarifs de services, chambres, soins, formations.\n\n## Anatomie\n- Ligne 1 : nom (graisse 600 ou `--font-d` selon le style) · prix aligné à droite dans `<span class=\"prix\">` avec `white-space:nowrap` et chiffres tabulaires.\n- Ligne 2 : description courte, 14 px, `--muted`.\n- Séparateur selon le style : filet `--line`, pointillés (Éditorial, Carte imprimée), filet 3 px (Affiche).\n- Téléphone : si la place manque, le prix passe SOUS le nom, jamais coupé.\n\n## Format\n« 4 500 FCFA » ou « 4 500 F » (espace insécable entre milliers : `&nbsp;` ou U+202F). Prix réels du brief uniquement (R2) ; sinon pas de prix.\n\n## data-nexai-id\n`prix-{n}`",
+    "covers": [
+      "menu-preview",
+      "tarifs",
+      "chambres"
+    ],
+    "data_nexai_ids": [
+      "prix-{n}"
+    ],
+    "structure": "nom · (pointillés) · prix nowrap ; description dessous",
+    "niches": [
+      "restaurant",
+      "services",
+      "hotellerie",
+      "sante",
+      "mode",
+      "education"
+    ],
+    "seed_version": 1
+  },
+  {
+    "_id": "texte-sur-photo",
+    "component": "texte-sur-photo",
+    "title": "Texte posé sur une photo",
+    "content_md": "# Texte sur photo\n\n## Recette\n- Conteneur `position:relative` ; photo `object-fit:cover`.\n- Voile : `::after` dégradé noir, **≥ 55 %** sous la zone de texte (valeur unique, CO3 ; latéral 82 % → 15 % pour Cinéma), `pointer-events:none`.\n- Texte : blanc ou `--bg` clair, jamais `--muted`, jamais `opacity`.\n- Bouton : `--btn-photo-bg` / `--btn-photo-ink`.\n- Légende photo : 11–13 px, fond noir 55 %, dans un coin non couvert par un autre élément.\n- Marge intérieure ≥ 32 px : aucun texte ne sort de l'image.\n\n## Interdit\nTexte sans voile, voile coloré (violet, bleu), texte sur la zone la plus claire de la photo.\n\n## Placement (repris de la V10, avec la correction mesurée)\n- Ordinateur : texte en **bas à gauche**, zone de texte ≤ 42 % de la largeur, le sujet de la photo (visage, assiette, façade) reste libre ; voile du côté du texte (≥ 55 % sous le texte).\n- **Téléphone (< 768 px) : voile pleine largeur en bas ≥ 55 %** — mesuré sur la V10 : avec un voile « côté texte seulement », le sur-titre et le chapô tombent à 1,1–3,0:1 sur 5 thèmes sur 390 px.\n- Bouton sur photo : plein (`--btn-photo-bg`), jamais un contour fin (moins visible, V5).",
+    "covers": [
+      "hero",
+      "fullbleed",
+      "couverture"
+    ],
+    "data_nexai_ids": [],
+    "structure": "voile ≥ 55 % + texte clair (CO3) + bouton photo",
+    "niches": [],
+    "seed_version": 3
+  },
+  {
+    "_id": "offer-stack",
+    "component": "offer-stack",
+    "title": "Pile d’offre (tout ce que vous recevez)",
+    "content_md": "# Pile d'offre\n\nStyle Tunnel de vente (et SaaS si l'offre est un pack). Cadre arrondi 28 px, filet `--line`, fond radial `--surface` → `--bg`.\n- Titre fort (« Tout ce que vous recevez » / « tu reçois » selon le tutoiement de la famille) + 1 phrase.\n- Ordinateur + tablette avec **captures réelles** du produit du client (sinon ce bloc n'est pas généré).\n- 4 à 8 boîtes MODULE / BONUS : texte ≥ 12 px, contraste ≥ 4,5:1 ; la boîte bonus seule en `--accent`.\n- 3 caractéristiques réelles dessous (1 colonne téléphone).\nInterdit : autocollants, mascottes en surplus, noms internes visibles.",
+    "covers": [
+      "offer-stack"
+    ],
+    "data_nexai_ids": [
+      "offre-titre",
+      "offre-module-{n}"
+    ],
+    "structure": "cadre arrondi, ordinateur + tablette, 4–8 boîtes, 3 caractéristiques",
+    "niches": [
+      "education",
+      "saas"
+    ],
+    "seed_version": 1
+  },
+  {
+    "_id": "bonus-split",
+    "component": "bonus-split",
+    "title": "Bonus en deux colonnes",
+    "content_md": "# Bonus en deux colonnes\n\nGauche : UNE boîte (fond `--accent`, texte `--on-accent`). Droite : titre fort, 5 lignes à puces `--accent`, ligne « Valeur : X FCFA » **seulement si la valeur est dans le brief** (R2). Une idée par bloc, 1 bouton max. Téléphone : empilé.",
+    "covers": [
+      "bonus-split"
+    ],
+    "data_nexai_ids": [
+      "bonus-titre",
+      "bonus-ligne-{n}"
+    ],
+    "structure": "1 boîte | titre + 5 lignes + valeur réelle",
+    "niches": [
+      "education",
+      "saas",
+      "services"
+    ],
+    "seed_version": 1
+  },
+  {
+    "_id": "path-timeline",
+    "component": "path-timeline",
+    "title": "Parcours en étapes",
+    "content_md": "# Parcours en étapes\n\n4 étapes réelles du parcours client (candidature, entretien, formation, emploi ; ou 1er RDV, bilan, soin, suivi). Filet 3 px `--accent` au-dessus de chaque étape, libellé de temps en `--accent-text` 12 px capitales (AUJOURD'HUI, ÉTAPE 01…). Téléphone : liste verticale. Interdit : étapes génériques sans contenu métier (W7), délais inventés.",
+    "covers": [
+      "path-timeline",
+      "pedagogy-steps"
+    ],
+    "data_nexai_ids": [
+      "etape-{n}"
+    ],
+    "structure": "4 étapes, filet accent, libellés de temps réels",
+    "niches": [
+      "education",
+      "saas",
+      "sante"
+    ],
+    "seed_version": 1
+  },
+  {
+    "_id": "formulaire",
+    "component": "formulaire",
+    "title": "Formulaire contact / réservation (module NexaiForm)",
+    "niches": [
+      "toutes"
+    ],
+    "covers": [
+      "formulaire(contact)",
+      "formulaire(reservation)",
+      "form"
+    ],
+    "data_nexai_ids": [
+      "formulaire"
+    ],
+    "structure": "NexaiForm.mount(el, config) ; libellés et erreurs du brief",
+    "seed_version": 2,
+    "content_md": "# Formulaire (contact ou réservation)\n\nRepris de la V10 et corrigé (fichiers `kit/form.js` + `kit/form.css`, à insérer en ligne dans la page).\n\n## Recette\n- `<form id=\"nx\"></form>` puis `NexaiForm.mount(document.getElementById(\"nx\"), config)`.\n- `config.fields` : nom, type, **libellé du brief**, required, autocomplete. `config.labels.submit` = verbe d'action de la niche (« Réserver une table »). `config.errors` : textes du brief, sinon rédigés par le codeur ; requis seulement pour les types de champs présents (`email` si un champ e-mail, `phone` si un champ téléphone). **Aucun texte par défaut** : config incomplète = erreur.\n- Sans `endpoint` : le formulaire porte `data-nexai-type` et le script injecté par le backend l'envoie. Jamais d'URL inventée.\n- Sans JS : `<noscript>` sous le formulaire avec téléphone / WhatsApp cliquables.\n- Bouton d'envoi : rayon `--radius-btn` du style ; c'est le seul bouton plein de son écran (K3).\n- Anti-robot intégré (champ piège + délai). Validation au moment de l'envoi, focus sur le premier champ en erreur, `aria-invalid`, erreur liée par `aria-describedby` (C4).\n- Styles : variables de la famille uniquement ; rayon du style ; erreur signalée par texte « ⚠ … » + bordure 2 px `--ink` (jamais une couleur hors palette) ; anneau de focus `--accent` 3 px (C3).\n- Réservation restaurant / hôtel : champs date, heure, nombre de personnes, nom, téléphone. Si le client a une plateforme (Zenchef, TheFork…) : bouton vers la plateforme à la place.\n\n## Interdit\nLibellés 14 px graisse 600 (étiquettes, TY4). Message d'erreur par champ possible : `fields[].error` (sinon `errors.required`). Dates : `min` / `max` du champ respectés ; pour un séjour, la date de départ doit suivre l'arrivée (`fields[].after:\"arrivee\"`). Le bouton d'envoi utilise la classe `.btn` de la page. Le champ piège `.nx-hp` est exclu des contrôles des juges.\n\nInterdit : libellé flottant ou placeholder seul, plus de 7 champs, captcha visible, couleur d'erreur hors palette."
   }
 ]

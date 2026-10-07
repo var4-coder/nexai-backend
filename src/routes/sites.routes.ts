@@ -3,7 +3,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
 import { requireAuth } from '@/middleware/auth';
-import { listerVersions, restaurerVersion, MAX_VERSIONS_CONSERVEES } from '@/services/site-versions.service';
+import { listerVersions, restaurerVersion, enregistrerVersion, MAX_VERSIONS_CONSERVEES } from '@/services/site-versions.service';
 import { analyserSeoSite, analyserSeoTousSites } from '@/services/seo-analysis.service';
 import { getStatsVisites } from '@/services/site-visits.service';
 import { Site, SiteNiche } from '@/models/Site';
@@ -32,8 +32,20 @@ import {
 } from '@/services/hebergement.service';
 import { estimerAttente } from '@/services/attente.service';
 import { User } from '@/models/User';
+import multer from 'multer';
+import {
+  listerImagesDuSite,
+  propositionsPourImage,
+  controlerImageClient,
+  appliquerRemplacements,
+} from '@/services/modifier-images.service';
+import { uploadImageSiteClient, supprimerImageSite } from '@/services/cloudinary.service';
 
 export const sitesRouter = Router();
+
+// Image envoyée par le client depuis « Modifier les images » (JPEG, PNG, WebP ; 15 Mo max).
+const envoiImage = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const TYPES_IMAGES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const nicheEnum = z.enum([
   'hotellerie_evenementiel',
@@ -152,6 +164,7 @@ sitesRouter.get('/', requireAuth, async (req: Request, res: Response, next: Next
  * Sans indice valide : la proposition choisie, sinon la première.
  */
 type SiteEditable = { proposals?: unknown[]; chosenProposalId?: string; markModified?: (p: string) => void };
+type PropositionEditable = { versionId?: string; htmlDemo?: string; pages?: { slug?: string; title?: string; html?: string }[] };
 
 function indicePropositionDemande(brut: unknown): number | null {
   if (brut === undefined || brut === null || brut === '') return null;
@@ -159,24 +172,52 @@ function indicePropositionDemande(brut: unknown): number | null {
   return Number.isInteger(n) && n >= 0 ? n : null;
 }
 
-function propositionCourante(site: SiteEditable, indice: number | null = null) {
-  const props = (site.proposals ?? []) as { id?: string; htmlDemo?: string }[];
+/** Page demandée (slug) : absente ou « index » = accueil. */
+function pageDemandee(brut: unknown): string {
+  const v = typeof brut === 'string' ? brut.trim() : '';
+  return /^[a-z0-9-]{1,40}$/i.test(v) ? v : 'index';
+}
+
+function propositionCourante(site: SiteEditable, indice: number | null = null): PropositionEditable | undefined {
+  const props = (site.proposals ?? []) as PropositionEditable[];
   if (props.length === 0) return undefined;
   if (indice !== null) {
     if (indice >= props.length) throw new AppError('Cet aperçu n’existe pas.', 404);
     return props[indice];
   }
-  return props.find((p) => p.id === site.chosenProposalId) ?? props[0];
+  // Les propositions sont repérées par versionId (prop_1…) : l'ancienne
+  // comparaison sur « id » ne trouvait jamais la proposition retenue.
+  return props.find((p) => p.versionId === site.chosenProposalId) ?? props[0];
 }
 
-function htmlDuSite(site: SiteEditable, indice: number | null = null): string | null {
-  return propositionCourante(site, indice)?.htmlDemo ?? null;
+/** Pages modifiables de la proposition (accueil + pages intérieures). */
+function pagesDuSite(site: SiteEditable, indice: number | null = null): { slug: string; title: string }[] {
+  const prop = propositionCourante(site, indice);
+  if (!prop) return [];
+  return [
+    { slug: 'index', title: 'Accueil' },
+    ...(prop.pages ?? []).filter((p) => p.slug && p.html).map((p) => ({ slug: String(p.slug), title: String(p.title || p.slug) })),
+  ];
 }
 
-function ecrireHtmlDuSite(site: SiteEditable, html: string, indice: number | null = null): void {
+function htmlDuSite(site: SiteEditable, indice: number | null = null, page = 'index'): string | null {
+  const prop = propositionCourante(site, indice);
+  if (!prop) return null;
+  if (page === 'index') return prop.htmlDemo ?? null;
+  const p = (prop.pages ?? []).find((x) => x.slug === page);
+  if (!p) throw new AppError('Cette page n’existe pas sur votre site.', 404);
+  return p.html ?? null;
+}
+
+function ecrireHtmlDuSite(site: SiteEditable, html: string, indice: number | null = null, page = 'index'): void {
   const prop = propositionCourante(site, indice);
   if (!prop) return;
-  prop.htmlDemo = html;
+  if (page === 'index') prop.htmlDemo = html;
+  else {
+    const p = (prop.pages ?? []).find((x) => x.slug === page);
+    if (!p) throw new AppError('Cette page n’existe pas sur votre site.', 404);
+    p.html = html;
+  }
   // Mongoose ne détecte pas seul la modification d'un objet imbriqué.
   site.markModified?.('proposals');
 }
@@ -192,7 +233,7 @@ sitesRouter.get('/:id/textes', requireAuth, async (req: Request, res: Response, 
     const site = await Site.findOne({ _id: req.params.id, userId: req.auth!.userId });
     if (!site) throw new AppError('Site introuvable', 404);
 
-    const html = htmlDuSite(site, indicePropositionDemande(req.query.proposition));
+    const html = htmlDuSite(site, indicePropositionDemande(req.query.proposition), pageDemandee(req.query.page));
     if (!html) throw new AppError("Ce site n'a pas encore de page à modifier.", 400);
 
     res.json({ textes: listerTextesEditables(html) });
@@ -247,10 +288,12 @@ sitesRouter.get('/:id/page-editable', requireAuth, async (req: Request, res: Res
     const site = await Site.findOne({ _id: req.params.id, userId: req.auth!.userId });
     if (!site) throw new AppError('Site introuvable', 404);
 
-    const html = htmlDuSite(site, indicePropositionDemande(req.query.proposition));
+    const indice = indicePropositionDemande(req.query.proposition);
+    const html = htmlDuSite(site, indice, pageDemandee(req.query.page));
     if (!html) throw new AppError("Ce site n'a pas encore de page à modifier.", 400);
 
-    res.json({ html: baliserTextesEditables(html) });
+    // Toutes les pages sont modifiables (accueil et pages intérieures).
+    res.json({ html: baliserTextesEditables(html), pages: pagesDuSite(site, indice) });
   } catch (err) {
     next(err);
   }
@@ -270,18 +313,22 @@ sitesRouter.put('/:id/textes', requireAuth, async (req: Request, res: Response, 
         modifications: z.record(z.string().max(600)),
         // Aperçu modifié (0, 1, 2…). Absent : la proposition choisie.
         proposition: z.coerce.number().int().min(0).optional(),
+        page: z.string().max(40).optional(),
       })
       .parse(req.body ?? {});
     const indice = proposition ?? null;
+    const page = pageDemandee(req.body?.page);
 
     const site = await Site.findOne({ _id: req.params.id, userId: req.auth!.userId });
     if (!site) throw new AppError('Site introuvable', 404);
 
-    const html = htmlDuSite(site, indice);
+    const html = htmlDuSite(site, indice, page);
     if (!html) throw new AppError("Ce site n'a pas encore de page à modifier.", 400);
 
     const nouveau = appliquerTextes(html, modifications);
-    ecrireHtmlDuSite(site, nouveau, indice);
+    // Version de sauvegarde AVANT d'écraser : le client peut revenir en arrière.
+    await enregistrerVersion(site._id, 'edition_manuelle', `Textes modifiés (${page === 'index' ? 'accueil' : page})`);
+    ecrireHtmlDuSite(site, nouveau, indice, page);
     await site.save();
 
     res.json({
@@ -290,6 +337,94 @@ sitesRouter.put('/:id/textes', requireAuth, async (req: Request, res: Response, 
           ? 'Textes enregistrés. Remettez votre site en ligne pour que vos visiteurs les voient.'
           : 'Textes enregistrés.',
       textes: listerTextesEditables(nouveau),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Modifier les images du site (décision du 03/10/2026) ──────────────────
+//
+// GRATUIT, comme la modification des textes : une modification n'est visible
+// des visiteurs qu'après une nouvelle mise en ligne, qui est payante.
+// Le client peut changer une ou plusieurs images en une seule modification.
+
+async function siteModifiable(siteId: string, userId: string) {
+  const site = await Site.findOne({ _id: siteId, userId });
+  if (!site) throw new AppError('Site introuvable', 404);
+  if (site.status !== 'ready' && site.status !== 'launched') {
+    throw new AppError("Votre site n'est pas encore prêt : attendez la fin de sa création.", 400);
+  }
+  return site;
+}
+
+/** GET /:id/images — images modifiables du site (toutes pages). */
+sitesRouter.get('/:id/images', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const site = await siteModifiable(req.params.id, req.auth!.userId);
+    res.json({ images: listerImagesDuSite(site) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** GET /:id/images/:imageId/propositions?source=galerie|direct&recherche=… */
+sitesRouter.get('/:id/images/:imageId/propositions', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { source, recherche } = z
+      .object({ source: z.enum(['galerie', 'direct']).default('galerie'), recherche: z.string().max(80).optional() })
+      .parse(req.query ?? {});
+    const site = await siteModifiable(req.params.id, req.auth!.userId);
+    res.json({ propositions: await propositionsPourImage(site, req.params.imageId, { source, recherche }) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /:id/images/envoi — le client envoie SA propre image pour un emplacement (contrôle de qualité). */
+sitesRouter.post(
+  '/:id/images/envoi',
+  requireAuth,
+  envoiImage.single('fichier'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { imageId } = z.object({ imageId: z.string().min(4).max(40) }).parse(req.body ?? {});
+      const fichier = req.file;
+      if (!fichier) throw new AppError('Aucune image reçue.', 400);
+      if (!TYPES_IMAGES.has(fichier.mimetype)) throw new AppError('Format accepté : JPEG, PNG ou WebP.', 400);
+      const site = await siteModifiable(req.params.id, req.auth!.userId);
+      const envoi = await uploadImageSiteClient(fichier.buffer, String(site._id));
+      const controle = controlerImageClient(site, imageId, { width: envoi.width, height: envoi.height });
+      if (!controle.ok) {
+        await supprimerImageSite(envoi.publicId).catch(() => undefined);
+        throw new AppError(controle.raison, 400);
+      }
+      res.json({ proposition: { ref: `client:${envoi.url}`, apercu: envoi.url, largeur: envoi.width, hauteur: envoi.height } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** PUT /:id/images — applique en UNE modification tous les remplacements choisis. */
+sitesRouter.put('/:id/images', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { remplacements } = z
+      .object({
+        remplacements: z
+          .array(z.object({ imageId: z.string().min(4).max(40), ref: z.string().min(6).max(600) }))
+          .min(1)
+          .max(60),
+      })
+      .parse(req.body ?? {});
+    const site = await siteModifiable(req.params.id, req.auth!.userId);
+    const { remplacees } = await appliquerRemplacements(site, remplacements);
+    res.json({
+      message:
+        site.status === 'launched'
+          ? `${remplacees} image(s) remplacée(s). Remettez votre site en ligne pour que vos visiteurs les voient.`
+          : `${remplacees} image(s) remplacée(s).`,
+      images: listerImagesDuSite(site),
     });
   } catch (err) {
     next(err);

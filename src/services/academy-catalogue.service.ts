@@ -264,7 +264,7 @@ async function evaluerAvecClaude(c: IAcademyCandidate): Promise<ICandidateEvalua
       : "Aucune transcription disponible : juge sur le titre et la description, et reste prudent (qualiteTechnique ≤ 5, verdict au mieux « acceptable »).",
   ].join('\n');
   const texte = await callClaude(
-    'claude-sonnet-5',
+    'claude-sonnet-5-5',
     consigneEvaluation(c),
     [{ role: 'user', content: contexte }],
     { maxTokens: 1500 }

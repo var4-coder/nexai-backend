@@ -7,7 +7,8 @@ import {
   resolveRenewalAnnualUsd,
   debitCredits,
 } from '@/services/credits.service';
-import { renewDomain, getDomainDetails } from '@/services/godaddy.service';
+import { detailsDomaineChez, renewDomainChez } from '@/services/registrar.service';
+import type { VendeurDomaine } from '@/services/registrar-reglage.service';
 import { revertToSubdomain } from '@/services/netlify.service';
 import { Site } from '@/models/Site';
 import {
@@ -73,6 +74,7 @@ export async function registerPurchasedDomain(opts: {
   creditsChargedAtPurchase: number;
   /** Prix RÉEL renvoyé par GoDaddy pour ce nom exact, en USD. */
   observedPriceUsd?: number | null;
+  registrar?: VendeurDomaine;
 }): Promise<IDomain> {
   const domainName = opts.domainName.toLowerCase().trim();
   const tld = getDomainTld(domainName);
@@ -103,6 +105,7 @@ export async function registerPurchasedDomain(opts: {
     expiresAt: oneYearLater,
     provisioningStartsAt: oneYearLater,
     status: 'premiere_annee',
+    registrar: opts.registrar ?? 'godaddy',
   });
 }
 
@@ -208,14 +211,14 @@ export async function runDomainRenewalProvisioning(): Promise<{
       daysUntil(domain.expiresAt, now) <= RENEW_WINDOW_DAYS
     ) {
       try {
-        await renewDomain(domain.domainName, 1);
+        await renewDomainChez(domain.registrar === 'porkbun' ? 'porkbun' : 'godaddy', domain.domainName);
 
         // On recale l'échéance sur ce que GoDaddy annonce réellement plutôt
         // que de supposer « +1 an » : en cas de décalage, le prochain cycle
         // serait faussé pour toujours.
         let newExpiry: Date | null = null;
         try {
-          const details = await getDomainDetails(domain.domainName);
+          const details = await detailsDomaineChez(domain.registrar === 'porkbun' ? 'porkbun' : 'godaddy', domain.domainName);
           if (details.expires) newExpiry = new Date(details.expires);
         } catch {
           // Détails indisponibles : on retombe sur +1 an, corrigé au prochain

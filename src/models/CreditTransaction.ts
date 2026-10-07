@@ -9,6 +9,10 @@ export type CreditTransactionType =
   | 'logo'
   /** Coach « Trouver un business » — 3 crédits, 1 idée par session */
   | 'coach_business'
+  /** Skill NexAI — commande d'un skill sur mesure (débit) */
+  | 'skill_nexai'
+  /** Skill NexAI — remboursement d'une commande écartée ou impossible à lancer */
+  | 'skill_nexai_remboursement'
   | 'modification_niveau2'
   | 'modification_niveau3'
   | 'redeploiement'
@@ -35,6 +39,8 @@ export interface ICreditTransaction {
   montantFcfa?: number;
   /** Référence du paiement chez le prestataire (Chariow…) */
   referencePaiement?: string;
+  /** Clé d'idempotence (ex. `abo:<référence>`) : unique quand elle est présente. */
+  cleIdempotence?: string;
   note?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -52,6 +58,8 @@ const creditTransactionSchema = new Schema<ICreditTransaction>(
         'generation_site',
         'logo',
         'coach_business',
+        'skill_nexai',
+        'skill_nexai_remboursement',
         'modification_niveau2',
         'modification_niveau3',
         'redeploiement',
@@ -69,6 +77,8 @@ const creditTransactionSchema = new Schema<ICreditTransaction>(
     relatedSiteId: { type: Schema.Types.ObjectId, ref: 'Site' },
     montantFcfa: { type: Number },
     referencePaiement: { type: String },
+    // Unique SPARSE : les lignes sans clé (débits, ajustements) ne sont pas concernées.
+    cleIdempotence: { type: String, unique: true, sparse: true },
     note: { type: String },
   },
   { timestamps: true }
