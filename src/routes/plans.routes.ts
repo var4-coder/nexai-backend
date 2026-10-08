@@ -38,7 +38,9 @@ const PLANS = [
     nonInclus: [
       'Créer un site',
       'Créer un logo',
+      'Modifier un site',
       'Générer une vidéo IA',
+      'Skill NexAI',
       'Espace Agence',
     ],
   },
@@ -52,6 +54,7 @@ const PLANS = [
       'Créer un site (Normale et Premium)',
       'Créer un logo',
       'Générer des vidéos IA (pub voix off + avatar)',
+      'Skill NexAI (créer vos propres skills IA)',
       'Sous-domaine NexAI gratuit et illimité',
       'Achat de domaine en crédits',
       'Méthode de retrait (Compte NexAI)',
