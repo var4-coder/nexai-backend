@@ -308,8 +308,10 @@ export class ChariowService {
         (Array.isArray(data?.errors) && data.errors[0] && JSON.stringify(data.errors[0])) ||
         JSON.stringify(data).slice(0, 220);
       console.error('[chariow] checkout', status, detail);
+      // Le client voit un message de service (code 502) ; l'administrateur
+      // voit la raison exacte donnée par Chariow pour pouvoir corriger.
       throw new AppError(
-        'Impossible de générer le lien de paiement pour le moment. Réessayez dans un instant.',
+        `Impossible de générer le lien de paiement pour le moment (Chariow ${status} : ${detail}). Réessayez dans un instant.`,
         502
       );
     }

@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '@/middleware/auth';
-import { User } from '@/models/User';
+import { User, methodeRetraitChoisie } from '@/models/User';
 import { AppError } from '@/middleware/errorHandler';
 import { validatePaymentLink } from '@/services/payment-link.service';
 import { getSoldeReversement, getHistoriqueReversement } from '@/services/reversement.service';
@@ -48,7 +48,8 @@ retraitRouter.get('/', requireAuth, async (req: Request, res: Response, next: Ne
     const historique = await getHistoriqueReversement(user._id);
 
     res.json({
-      modeActif: user.defaultPaymentMode ?? 'nexai',
+      // null tant que le client n'a pas choisi sa méthode (aucun choix imposé).
+      modeActif: methodeRetraitChoisie(user),
       compteNexai: {
         label: 'Recevoir via mon Compte NexAI',
         description:

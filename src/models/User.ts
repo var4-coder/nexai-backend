@@ -145,10 +145,11 @@ const userSchema = new Schema<IUser>(
     referralRewardGranted: { type: Boolean, default: false },
     videoTestUsed: { type: Boolean, default: false },
     videoTestVideoAdId: { type: Schema.Types.ObjectId, ref: 'VideoAd' },
+    // Pas de valeur par défaut : c'est au client de choisir sa méthode de
+    // retrait (Compte NexAI ou lien personnel) dans « Méthode de retrait ».
     defaultPaymentMode: {
       type: String,
       enum: ['lien_personnel', 'nexai'],
-      default: 'nexai',
     },
     personalPaymentLink: { type: String },
     personalPaymentProvider: { type: String, enum: ['chariow', 'maketou', 'stripe', 'autre'] },
@@ -179,3 +180,19 @@ const userSchema = new Schema<IUser>(
 userSchema.index({ ipHash: 1 });
 
 export const User = model<IUser>('User', userSchema);
+
+/**
+ * Méthode de retrait RÉELLEMENT choisie par le client, ou null s'il ne l'a
+ * jamais définie. Les anciens comptes portent « nexai » par défaut en base
+ * sans l'avoir choisi : on ne le compte que si la méthode est complète
+ * (compte de reversement renseigné, ou lien personnel enregistré).
+ */
+export function methodeRetraitChoisie(u: {
+  defaultPaymentMode?: string | null;
+  compteReversement?: unknown;
+  personalPaymentLink?: string | null;
+}): 'nexai' | 'lien_personnel' | null {
+  if (u.defaultPaymentMode === 'lien_personnel' && u.personalPaymentLink) return 'lien_personnel';
+  if (u.defaultPaymentMode === 'nexai' && u.compteReversement) return 'nexai';
+  return null;
+}

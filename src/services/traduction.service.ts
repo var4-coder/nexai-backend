@@ -20,15 +20,26 @@ Rules:
 - Answer ONLY with a JSON array of strings, same length and order as the input. No comments.`;
   const entree = JSON.stringify(textes);
   const modele = await getModelForRole('traduction_interface');
-  const brut = modele.startsWith('grok-')
-    ? await callGrok(modele as GrokModel, [{ role: 'system', content: system }, { role: 'user', content: entree }], {
-        maxTokens: 4000,
-        temperature: 0.1,
-      })
-    : await callClaude(modele as ClaudeModel, system, [{ role: 'user', content: entree }], {
-        maxTokens: 4000,
-        temperature: 0.1,
-      });
+  const appeler = (m: string) =>
+    m.startsWith('grok-')
+      ? callGrok(m as GrokModel, [{ role: 'system', content: system }, { role: 'user', content: entree }], {
+          maxTokens: 4000,
+          temperature: 0.1,
+        })
+      : callClaude(m as ClaudeModel, system, [{ role: 'user', content: entree }], {
+          maxTokens: 4000,
+          temperature: 0.1,
+        });
+  // Un fournisseur en panne (crédit épuisé…) ne doit pas bloquer la
+  // traduction : on bascule automatiquement sur l'autre.
+  let brut: string;
+  try {
+    brut = await appeler(modele);
+  } catch (e) {
+    const secours = modele.startsWith('grok-') ? 'claude-haiku-4-5-20251001' : 'grok-4.3';
+    console.warn(`[traduction] ${modele} indisponible, bascule sur ${secours}`, (e as Error).message);
+    brut = await appeler(secours);
+  }
   const json = brut.slice(brut.indexOf('['), brut.lastIndexOf(']') + 1);
   const sortie = JSON.parse(json) as unknown[];
   return textes.map((_, i) => (typeof sortie[i] === 'string' && (sortie[i] as string).trim() ? (sortie[i] as string) : null));

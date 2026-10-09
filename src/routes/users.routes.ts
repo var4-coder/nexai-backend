@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { requireAuth } from '@/middleware/auth';
 import { AppError } from '@/middleware/errorHandler';
 import { aUnAbonnementActif } from '@/utils/abonnement';
-import { User } from '@/models/User';
+import { User, methodeRetraitChoisie } from '@/models/User';
 import { CreditTransaction } from '@/models/CreditTransaction';
 import { LANGUES_SUPPORTEES, isPaysSupporte, langueEffective } from '@/constants/pays';
 
@@ -36,7 +36,8 @@ usersRouter.get('/me', requireAuth, async (req, res, next) => {
         hasGoogle: Boolean(user.googleId),
         emailVerifiedAt: user.emailVerifiedAt,
         createdAt: user.createdAt,
-        defaultPaymentMode: user.defaultPaymentMode || 'nexai',
+        // null tant que le client n'a pas choisi sa méthode de retrait.
+        defaultPaymentMode: methodeRetraitChoisie(user),
         personalPaymentLink: user.personalPaymentLink || '',
         personalPaymentProvider: user.personalPaymentProvider || '',
         compteReversement: user.compteReversement || null,
