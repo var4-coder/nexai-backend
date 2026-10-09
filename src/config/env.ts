@@ -23,6 +23,8 @@ const envSchema = z.object({
   BREVO_API_KEY: z.string().optional().default(''),
   BREVO_SENDER_EMAIL: z.string().optional().default('no-reply@nexai.app'),
   BREVO_SENDER_NAME: z.string().optional().default('NexAI'),
+  /** Nom affiché sur les SMS (11 caractères max, lettres et chiffres). */
+  BREVO_SMS_SENDER: z.string().max(11).optional().default('NexAI'),
 
   CHARIOW_WEBHOOK_SECRET: z.string().optional().default(''),
   CHARIOW_API_KEY: z.string().optional().default(''),

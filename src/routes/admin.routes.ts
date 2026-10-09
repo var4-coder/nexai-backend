@@ -31,6 +31,7 @@ import { env } from '@/config/env';
 import { ecrireVendeurDomaine, lireVendeurDomaine } from '@/services/registrar-reglage.service';
 import { genererAvis } from '@/services/avis-generation.service';
 import { getStatutSecurite, demanderChangementEmail, confirmerChangementEmail } from '@/services/admin-security.service';
+import { statutReglageAdmin, reglerVerificationTelephone } from '@/services/verification-telephone.service';
 import { Avis } from '@/models/Avis';
 import { PlatformAlert } from '@/models/PlatformAlert';
 import { BoutiquePack } from '@/models/BoutiquePack';
@@ -2937,6 +2938,37 @@ adminRouter.get(
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       res.json(await getStatutSecurite());
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.get(
+  '/verification-telephone',
+  requireRole('admin'),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await statutReglageAdmin());
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.patch(
+  '/verification-telephone',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z.object({ actif: z.boolean() }).parse(req.body);
+      await reglerVerificationTelephone(body.actif);
+      await logEvent({
+        categorie: 'action_admin',
+        niveau: 'info',
+        message: `Vérification du téléphone par SMS ${body.actif ? 'activée' : 'désactivée'}`,
+      });
+      res.json(await statutReglageAdmin());
     } catch (err) {
       next(err);
     }

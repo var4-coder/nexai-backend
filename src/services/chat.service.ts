@@ -27,6 +27,7 @@ import {
   assertSkillPlanAllowed,
 } from './credits.service';
 import { briefSkillSchema, commanderSkill } from './skill-nexai.service';
+import { exigerTelephoneVerifie } from './verification-telephone.service';
 
 /**
  * Chat IA de guidage — Claude (Haiku par défaut, bascule Sonnet 5 possible
@@ -1490,6 +1491,13 @@ export async function confirmChatSession(sessionId: string, userId: string, conf
   }
 
   const hubMode = (session.mode || 'site') as ChatHubMode;
+  if (hubMode === 'site') {
+    // Site d'essai gratuit : numéro vérifié par SMS si l'admin l'a activé.
+    // Contrôlé AVANT toute création ou dépense, pour pouvoir relancer
+    // exactement la même confirmation une fois le numéro vérifié.
+    const demandeur = await User.findById(userId).select('plan role telephoneVerifie');
+    if (demandeur) await exigerTelephoneVerifie(demandeur);
+  }
   if (hubMode === 'skill') {
     // Skill NexAI : débit + envoi du brief à l'équipe IA de l'Atelier Skills.
     const brief = briefSkillSchema.safeParse(session.collectedBrief);

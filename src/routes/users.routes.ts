@@ -6,10 +6,47 @@ import { requireAuth } from '@/middleware/auth';
 import { AppError } from '@/middleware/errorHandler';
 import { aUnAbonnementActif } from '@/utils/abonnement';
 import { User, methodeRetraitChoisie } from '@/models/User';
+import {
+  verificationTelephoneActive,
+  envoyerCodeTelephone,
+  verifierCodeTelephone,
+} from '@/services/verification-telephone.service';
 import { CreditTransaction } from '@/models/CreditTransaction';
 import { LANGUES_SUPPORTEES, isPaysSupporte, langueEffective } from '@/constants/pays';
 
 export const usersRouter = Router();
+
+// ── Vérification du téléphone par SMS (site d'essai gratuit) ──
+usersRouter.get('/telephone', requireAuth, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.auth!.userId).select('telephoneVerifie pays telephonePays');
+    res.json({
+      actif: await verificationTelephoneActive(),
+      verifie: user?.telephoneVerifie ?? null,
+      pays: user?.pays ?? null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+usersRouter.post('/telephone/code', requireAuth, async (req, res, next) => {
+  try {
+    const body = z.object({ numero: z.string().min(6).max(25), pays: z.string().length(2).optional() }).parse(req.body);
+    res.json(await envoyerCodeTelephone(req.auth!.userId, body.numero, body.pays?.toUpperCase()));
+  } catch (err) {
+    next(err);
+  }
+});
+
+usersRouter.post('/telephone/verifier', requireAuth, async (req, res, next) => {
+  try {
+    const body = z.object({ code: z.string().regex(/^\d{6}$/, 'Le code contient 6 chiffres.') }).parse(req.body);
+    res.json(await verifierCodeTelephone(req.auth!.userId, body.code));
+  } catch (err) {
+    next(err);
+  }
+});
 
 usersRouter.get('/me', requireAuth, async (req, res, next) => {
   try {
@@ -35,6 +72,7 @@ usersRouter.get('/me', requireAuth, async (req, res, next) => {
         logosUsed: user.logosUsed ?? 0,
         hasGoogle: Boolean(user.googleId),
         emailVerifiedAt: user.emailVerifiedAt,
+        telephoneVerifie: user.telephoneVerifie ?? null,
         createdAt: user.createdAt,
         // null tant que le client n'a pas choisi sa méthode de retrait.
         defaultPaymentMode: methodeRetraitChoisie(user),

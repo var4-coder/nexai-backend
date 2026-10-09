@@ -37,7 +37,56 @@ Structure du projet :
 Réponds UNIQUEMENT en JSON :
 {"gravite":"faible|moyenne|critique","cause_probable":"...","fichiers_suspects":["src/..."],"piste_correction":"..."}`;
 
+/**
+ * Type de panne d'un fournisseur extérieur : « anthropic:credit »,
+ * « xai:panne »… Toutes les erreurs du même type forment UN SEUL incident,
+ * quelle que soit la fonction touchée (chat, codeur, juge…) et quel que soit
+ * le détail du message (identifiant de requête, horodatage…).
+ * Renvoie null pour une erreur qui ne vient pas d'un fournisseur.
+ */
+export function typeDePanne(erreur: string): string | null {
+  const t = erreur.toLowerCase();
+  const fournisseurs: [string, RegExp][] = [
+    ['anthropic', /anthropic|claude-/],
+    ['xai', /\bxai\b|x\.ai|grok-/],
+    ['recraft', /recraft/],
+    ['fal', /fal\.ai|falai|\bfal\b|kling/],
+    ['alexya', /alexya/],
+    ['elevenlabs', /elevenlabs/],
+    ['gemini', /gemini/],
+    ['cloudinary', /cloudinary/],
+    ['netlify', /netlify/],
+    ['godaddy', /godaddy/],
+    ['porkbun', /porkbun/],
+    ['brevo', /brevo/],
+    ['chariow', /chariow/],
+    ['bunny', /bunny/],
+    ['mongodb', /mongo/],
+    ['redis', /redis|bullmq/],
+  ];
+  // Le fournisseur cité EN PREMIER est celui qui a échoué (« claude-haiku
+  // indisponible… basculé sur grok-4.6 » concerne Anthropic).
+  let meilleur: { nom: string; pos: number } | null = null;
+  for (const [nom, re] of fournisseurs) {
+    const m = re.exec(t);
+    if (m && (!meilleur || m.index < meilleur.pos)) meilleur = { nom, pos: m.index };
+  }
+  if (!meilleur) return null;
+  const nature = /credit balance|insufficient|quota|billing|payment required|\b402\b|solde/.test(t)
+    ? 'credit'
+    : /api[_ -]?key|manquante|\b401\b|\b403\b|authenticat|unauthori|forbidden/.test(t)
+      ? 'cle'
+      : /\b429\b|rate.?limit|overloaded|\b529\b|satur/.test(t)
+        ? 'saturation'
+        : 'panne';
+  return `${meilleur.nom}:${nature}`;
+}
+
 function empreinteDe(composant: string, erreur: string, contexte?: string): string {
+  const type = typeDePanne(erreur);
+  if (type) {
+    return crypto.createHash('sha1').update(`fournisseur|${type}`).digest('hex').slice(0, 24);
+  }
   // Les identifiants et nombres variables sont retirés : deux occurrences
   // du même bug ne doivent produire qu'un seul incident.
   const normalise = erreur
@@ -71,18 +120,36 @@ export async function signalerIncident(params: {
   try {
     const empreinte = empreinteDe(params.composant, params.erreur, params.contexte);
 
-    const existant = await PlatformAlert.findOneAndUpdate(
-      { empreinte },
+    // Même panne encore ouverte (pas « résolue ») : on compte, sans nouvelle
+    // alerte ni nouvel email. L'administrateur a déjà été prévenu.
+    const ouvert = await PlatformAlert.findOneAndUpdate(
+      { empreinte, statut: { $ne: 'resolu' } },
+      { $inc: { occurrences: 1 }, $set: { derniereOccurrence: new Date() } },
+      { new: true }
+    );
+    if (ouvert) return;
+
+    // La même panne revient APRÈS avoir été marquée résolue : c'est une
+    // nouvelle panne, l'incident est rouvert et l'administrateur prévenu.
+    const rouvert = await PlatformAlert.findOneAndUpdate(
+      { empreinte, statut: 'resolu' },
       {
-        $inc: { occurrences: 1 },
-        $set: { derniereOccurrence: new Date() },
+        $set: {
+          statut: 'nouveau',
+          occurrences: 1,
+          derniereOccurrence: new Date(),
+          erreur: params.erreur.slice(0, 2000),
+          contexte: params.contexte,
+          gravite: params.gravite ?? 'moyenne',
+        },
+        $unset: { resoluA: 1, causeProbable: 1, pisteCorrection: 1, diagnostiqueA: 1 },
       },
       { new: true }
     );
 
-    if (existant) return; // déjà connu : compteur incrémenté, pas de nouvelle alerte
-
-    const alerte = await PlatformAlert.create({
+    const alerte =
+      rouvert ??
+      (await PlatformAlert.create({
       composant: params.composant,
       erreur: params.erreur.slice(0, 2000),
       stack: params.stack?.slice(0, 4000),
@@ -91,7 +158,12 @@ export async function signalerIncident(params: {
       categorie: params.categorie ?? 'serieuse',
       empreinte,
       statut: 'nouveau',
-    });
+    }).catch(async (e: { code?: number }) => {
+      // Deux signalements simultanés de la même panne : l'autre a gagné.
+      if (e?.code === 11000) return null;
+      throw e;
+    }));
+    if (!alerte) return;
 
     // Panne sérieuse : email immédiat. L'administrateur doit pouvoir agir
     // sans être connecté à son espace. Une seule alerte par panne, quel que

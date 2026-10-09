@@ -17,10 +17,24 @@ export interface IPasswordReset {
   lastSentAt: Date;
 }
 
+export interface ICodeTelephone {
+  hash: string;
+  numero: string;
+  expiresAt: Date;
+  attempts: number;
+  lastSentAt: Date;
+  envois: number;
+  fenetreDebut: Date;
+}
+
 export interface IUser {
   _id: Types.ObjectId;
   email: string;
   telephone?: string;
+  /** Numéro vérifié par SMS (format international). Un numéro = un seul compte d'essai. */
+  telephoneVerifie?: string;
+  telephoneVerifieLe?: Date;
+  codeTelephone?: ICodeTelephone;
   telephonePays?: string;
   /**
    * Pays du compte (code ISO 2 lettres), choisi à l'inscription puis dans
@@ -113,6 +127,9 @@ const userSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     telephone: { type: String },
     telephonePays: { type: String },
+    telephoneVerifie: { type: String, index: true, sparse: true },
+    telephoneVerifieLe: { type: Date },
+    codeTelephone: { type: Schema.Types.Mixed, select: false },
     pays: { type: String, uppercase: true, trim: true },
     prenom: { type: String },
     nom: { type: String },

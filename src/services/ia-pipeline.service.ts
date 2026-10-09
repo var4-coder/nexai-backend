@@ -4,6 +4,7 @@ import { avecCompteurDepense, plafondDepasse } from '@/services/depense-context'
 import { signalerIncident } from '@/services/platform-alert.service';
 import { assertRelanceGratuiteAutorisee } from '@/services/site-relaunch.service';
 import { verifierClarteBrief } from '@/services/clarte-brief.service';
+import { exigerTelephoneVerifie } from '@/services/verification-telephone.service';
 import { Site, ISite, ISiteProposal, SiteNiche, SiteQualityTier } from '@/models/Site';
 import { Job } from '@/models/Job';
 import { User, IUser } from '@/models/User';
@@ -477,6 +478,7 @@ export async function enqueueSiteGeneration(
     throw new AppError('Le plan Starter est réservé à l\'Académie. Passez à Créateur+ pour générer des sites.', 403);
   }
   // trial + createur + agence + pro_max OK (trial = essai avec limites côté crédits / quotas)
+  await exigerTelephoneVerifie(user);
 
   // La qualité Premium est réservée aux abonnés (jamais l'essai gratuit), quel
   // que soit le solde de crédits disponible — règle métier explicite, pas
