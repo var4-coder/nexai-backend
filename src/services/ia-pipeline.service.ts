@@ -1780,7 +1780,7 @@ async function executerGeneration(
               captures.map(({ base64, mediaType }) => ({ base64, mediaType })),
               // 2 aperçus = 2 jugements par le même modèle, quelques secondes
               // d'écart : la consigne mise en cache au 1er est relue au 2e.
-              { maxTokens: 1500, temperature: 0.2, reutilisationPrevue: previewCount > 1 }
+              { maxTokens: 1500, temperature: 0.2, reutilisationPrevue: previewCount > 1, eviterSecours: modeleCodeur }
             )
           : await callClaude(
               modeleJugeVisuel as ClaudeModel,
@@ -1794,7 +1794,7 @@ async function executerGeneration(
                     `Capture indisponible : juge d'après le code (début de la page) :\n${html.slice(0, 8000)}`,
                 },
               ],
-              { maxTokens: 1500, temperature: 0.2 }
+              { maxTokens: 1500, temperature: 0.2, eviterSecours: modeleCodeur }
             );
       const visual = parseJsonSafe<{
         score_visuel: number;
