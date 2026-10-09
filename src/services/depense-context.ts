@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import { CompteurDepense, UsageCache } from '@/services/cout-generation.service';
+import { compterAppelIa } from '@/services/stats-jour.service';
 
 /**
  * Compteur de dépense isolé PAR génération.
@@ -29,6 +30,8 @@ export function enregistrerUsage(
   tokensSortie: number,
   cache?: UsageCache
 ): void {
+  // Coût IA réel du jour, pour le Bilan de l'admin (tous les appels, pas seulement les générations).
+  compterAppelIa(modele, tokensEntree, tokensSortie, cache);
   const c = compteurCourant();
   if (!c) return;
   c.ajouter(modele, tokensEntree, tokensSortie, cache);

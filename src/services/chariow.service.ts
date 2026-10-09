@@ -412,10 +412,12 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
 
     const wasTrial = user.plan === 'trial';
     try {
-      // Cadeau de bienvenue : première souscription d'un plan avec vidéo
-      // (Starter n'est pas concerné). L'attribution est conditionnelle en
-      // base : deux paiements simultanés ne donnent jamais deux cadeaux.
-      if (VIDEO_AD_ALLOWED_PLANS.has(plan)) {
+      // Bonus Pro Max (décision du 09/10/2026) : la première vidéo de 20 s
+      // est offerte à la première souscription Pro Max uniquement. Les autres
+      // abonnements n'ont pas de vidéo offerte. L'attribution est
+      // conditionnelle en base : deux paiements simultanés ne donnent jamais
+      // deux cadeaux.
+      if (plan === 'pro_max') {
         await User.findOneAndUpdate(
           { _id: user._id, cadeauBienvenueAttribue: { $ne: true } },
           { $set: { videoOfferteDisponible: true, cadeauBienvenueAttribue: true } }

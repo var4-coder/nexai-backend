@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { sourceDe } from '@/services/stats-jour.service';
+import { User } from '@/models/User';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { AppError } from '@/middleware/errorHandler';
@@ -40,6 +42,9 @@ const registerSchema = z.object({
   referralCode: z.string().trim().max(20).optional(),
   /** Empreinte navigateur — protège le parrainage contre l'auto-parrainage. */
   deviceFingerprint: z.string().trim().max(128).optional(),
+  /** D'où vient l'inscrit (lien de pub : utm_source, ou site d'origine) — Bilan de l'admin. */
+  source: z.string().trim().max(60).optional(),
+  campagne: z.string().trim().max(80).optional(),
 });
 
 const verifySchema = z.object({
@@ -61,6 +66,8 @@ const googleSchema = z.object({
   referralCode: z.string().trim().max(20).optional(),
   deviceFingerprint: z.string().trim().max(128).optional(),
   pays: z.string().length(2).optional(),
+  source: z.string().trim().max(60).optional(),
+  campagne: z.string().trim().max(80).optional(),
 });
 
 const forgotPasswordSchema = z.object({
@@ -86,10 +93,20 @@ function parseOrThrow<T>(schema: z.ZodSchema<T>, data: unknown): T {
   return result.data;
 }
 
+/** Source de l'inscrit, notée une seule fois (à la création du compte). */
+async function noterAcquisition(userId: string | undefined, source?: string, campagne?: string) {
+  if (!userId || !/^[0-9a-f]{24}$/i.test(userId)) return;
+  await User.updateOne(
+    { _id: userId, 'acquisition.source': { $exists: false } },
+    { $set: { acquisition: { source: sourceDe(source), campagne: campagne || undefined, le: new Date() } } }
+  ).catch(() => {});
+}
+
 authRouter.post('/register', authLimiter, async (req, res, next) => {
   try {
-    const { email, password, pays, referralCode, deviceFingerprint } = parseOrThrow(registerSchema, req.body);
+    const { email, password, pays, referralCode, deviceFingerprint, source, campagne } = parseOrThrow(registerSchema, req.body);
     const user = await registerUser({ email, password, pays, referralCode, deviceFingerprint, ip: req.ip });
+    await noterAcquisition((user as { id?: string; _id?: unknown }).id ?? String((user as { _id?: unknown })._id), source, campagne);
     res.status(201).json({
       message: 'Compte créé. Un code de vérification a été envoyé par email.',
       user,
@@ -134,8 +151,9 @@ authRouter.post('/login', authLimiter, async (req, res, next) => {
 
 authRouter.post('/google', authLimiter, async (req, res, next) => {
   try {
-    const { idToken, referralCode, deviceFingerprint, pays } = parseOrThrow(googleSchema, req.body);
+    const { idToken, referralCode, deviceFingerprint, pays, source, campagne } = parseOrThrow(googleSchema, req.body);
     const { user, token } = await loginWithGoogle({ idToken, referralCode, deviceFingerprint, pays, ip: req.ip });
+    await noterAcquisition((user as { id?: string; _id?: unknown }).id ?? String((user as { _id?: unknown })._id), source, campagne);
     res.cookie(AUTH_COOKIE_NAME, token, authCookieOptions);
     res.json({ user, token });
   } catch (err) {

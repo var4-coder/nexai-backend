@@ -87,6 +87,7 @@ const PLANS = [
       '3 logos inclus',
       '2 domaines personnalisés inclus',
       'Factures et reçus téléchargeables',
+      'Bonus : 1re vidéo publicitaire de 20 s offerte',
     ],
     nonInclus: [],
     populaire: true,

@@ -42,6 +42,14 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
     default: 'claude-haiku-4-5-20251001',
     alternatives: ['grok-4.3'],
   },
+  // Bilan de l'admin : lit les VRAIS chiffres de NexAI et rédige l'analyse.
+  // Modèles capables uniquement (raisonnement chiffré fiable) ; chaque nombre
+  // cité est vérifié contre les données avant affichage.
+  analyste_bilan: {
+    label: 'Bilan financier — analyse et conseils (admin)',
+    default: 'claude-sonnet-5-5',
+    alternatives: ['grok-4.7', 'claude-opus-5-5'],
+  },
   support_client: {
     label: 'Support client',
     default: 'claude-haiku-4-5-20251001',
@@ -139,6 +147,7 @@ export const SECOURS_REGISTRY: Partial<Record<AiRole, { default: string; alterna
   chat_autres_modes: { default: 'grok-4.6', alternatives: ['grok-4.7', 'grok-4.3', 'claude-haiku-4-5-20251001', 'claude-sonnet-5-5', SECOURS_AUCUN] },
   chat_skill: { default: 'grok-4.6', alternatives: ['grok-4.7', 'grok-4.3', 'claude-haiku-4-5-20251001', 'claude-sonnet-5-5', SECOURS_AUCUN] },
   support_client: { default: 'grok-4.6', alternatives: ['grok-4.7', 'grok-4.3', 'claude-haiku-4-5-20251001', SECOURS_AUCUN] },
+  analyste_bilan: { default: 'grok-4.7', alternatives: ['claude-sonnet-5-5', 'claude-opus-5-5', SECOURS_AUCUN] },
   traduction_interface: { default: 'grok-4.3', alternatives: ['grok-4.6', 'claude-haiku-4-5-20251001', SECOURS_AUCUN] },
 };
 
@@ -207,7 +216,11 @@ export async function getSecoursForRole(role: AiRole, principal?: string): Promi
     enregistre && (enregistre === entree.default || entree.alternatives.includes(enregistre)) ? enregistre : entree.default;
   if (choisi === SECOURS_AUCUN) return null;
   const actif = principal ?? (await getModelForRole(role));
-  if (choisi === actif) return actif.startsWith('grok-') ? 'claude-haiku-4-5-20251001' : 'grok-4.6';
+  if (choisi === actif) {
+    // Jamais le même modèle : on prend l'autre fournisseur, au même niveau pour le Bilan.
+    if (role === 'analyste_bilan') return actif.startsWith('grok-') ? 'claude-sonnet-5-5' : 'grok-4.7';
+    return actif.startsWith('grok-') ? 'claude-haiku-4-5-20251001' : 'grok-4.6';
+  }
   return choisi;
 }
 

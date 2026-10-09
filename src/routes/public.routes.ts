@@ -1,4 +1,5 @@
 import express from 'express';
+import { enregistrerVisiteNexai } from '@/services/stats-jour.service';
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -202,6 +203,27 @@ publicRouter.get('/galerie', async (_req: Request, res: Response) => {
     // La galerie est une vitrine : en cas d'incident, une liste vide plutôt
     // qu'une erreur, pour ne jamais casser la page qui l'affiche.
     res.json({ videos: [] });
+  }
+});
+
+// Visite d'une page publique du site NexAI lui-même (Bilan de l'admin).
+publicRouter.post('/visite-nexai', express.text({ type: ['text/plain', 'text/*'], limit: '2kb' }), async (req: Request, res: Response) => {
+  res.status(204).end();
+  try {
+    let corps: { utm?: string; referer?: string } = {};
+    try {
+      corps = typeof req.body === 'string' ? JSON.parse(req.body) : req.body ?? {};
+    } catch {
+      corps = {};
+    }
+    await enregistrerVisiteNexai({
+      ip: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '',
+      userAgent: String(req.headers['user-agent'] ?? ''),
+      utm: typeof corps.utm === 'string' ? corps.utm.slice(0, 60) : undefined,
+      referer: typeof corps.referer === 'string' ? corps.referer.slice(0, 200) : undefined,
+    });
+  } catch {
+    /* une statistique perdue ne doit jamais gêner le visiteur */
   }
 });
 

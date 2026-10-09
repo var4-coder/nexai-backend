@@ -33,6 +33,9 @@ import { genererAvis } from '@/services/avis-generation.service';
 import { getStatutSecurite, demanderChangementEmail, confirmerChangementEmail } from '@/services/admin-security.service';
 import { statutReglageAdmin, reglerVerificationTelephone } from '@/services/verification-telephone.service';
 import { analyserImagesObsoletes, supprimerImagesObsoletes } from '@/services/nettoyage-cloudinary.service';
+import { bilanReel, lireReglages, enregistrerReglages, listerDepensesPub, ajouterDepensePub, supprimerDepensePub } from '@/services/bilan.service';
+import { statutComptes, enregistrerCompte, retirerCompte, synchroniserDepenses, synchroniserSiAncien } from '@/services/pub-comptes.service';
+import { analyserBilan } from '@/services/bilan-analyse.service';
 import { listerRemplacants, reglerRemplacant, FAMILLES, type Famille } from '@/services/remplacants.service';
 import { Avis } from '@/models/Avis';
 import { PlatformAlert } from '@/models/PlatformAlert';
@@ -2650,6 +2653,132 @@ adminRouter.get(
     }
   }
 );
+
+// ── Bilan financier (réel + réglages partagés entre admins) ──
+function periodeDe(q: Record<string, unknown>) {
+  const maintenant = new Date();
+  const au = q.au ? new Date(`${q.au}T00:00:00Z`) : maintenant;
+  const finAu = q.au ? new Date(au.getTime() + 86_400_000) : maintenant;
+  const du = q.du ? new Date(`${q.du}T00:00:00Z`) : new Date(maintenant.getTime() - 30 * 86_400_000);
+  if (isNaN(du.getTime()) || isNaN(finAu.getTime()) || du >= finAu) throw new AppError('Période invalide', 400);
+  return { du, au: finAu };
+}
+
+adminRouter.get('/bilan/reel', requireRole('admin', 'finance'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { du, au } = periodeDe(req.query as Record<string, unknown>);
+    await synchroniserSiAncien(); // dépenses Meta / TikTok à jour (au plus une lecture par heure)
+    res.json(await bilanReel(du, au));
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.post('/bilan/analyse', requireRole('admin', 'finance'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { du, au } = periodeDe((req.body ?? {}) as Record<string, unknown>);
+    res.json(await analyserBilan(du, au));
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.get('/bilan/reglages', requireRole('admin', 'finance'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json(await lireReglages());
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.put('/bilan/reglages', requireRole('admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = z
+      .object({
+        fcfaParUsd: z.number().min(100).max(2000).optional(),
+        fraisChariowPct: z.number().min(0).max(50).optional(),
+        coutsFixes: z.array(z.object({ nom: z.string().min(1).max(80), usdParMois: z.number().min(0).max(100000) })).max(30).optional(),
+        simulation: z.record(z.union([z.number(), z.string().max(40), z.boolean()])).optional(),
+      })
+      .parse(req.body);
+    res.json(await enregistrerReglages(body));
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.get('/bilan/pub/comptes', requireRole('admin', 'finance'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json(await statutComptes());
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.put('/bilan/pub/comptes/:plateforme', requireRole('admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const plateforme = z.enum(['meta', 'tiktok']).parse(req.params.plateforme);
+    const body = z.object({ identifiant: z.string().trim().min(3).max(40), jeton: z.string().trim().min(20).max(1000) }).parse(req.body);
+    const statut = await enregistrerCompte(plateforme, body.identifiant, body.jeton);
+    await logEvent({ categorie: 'action_admin', niveau: 'info', message: `Compte publicitaire ${plateforme} connecté au Bilan` });
+    const synchro = await synchroniserDepenses();
+    res.json({ ...statut, synchro });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.delete('/bilan/pub/comptes/:plateforme', requireRole('admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const plateforme = z.enum(['meta', 'tiktok']).parse(req.params.plateforme);
+    res.json(await retirerCompte(plateforme));
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.post('/bilan/pub/synchroniser', requireRole('admin', 'finance'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const synchro = await synchroniserDepenses();
+    res.json({ synchro, ...(await statutComptes()), depenses: await listerDepensesPub() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.get('/bilan/pub', requireRole('admin', 'finance'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json({ depenses: await listerDepensesPub() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.post('/bilan/pub', requireRole('admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = z
+      .object({
+        jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        plateforme: z.enum(['facebook', 'instagram', 'tiktok', 'google', 'autre']),
+        montantFcfa: z.number().int().min(0).max(100_000_000),
+        note: z.string().max(200).optional(),
+      })
+      .parse(req.body);
+    await ajouterDepensePub(body);
+    res.status(201).json({ depenses: await listerDepensesPub() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.delete('/bilan/pub/:id', requireRole('admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await supprimerDepensePub(req.params.id);
+    res.json({ depenses: await listerDepensesPub() });
+  } catch (err) {
+    next(err);
+  }
+});
 
 adminRouter.get(
   '/cloudinary/obsoletes',

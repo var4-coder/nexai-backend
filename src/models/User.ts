@@ -35,6 +35,8 @@ export interface IUser {
   telephoneVerifie?: string;
   telephoneVerifieLe?: Date;
   codeTelephone?: ICodeTelephone;
+  /** D'où vient l'inscrit (facebook, tiktok, direct…), noté à la création du compte. */
+  acquisition?: { source?: string; campagne?: string; le?: Date };
   telephonePays?: string;
   /**
    * Pays du compte (code ISO 2 lettres), choisi à l'inscription puis dans
@@ -130,6 +132,11 @@ const userSchema = new Schema<IUser>(
     telephoneVerifie: { type: String, index: true, sparse: true },
     telephoneVerifieLe: { type: Date },
     codeTelephone: { type: Schema.Types.Mixed, select: false },
+    acquisition: {
+      source: { type: String, index: true },
+      campagne: { type: String },
+      le: { type: Date },
+    },
     pays: { type: String, uppercase: true, trim: true },
     prenom: { type: String },
     nom: { type: String },

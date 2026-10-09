@@ -18,9 +18,9 @@ export function construireConnaissanceNexai(): string {
 ## Les abonnements
 - Essai gratuit : ${PLAN_CREDITS.trial} crédits offerts. Permet de trouver une idée d'activité avec le Coach (${c.BUSINESS_COACH} cr) ET de créer un vrai site (${c.GENERER_SITE} cr). Le site créé est un vrai site, pas un aperçu — il ne peut simplement pas être mis en ligne.
 - Starter — 5 000 FCFA/mois, ${PLAN_CREDITS.starter} crédits : Académie, Boutique, Coach business. PAS de création de site ni de vidéo (visible mais verrouillé).
-- Créateur+ — 10 000 FCFA/mois, ${PLAN_CREDITS.createur} crédits : sites, logos, domaines, vidéos. Une vidéo de 20 s est OFFERTE à la première souscription.
+- Créateur+ — 10 000 FCFA/mois, ${PLAN_CREDITS.createur} crédits : sites, logos, domaines, vidéos.
 - Agence — 25 000 FCFA/mois, ${PLAN_CREDITS.agence} crédits : tout Créateur+, plus 10 clients, Analytics & SEO, 1 domaine inclus, 2 logos.
-- Pro Max — 35 000 FCFA/mois, ${PLAN_CREDITS.pro_max} crédits : tout Agence, plus clients illimités, mini-film 2 minutes, 2 domaines, 3 logos.
+- Pro Max — 35 000 FCFA/mois, ${PLAN_CREDITS.pro_max} crédits : tout Agence, plus clients illimités, mini-film 2 minutes, 2 domaines, 3 logos. Bonus Pro Max : la première vidéo de 20 s est offerte à la souscription.
 
 ## Le coût des actions, en crédits
 - Créer un site : ${c.GENERER_SITE} (qualité Normale) · ${c.GENERER_SITE_PREMIUM} (Premium, notre meilleure IA)

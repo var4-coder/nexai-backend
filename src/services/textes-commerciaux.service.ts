@@ -195,9 +195,9 @@ const TEXTES_INITIAUX: {
   {
     cle: 'abonnement.cadeau',
     emplacement: 'abonnement',
-    role: 'Abonnement — cadeau de bienvenue',
+    role: 'Abonnement — bonus Pro Max',
     contenu:
-      "Une vidéo de 20 secondes vous est offerte à votre première souscription, dès l'abonnement Créateur+.",
+      "Bonus Pro Max : votre première vidéo publicitaire de 20 secondes vous est offerte à la souscription.",
   },
   {
     cle: 'credits.packs',
@@ -229,4 +229,25 @@ export async function initialiserTextes(): Promise<{ crees: number; existants: n
   }
 
   return { crees, existants };
+}
+
+/**
+ * Textes par défaut remplacés par une décision commerciale : mis à jour en
+ * base SEULEMENT s'ils n'ont pas été modifiés par l'administrateur.
+ */
+const DEFAUTS_REMPLACES: { cle: string; ancien: string; nouveau: string }[] = [
+  {
+    cle: 'abonnement.cadeau',
+    ancien: "Une vidéo de 20 secondes vous est offerte à votre première souscription, dès l'abonnement Créateur+.",
+    nouveau: "Bonus Pro Max : votre première vidéo publicitaire de 20 secondes vous est offerte à la souscription.",
+  },
+];
+
+export async function migrerTextesParDefaut(): Promise<void> {
+  for (const d of DEFAUTS_REMPLACES) {
+    await TexteCommercial.updateOne(
+      { cle: d.cle, contenu: d.ancien },
+      { $set: { contenu: d.nouveau, role: 'Abonnement — bonus Pro Max', majLe: new Date() } }
+    ).catch(() => {});
+  }
 }
