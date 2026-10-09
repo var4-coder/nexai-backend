@@ -55,7 +55,7 @@ import {
   textePhotosAutorisees,
 } from '@/services/photos-autorisees.service';
 import { lignesCredit } from '@/services/site-photo-stock.service';
-import { controlerRendu, imagesHorsListe, type ResultatControle } from '@/services/controle-rendu.service';
+import { controlerRendu, imagesHorsListe, type ErreurMesuree, type ResultatControle } from '@/services/controle-rendu.service';
 import type { IPhotoAutorisee } from '@/models/Site';
 import { AppError } from '@/middleware/errorHandler';
 import { assertNoDuplicateJob, DuplicateRequestError } from '@/utils/jobGuard';
@@ -1192,6 +1192,113 @@ function texteMesures(r: ResultatControle | null): string | undefined {
 }
 
 /**
+ * Contrôles PAR PROGRAMME propres aux pages intérieures (gratuits, sûrs) :
+ * le juge visuel ne regarde que l'accueil, donc on vérifie ici, sans IA,
+ * ce qui ferait le plus de tort au client sur une page intérieure :
+ * lien vers une page qui n'existe pas, texte de remplissage oublié, titre
+ * principal absent, page presque vide.
+ */
+export function controlerPageInterieure(
+  htmlSansKit: string,
+  page: { slug: string; title: string },
+  plan: { slug: string; title: string }[]
+): ErreurMesuree[] {
+  const erreurs: ErreurMesuree[] = [];
+  const ajouter = (regle: string, gravite: ErreurMesuree['gravite'], ou: string, constat: string, correction: string) =>
+    erreurs.push({ regle, gravite, ou, constat, correction_attendue: correction, source: 'pre-juge' });
+  const fichiers = new Set(plan.map((p) => (p.slug === 'index' ? 'index.html' : `${p.slug}.html`)));
+  fichiers.add('index.html');
+
+  // 1. Liens internes cassés (vers un fichier .html absent du plan du site).
+  const morts = new Set<string>();
+  for (const m of htmlSansKit.matchAll(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']/gi)) {
+    const href = m[1].trim();
+    if (/^(https?:|mailto:|tel:|#|data:|javascript:|\/\/)/i.test(href)) continue;
+    const fichier = href.replace(/^\.?\//, '').split(/[?#]/)[0];
+    if (!fichier || /\.(?!html?$)[a-z0-9]{2,5}$/i.test(fichier)) continue; // fichier non HTML (pdf, image…)
+    const cible = /\.html?$/i.test(fichier) ? fichier.replace(/\.htm$/i, '.html') : `${fichier}.html`;
+    if (!fichiers.has(cible)) morts.add(href);
+  }
+  if (morts.size > 0)
+    ajouter(
+      'NAV',
+      'veto',
+      'liens',
+      `lien(s) vers une page qui n'existe pas : ${[...morts].slice(0, 4).join(', ')}`,
+      `Remplacer chaque lien par l'une des pages du site : ${[...fichiers].join(', ')} (ou supprimer le lien).`
+    );
+
+  // 2. Texte de remplissage oublié.
+  const texte = htmlSansKit
+    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const remplissage = texte.match(/lorem ipsum|dolor sit amet|\[(?:à compléter|a completer|votre [^\]]{1,30}|texte[^\]]{0,20}|placeholder)\]|\bTODO\b|\bXXX\b|à compléter par le client|insérez votre|insert your|your text here|votre texte ici/i);
+  if (remplissage)
+    ajouter(
+      'CONTENU',
+      'veto',
+      'texte',
+      `texte de remplissage visible : « ${remplissage[0]} »`,
+      'Remplacer ce texte par un vrai contenu tiré du brief du client (activité, services, coordonnées), sans crochets ni texte générique.'
+    );
+
+  // 3. Titre principal : exactement un <h1>.
+  const h1 = (htmlSansKit.match(/<h1\b/gi) ?? []).length;
+  if (h1 === 0)
+    ajouter('TY1', 'majeur', 'haut de page', 'aucun titre principal <h1>', `Ajouter un seul <h1> en haut du contenu, reprenant « ${page.title} ».`);
+  else if (h1 > 1) ajouter('TY1', 'mineur', 'titres', `${h1} titres <h1> sur la page`, 'Garder un seul <h1> ; passer les autres en <h2>.');
+
+  // 4. Page presque vide (hors en-tête et pied de page).
+  const main = htmlSansKit.match(/<main\b[\s\S]*?<\/main>/i)?.[0] ?? htmlSansKit;
+  const texteMain = main.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (texteMain.length < 300)
+    ajouter(
+      'CONTENU',
+      'veto',
+      '<main>',
+      `contenu principal presque vide (${texteMain.length} caractères)`,
+      `Écrire le contenu complet de la page « ${page.title} » : au moins 3 sections utiles tirées du brief.`
+    );
+  return erreurs;
+}
+
+/** Remplace les liens internes vers une page absente par un lien vers l'accueil. */
+export function corrigerLiensMorts(html: string, plan: { slug: string }[]): string {
+  const fichiers = new Set(plan.map((p) => (p.slug === 'index' ? 'index.html' : `${p.slug}.html`)));
+  fichiers.add('index.html');
+  return html.replace(/(<a\b[^>]*\bhref\s*=\s*["'])([^"']+)(["'])/gi, (tout, debut: string, href: string, fin: string) => {
+    if (/^(https?:|mailto:|tel:|#|data:|javascript:|\/\/)/i.test(href.trim())) return tout;
+    const fichier = href.trim().replace(/^\.?\//, '').split(/[?#]/)[0];
+    if (!fichier || /\.(?!html?$)[a-z0-9]{2,5}$/i.test(fichier)) return tout;
+    const cible = /\.html?$/i.test(fichier) ? fichier.replace(/\.htm$/i, '.html') : `${fichier}.html`;
+    return fichiers.has(cible) ? tout : `${debut}index.html${fin}`;
+  });
+}
+
+/** Ajoute les contrôles des pages intérieures au résultat du pré-juge. */
+function avecControlePageInterieure(r: ResultatControle | null, erreurs: ErreurMesuree[]): ResultatControle | null {
+  if (erreurs.length === 0) return r;
+  const vetos = erreurs.filter((e) => e.gravite === 'veto').map((e) => e.regle);
+  if (!r) return { erreurs, vetos: Array.from(new Set(vetos)), graves: [], mesures: {} };
+  return { ...r, erreurs: [...erreurs, ...r.erreurs].slice(0, 10), vetos: Array.from(new Set([...vetos, ...r.vetos])) };
+}
+
+/** Points de contrôle du juge du code pour une page intérieure (le juge visuel ne la voit pas). */
+function consignePageInterieure(page: { slug: string; title: string }, plan: { slug: string; title: string }[]): string {
+  const pages = plan.map((p) => `${p.slug === 'index' ? 'index' : p.slug}.html (${p.title})`).join(', ');
+  return `PAGE INTÉRIEURE « ${page.title} » (${page.slug}.html). Le juge visuel ne verra PAS cette page : tu es le dernier contrôle avant le client. Sois aussi exigeant que pour l'accueil, et relève en VETO tout ce qui suit :
+- un lien interne vers une page absente du site (pages existantes : ${pages}) ou un bouton principal sans destination ;
+- un texte de remplissage (Lorem ipsum, [à compléter], « votre texte ici »…) ou un contenu générique sans rapport avec le brief ;
+- une section vide, une image sans adresse valide, un formulaire sans champs ni bouton d'envoi ;
+- un texte illisible : couleur proche du fond, texte clair sur fond clair ou foncé sur fond foncé, texte posé sur une photo sans voile ;
+- une largeur fixe ou un élément qui déborde sur téléphone (390 px), un menu inutilisable sur téléphone ;
+- un en-tête ou un pied de page différent de l'accueil (nom, couleurs, liens).
+Vérifie aussi : un seul <h1> qui reprend « ${page.title} », des titres dans l'ordre, des textes alternatifs sur les images.`;
+}
+
+/**
  * Génère les pages secondaires (au-delà de l'accueil) pour une proposition
  * déjà retenue. Chaque page est jugée comme l'accueil (juge code, pré-juge
  * par programme, réparation). Une page qui échoue est retentée UNE fois ;
@@ -1249,47 +1356,59 @@ async function generateSecondaryPagesForProposal(
     // 26/09/2026) : pré-juge mesuré, veto puis note /100, réparation si besoin.
     let score: number | undefined;
     let vetos: string[] = [];
-    let controle = await preJuger(html, extras);
+    let controle = avecControlePageInterieure(await preJuger(html, extras), controlerPageInterieure(html, page, pagePlan));
+    const consignePage = consignePageInterieure(page, pagePlan);
     try {
       let verdict = await appelerJugeCode(modeleJugeCode, ctx, html, site.niche, {
         maxTokens: 2500,
-        blocSite: leBlocSite,
+        blocSite: `${leBlocSite}\n\n${consignePage}`,
         mesures: texteMesures(controle),
       });
-      if (verdict) {
-        score = typeof verdict.score_total === 'number' ? verdict.score_total : undefined;
-        vetos = Array.from(new Set([...vetosDe(verdict), ...(controle?.vetos ?? [])]));
-        if (!plafondDepasse() && (vetos.length > 0 || (score ?? 0) < 80 || (controle?.graves.length ?? 0) > 0)) {
-          const rep = await reparerPage({
-            modele: modeleReparateur,
-            html,
-            erreurs: JSON.stringify({
-              vetos,
-              graves: controle?.graves ?? [],
-              erreurs: [...(controle?.erreurs ?? []), ...(verdict.erreurs ?? [])].slice(0, 12),
-            }),
-            famille: familleCourte(ctx, extras.combinaison),
+      score = typeof verdict?.score_total === 'number' ? verdict.score_total : undefined;
+      vetos = Array.from(new Set([...vetosDe(verdict), ...(controle?.vetos ?? [])]));
+      // Réparation si le juge OU les contrôles par programme trouvent un défaut
+      // (même quand le juge du code est indisponible).
+      const aReparer = vetos.length > 0 || (!!verdict && (score ?? 0) < 80) || (controle?.graves.length ?? 0) > 0;
+      if (!plafondDepasse() && aReparer) {
+        const rep = await reparerPage({
+          modele: modeleReparateur,
+          html,
+          erreurs: JSON.stringify({
+            vetos,
+            graves: controle?.graves ?? [],
+            erreurs: [...(controle?.erreurs ?? []), ...(verdict?.erreurs ?? [])].slice(0, 12),
+          }),
+          famille: familleCourte(ctx, extras.combinaison),
+        });
+        if (rep.html && runScan2(rep.html).ok) {
+          html = rep.html;
+          controle = avecControlePageInterieure(await preJuger(html, extras), controlerPageInterieure(html, page, pagePlan));
+          const verdict2 = await appelerJugeCode(modeleJugeCode, ctx, html, site.niche, {
+            maxTokens: 2000,
+            blocSite: `${leBlocSite}\n\n${consignePage}`,
+            mesures: texteMesures(controle),
           });
-          if (rep.html && runScan2(rep.html).ok) {
-            html = rep.html;
-            controle = await preJuger(html, extras);
-            verdict = await appelerJugeCode(modeleJugeCode, ctx, html, site.niche, {
-              maxTokens: 2000,
-              blocSite: leBlocSite,
-              mesures: texteMesures(controle),
-            });
-            if (verdict) {
-              score = typeof verdict.score_total === 'number' ? verdict.score_total : score;
-              vetos = Array.from(new Set([...vetosDe(verdict), ...(controle?.vetos ?? [])]));
-            }
-          }
+          if (verdict2 && typeof verdict2.score_total === 'number') score = verdict2.score_total;
+          vetos = Array.from(new Set([...vetosDe(verdict2), ...(controle?.vetos ?? [])]));
         }
       }
     } catch (err) {
       console.warn(`[ia-pipeline] Jugement de la page "${page.slug}" indisponible`, err);
     }
+    // Derniers filets, sans IA : un lien mort restant renvoie vers l'accueil ;
+    // un texte de remplissage ou une page vide rend la page non livrable
+    // (nouvel essai, puis page signalée manquante).
+    const restants = controlerPageInterieure(html, page, pagePlan);
+    if (restants.some((e) => e.regle === 'NAV')) {
+      html = corrigerLiensMorts(html, pagePlan);
+      vetos = vetos.filter((v) => v !== 'NAV');
+    }
+    const graves = [
+      ...(controle?.graves ?? []),
+      ...restants.filter((e) => e.regle === 'CONTENU').map((e) => `${e.constat} (page intérieure)`),
+    ];
     if (vetos.length > 0 && score !== undefined) score = Math.min(score, 59);
-    return { html, score, vetos, graves: controle?.graves ?? [] };
+    return { html, score, vetos, graves };
   };
 
   for (const page of secondaryPlan) {
