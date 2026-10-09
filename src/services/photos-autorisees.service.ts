@@ -1,3 +1,4 @@
+import { supprimerImage } from '@/services/nettoyage-cloudinary.service';
 import type { IPhotoAutorisee, SiteNiche } from '@/models/Site';
 import { verifyImageUrl } from '@/utils/verifyMedia';
 import { copierImagePourSite, versionOptimisee } from '@/services/cloudinary.service';
@@ -293,12 +294,14 @@ async function remplacerParImageAvecLogo(params: {
   const h = copie.height ?? 0;
   if (w < largeurMin || !cadrageAcceptable(w, h, format)) {
     console.warn(`[photos] Image avec logo refusée : ${w}×${h} pour un emplacement ${format} (minimum ${largeurMin} px).`);
+    await supprimerImage(copie.publicId); // copie inutile : supprimée tout de suite
     return;
   }
   if (env.PHOTO_NETTETE_MIN > 0) {
     const net = (await mesurerNettete([copie.url])).get(copie.url);
     if (net !== undefined && net < env.PHOTO_NETTETE_MIN) {
       console.warn(`[photos] Image avec logo refusée : netteté ${net} < ${env.PHOTO_NETTETE_MIN}.`);
+      await supprimerImage(copie.publicId);
       return;
     }
   }
@@ -307,6 +310,7 @@ async function remplacerParImageAvecLogo(params: {
   // Refus, doute ou validation indisponible → la photo de la galerie reste.
   if (!(await imageLogoValidee(copie.url, params.logoUrl, params.briefImage))) {
     console.warn('[photos] Image avec logo refusée à la validation visuelle — galerie conservée.');
+    await supprimerImage(copie.publicId); // copie inutile : supprimée tout de suite
     return;
   }
   // La photo de la galerie remplacée retourne dans le stock (jamais gaspillée).

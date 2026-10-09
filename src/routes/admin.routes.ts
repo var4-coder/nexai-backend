@@ -32,6 +32,8 @@ import { ecrireVendeurDomaine, lireVendeurDomaine } from '@/services/registrar-r
 import { genererAvis } from '@/services/avis-generation.service';
 import { getStatutSecurite, demanderChangementEmail, confirmerChangementEmail } from '@/services/admin-security.service';
 import { statutReglageAdmin, reglerVerificationTelephone } from '@/services/verification-telephone.service';
+import { analyserImagesObsoletes, supprimerImagesObsoletes } from '@/services/nettoyage-cloudinary.service';
+import { listerRemplacants, reglerRemplacant, FAMILLES, type Famille } from '@/services/remplacants.service';
 import { Avis } from '@/models/Avis';
 import { PlatformAlert } from '@/models/PlatformAlert';
 import { BoutiquePack } from '@/models/BoutiquePack';
@@ -2643,6 +2645,67 @@ adminRouter.get(
     try {
       const roles = await listAiTeamConfig();
       res.json({ roles });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.get(
+  '/cloudinary/obsoletes',
+  requireRole('admin'),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const a = await analyserImagesObsoletes();
+      res.json({ examinees: a.examinees, analyseComplete: a.analyseComplete, nombre: a.nombre, octets: a.octets, exemples: a.exemples });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.post(
+  '/cloudinary/nettoyer',
+  requireRole('admin'),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const r = await supprimerImagesObsoletes();
+      await logEvent({
+        categorie: 'action_admin',
+        niveau: 'info',
+        message: `Nettoyage Cloudinary : ${r.supprimees} image(s) inutilisée(s) supprimée(s), ${(r.octetsLiberes / 1048576).toFixed(1)} Mo libérés`,
+      });
+      res.json(r);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.get(
+  '/remplacants',
+  requireRole('admin'),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({ familles: await listerRemplacants() });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.patch(
+  '/remplacants/:famille',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z.object({ model: z.string().min(1) }).parse(req.body);
+      const famille = req.params.famille as Famille;
+      if (!FAMILLES[famille]) throw new AppError('Famille de modèles inconnue', 404);
+      if (!FAMILLES[famille].choix.includes(body.model)) throw new AppError('Remplaçant non autorisé pour cette famille', 400);
+      const familles = await reglerRemplacant(famille, body.model);
+      await logEvent({ categorie: 'ia', niveau: 'info', message: `Remplaçant automatique « ${famille} » : ${body.model}` });
+      res.json({ familles });
     } catch (err) {
       next(err);
     }

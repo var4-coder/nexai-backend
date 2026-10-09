@@ -263,3 +263,7 @@ export const SKILL_RELANCE_ATTENTE =
 export const SKILL_ASSISTANCE_TITRE = 'Votre commande est confiée à l’assistance';
 export const SKILL_ASSISTANCE_MESSAGE =
   'Les deux tentatives n’ont pas abouti. Contactez l’assistance NexAI en indiquant la référence ci-dessous : notre équipe examine votre commande avec vous. Vos crédits restent attachés à cette commande pendant cet examen.';
+
+/** Site Premium impossible (notre meilleure IA est indisponible) : jamais remplacé par une autre IA. */
+export const SITE_PREMIUM_INDISPONIBLE =
+  'La qualité Premium est momentanément indisponible. Vos crédits restent attachés à cette commande : vous pourrez relancer gratuitement dès que le service sera rétabli. Si vous êtes pressé, vous pouvez créer un site en qualité Standard.';

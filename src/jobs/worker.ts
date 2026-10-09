@@ -1,3 +1,4 @@
+import { SITE_PREMIUM_INDISPONIBLE } from '@/constants/textes-client';
 import { controlerHebergement } from '@/services/hebergement.service';
 import { ecrireScript, fabriquerVideo } from '@/services/academy-video-generator.service';
 import { Worker, Job as BullJob, UnrecoverableError } from 'bullmq';
@@ -450,6 +451,11 @@ async function processJob(job: BullJob<PipelineJobData>) {
     if (isFinalAttempt && type === 'generation_site' && job.data.userId) {
       const clientFreeAlready = job.data.freeRelaunchUsed === true;
       const credits = job.data.creditsCharged ?? 0;
+      // Premium en échec à cause de Claude (panne, crédit) : message dédié,
+      // le client peut repartir en Standard (Premium n'est jamais remplacé).
+      const premiumIndispo =
+        /anthropic|claude-/i.test(errMsg) &&
+        (await Site.findById(job.data.siteId).select('qualityTier').lean().catch(() => null))?.qualityTier === 'premium';
       try {
         if (clientFreeAlready) {
           await rembourserGenerationEchouee(job.data.siteId, job.data.userId, credits, errMsg);
@@ -457,14 +463,14 @@ async function processJob(job: BullJob<PipelineJobData>) {
         } else if (retryable) {
           await ouvrirRelanceGratuite(job.data.siteId, {
             delayMs: FREE_RELAUNCH_DELAY_MS,
-            clientMessage: SITE_RELANCE_GRATUITE_ATTENTE,
+            clientMessage: premiumIndispo ? SITE_PREMIUM_INDISPONIBLE : SITE_RELANCE_GRATUITE_ATTENTE,
             lastError: errMsg,
           });
           await Site.findByIdAndUpdate(job.data.siteId, { autoRetryUsed: true }).catch(() => {});
         } else {
           await ouvrirRelanceGratuite(job.data.siteId, {
             delayMs: 0,
-            clientMessage: SITE_PANNE_BLOQUANTE,
+            clientMessage: premiumIndispo ? SITE_PREMIUM_INDISPONIBLE : SITE_PANNE_BLOQUANTE,
             lastError: errMsg,
           });
         }
