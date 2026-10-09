@@ -33,7 +33,8 @@ import { genererAvis } from '@/services/avis-generation.service';
 import { getStatutSecurite, demanderChangementEmail, confirmerChangementEmail } from '@/services/admin-security.service';
 import { statutReglageAdmin, reglerVerificationTelephone } from '@/services/verification-telephone.service';
 import { analyserImagesObsoletes, supprimerImagesObsoletes } from '@/services/nettoyage-cloudinary.service';
-import { bilanReel, lireReglages, enregistrerReglages, listerDepensesPub, ajouterDepensePub, supprimerDepensePub } from '@/services/bilan.service';
+import { lireSuiviPub, enregistrerSuiviPub } from '@/services/suivi-pub.service';
+import { bilanReel, detailConsommation, lireReglages, enregistrerReglages, listerDepensesPub, ajouterDepensePub, supprimerDepensePub } from '@/services/bilan.service';
 import { statutComptes, enregistrerCompte, retirerCompte, synchroniserDepenses, synchroniserSiAncien } from '@/services/pub-comptes.service';
 import { analyserBilan } from '@/services/bilan-analyse.service';
 import { listerRemplacants, reglerRemplacant, FAMILLES, type Famille } from '@/services/remplacants.service';
@@ -2674,6 +2675,35 @@ adminRouter.get('/bilan/reel', requireRole('admin', 'finance'), async (req: Requ
   }
 });
 
+adminRouter.get('/bilan/consommation/:type', requireRole('admin', 'finance'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const type = z.string().regex(/^[a-z0-9_]{2,40}$/).parse(req.params.type);
+    const { du, au } = periodeDe(req.query as Record<string, unknown>);
+    res.json({ lignes: await detailConsommation(type, du, au) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.get('/suivi-pub', requireRole('admin', 'finance'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json(await lireSuiviPub());
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.put('/suivi-pub', requireRole('admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = z
+      .object({ metaPixelId: z.string().trim().regex(/^(\d{8,20})?$/, 'L’identifiant du pixel est un nombre de 8 à 20 chiffres.') })
+      .parse(req.body);
+    res.json(await enregistrerSuiviPub(body));
+  } catch (err) {
+    next(err);
+  }
+});
+
 adminRouter.post('/bilan/analyse', requireRole('admin', 'finance'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { du, au } = periodeDe((req.body ?? {}) as Record<string, unknown>);
@@ -2698,6 +2728,13 @@ adminRouter.put('/bilan/reglages', requireRole('admin'), async (req: Request, re
         fcfaParUsd: z.number().min(100).max(2000).optional(),
         fraisChariowPct: z.number().min(0).max(50).optional(),
         coutsFixes: z.array(z.object({ nom: z.string().min(1).max(80), usdParMois: z.number().min(0).max(100000) })).max(30).optional(),
+        taxes: z
+          .object({
+            urssaf: z.object({ actif: z.boolean(), pct: z.number().min(0).max(60) }),
+            impot: z.object({ actif: z.boolean(), pct: z.number().min(0).max(60) }),
+            tvaPub: z.object({ actif: z.boolean(), pct: z.number().min(0).max(60) }),
+          })
+          .optional(),
         simulation: z.record(z.union([z.number(), z.string().max(40), z.boolean()])).optional(),
       })
       .parse(req.body);

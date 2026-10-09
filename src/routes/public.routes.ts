@@ -1,5 +1,6 @@
 import express from 'express';
 import { enregistrerVisiteNexai } from '@/services/stats-jour.service';
+import { lireSuiviPub } from '@/services/suivi-pub.service';
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -207,6 +208,16 @@ publicRouter.get('/galerie', async (_req: Request, res: Response) => {
 });
 
 // Visite d'une page publique du site NexAI lui-même (Bilan de l'admin).
+/** Identifiant du pixel Meta du site NexAI (public par nature). */
+publicRouter.get('/suivi-pub', async (_req: Request, res: Response) => {
+  try {
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(await lireSuiviPub());
+  } catch {
+    res.json({ metaPixelId: '' });
+  }
+});
+
 publicRouter.post('/visite-nexai', express.text({ type: ['text/plain', 'text/*'], limit: '2kb' }), async (req: Request, res: Response) => {
   res.status(204).end();
   try {
