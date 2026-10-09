@@ -34,6 +34,8 @@ export interface IAiRoleConfig {
   role: AiRole;
   /** Identifiant de modèle actuellement actif pour ce rôle (ex: 'claude-haiku-4-5-20251001', 'grok-4.3') */
   activeModel: string;
+  /** Modèle de secours des conversations (voir SECOURS_REGISTRY). */
+  secoursModel?: string;
   updatedBy?: string; // email admin
   updatedAt: Date;
   createdAt: Date;
@@ -43,6 +45,7 @@ const aiRoleConfigSchema = new Schema<IAiRoleConfig>(
   {
     role: { type: String, required: true, unique: true },
     activeModel: { type: String, required: true },
+    secoursModel: { type: String },
     updatedBy: { type: String },
   },
   { timestamps: true }

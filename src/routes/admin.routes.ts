@@ -79,7 +79,7 @@ import {
   getCandidatsEnAttente,
 } from '@/services/prompt-diagnostic.service';
 import type { PromptCible } from '@/models/PromptVersion';
-import { listAiTeamConfig, setModelForRole } from '@/services/ai-role-registry';
+import { listAiTeamConfig, setModelForRole, setSecoursForRole } from '@/services/ai-role-registry';
 import type { AiRole } from '@/models/AiRoleConfig';
 import {
   listerClientsAReverser,
@@ -2642,6 +2642,25 @@ adminRouter.get(
     try {
       const roles = await listAiTeamConfig();
       res.json({ roles });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.patch(
+  '/equipe-ia/:role/secours',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z.object({ model: z.string().min(1) }).parse(req.body);
+      await setSecoursForRole(req.params.role as AiRole, body.model, req.auth!.email ?? 'admin');
+      await logEvent({
+        categorie: 'ia',
+        niveau: 'info',
+        message: `Modèle de secours du rôle "${req.params.role}" : ${body.model}`,
+      });
+      res.json({ roles: await listAiTeamConfig() });
     } catch (err) {
       next(err);
     }

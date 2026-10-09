@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Types, type HydratedDocument } from 'mongoose';
-import { callClaude, ClaudeModel } from './ai-clients';
+import { ClaudeModel } from './ai-clients';
+import { appelerAvecSecours } from './appel-ia-secours.service';
 import { consigneLangue, consignePays, type Langue } from '@/constants/pays';
 import { getModelForRole } from './ai-role-registry';
 import { ChatSession, IChatSession, IChatMessage, IChatAttachment, ChatHubMode } from '@/models/ChatSession';
@@ -42,9 +43,11 @@ import { briefSkillSchema, commanderSkill } from './skill-nexai.service';
  * s'avère insuffisant sur Haiku. Résolu dynamiquement (panneau admin),
  * jamais codé en dur.
  */
+function roleDuMode(hubMode: ChatHubMode) {
+  return hubMode === 'site' ? 'chat_creation_site' : hubMode === 'skill' ? 'chat_skill' : 'chat_autres_modes';
+}
 async function resolveChatModel(hubMode: ChatHubMode): Promise<ClaudeModel> {
-  const role = hubMode === 'site' ? 'chat_creation_site' : hubMode === 'skill' ? 'chat_skill' : 'chat_autres_modes';
-  return (await getModelForRole(role)) as ClaudeModel;
+  return (await getModelForRole(roleDuMode(hubMode))) as ClaudeModel;
 }
 
 /** 3 retries = 4 tentatives parsing JSON max. */
@@ -701,7 +704,7 @@ async function callDialogueTurn(session: InstanceType<typeof ChatSession>) {
             },
           ];
 
-    lastRaw = await callClaude(model, system, messages, {
+    lastRaw = await appelerAvecSecours(roleDuMode(hubMode), model, system, messages, {
       maxTokens: 1000,
       temperature: attempt === 0 ? 0.4 : 0.2,
     });
@@ -738,7 +741,8 @@ async function callSkillExtraction(session: InstanceType<typeof ChatSession>) {
     .join('\n');
   const model = (await getModelForRole('chat_skill')) as ClaudeModel;
   for (let attempt = 0; attempt <= MAX_DIALOGUE_RETRIES; attempt++) {
-    const raw = await callClaude(
+    const raw = await appelerAvecSecours(
+      'chat_skill',
       model,
       EXTRACTION_SKILL_PROMPT,
       [{ role: 'user', content: attempt === 0 ? transcript : `${transcript}\n\n[Système] Réponds UNIQUEMENT avec le JSON demandé.` }],
@@ -766,7 +770,8 @@ async function callExtraction(session: InstanceType<typeof ChatSession>): Promis
       attempt === 0
         ? transcript
         : `${transcript}\n\n[Système] La réponse précédente n'était pas un JSON valide. Réponds UNIQUEMENT avec le JSON d'extraction demandé.`;
-    lastRaw = await callClaude(
+    lastRaw = await appelerAvecSecours(
+      'chat_creation_site',
       model,
       EXTRACTION_SYSTEM_PROMPT,
       [{ role: 'user', content: userContent }],
@@ -901,7 +906,8 @@ const OPT_STD = 'Qualité Standard — 12 crédits';
 const OPT_PREM = 'Qualité Premium — 25 crédits';
 
 async function proposerTextesSite(brief: Record<string, unknown>): Promise<string> {
-  const raw = await callClaude(
+  const raw = await appelerAvecSecours(
+    'chat_creation_site',
     'claude-sonnet-5-5',
     'Tu rédiges les textes d’un site vitrine pour un commerçant. Français simple, concret, sans jargon, sans formules vides. Pas de markdown décoratif hors titres courts.',
     [

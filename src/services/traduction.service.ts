@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { Traduction } from '@/models/Traduction';
 import { callClaude, callGrok, type ClaudeModel, type GrokModel } from '@/services/ai-clients';
-import { getModelForRole } from '@/services/ai-role-registry';
+import { getModelForRole, getSecoursForRole } from '@/services/ai-role-registry';
 
 export type LangueCible = 'en';
 
@@ -36,7 +36,8 @@ Rules:
   try {
     brut = await appeler(modele);
   } catch (e) {
-    const secours = modele.startsWith('grok-') ? 'claude-haiku-4-5-20251001' : 'grok-4.3';
+    const secours = await getSecoursForRole('traduction_interface', modele);
+    if (!secours) throw e;
     console.warn(`[traduction] ${modele} indisponible, bascule sur ${secours}`, (e as Error).message);
     brut = await appeler(secours);
   }

@@ -1,8 +1,8 @@
 import { HydratedDocument } from 'mongoose';
 import { SupportTicket, ISupportTicket, SupportTicketStatus } from '@/models/SupportTicket';
 import { AppError } from '@/middleware/errorHandler';
-import { callClaude, callGrok, ClaudeModel, GrokModel } from '@/services/ai-clients';
 import { getModelForRole } from '@/services/ai-role-registry';
+import { appelerAvecSecours } from '@/services/appel-ia-secours.service';
 import { construireConnaissanceNexai } from '@/services/nexai-connaissance.service';
 import { GUIDE_NEXAI } from '@/data/guide-nexai';
 import { User } from '@/models/User';
@@ -127,18 +127,11 @@ export async function sendUserMessage(
     // GA mai 2026) — voir ai-role-registry.ts.
     const SYSTEM_PROMPT = await construireConsigneSupport(userId);
     const model = await getModelForRole('support_client');
-    if (model.startsWith('grok-')) {
-      aiText = await callGrok(
-        model as GrokModel,
-        [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
-        { maxTokens: 1000, temperature: 0.3 }
-      );
-    } else {
-      aiText = await callClaude(model as ClaudeModel, SYSTEM_PROMPT, history, {
-        maxTokens: 1000,
-        temperature: 0.3,
-      });
-    }
+    // Bascule automatique sur le modèle de secours (admin « Équipe IA »).
+    aiText = await appelerAvecSecours('support_client', model, SYSTEM_PROMPT, history, {
+      maxTokens: 1000,
+      temperature: 0.3,
+    });
   } catch (err) {
     console.warn('[support] IA indisponible', err);
     aiText = `${MESSAGE_RESEAU_INDISPONIBLE} Un conseiller NexAI a été prévenu et vous répondra ici. [ESCALADE]`;

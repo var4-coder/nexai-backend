@@ -23,17 +23,17 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
     // depuis ce panneau, sans toucher au code.
     label: 'Chat création de site — sous-mode "site" (dialogue + extraction brief)',
     default: 'claude-haiku-4-5-20251001',
-    alternatives: ['claude-sonnet-5-5'],
+    alternatives: ['claude-sonnet-5-5', 'grok-4.6'],
   },
   chat_autres_modes: {
     label: 'Chat — sous-modes Logo / Modifier un site / Coach business',
     default: 'claude-haiku-4-5-20251001',
-    alternatives: ['claude-sonnet-5-5'],
+    alternatives: ['claude-sonnet-5-5', 'grok-4.6'],
   },
   chat_skill: {
     label: 'Chat — Skill NexAI (dialogue + extraction du brief)',
     default: 'claude-haiku-4-5-20251001',
-    alternatives: ['claude-sonnet-5-5'],
+    alternatives: ['claude-sonnet-5-5', 'grok-4.6'],
   },
   // Traduction des contenus de la base (Académie, Boutique…) dans la langue
   // d'interface du client. Mise en cache : chaque texte n'est traduit qu'une fois.
@@ -45,7 +45,7 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
   support_client: {
     label: 'Support client',
     default: 'claude-haiku-4-5-20251001',
-    alternatives: ['grok-4.3'],
+    alternatives: ['grok-4.3', 'grok-4.6'],
   },
   // Codeur de l'essai gratuit ET du Standard (décision du 03/10/2026) :
   // Grok 4.7 par défaut, Sonnet 5.5 en alternance depuis l'admin. Le modèle
@@ -126,6 +126,22 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
   },
 };
 
+/**
+ * Modèle de SECOURS des conversations (décision du 09/10/2026) : si le
+ * modèle principal échoue (crédit épuisé, panne, saturation…), la même
+ * demande repart aussitôt sur ce modèle, d'un autre fournisseur. Le client
+ * ne voit aucune coupure ; l'administrateur reçoit un incident.
+ * Choisi depuis l'admin « Équipe IA » ; « aucun » désactive la bascule.
+ */
+export const SECOURS_AUCUN = 'aucun';
+export const SECOURS_REGISTRY: Partial<Record<AiRole, { default: string; alternatives: string[] }>> = {
+  chat_creation_site: { default: 'grok-4.6', alternatives: ['grok-4.7', 'grok-4.3', 'claude-haiku-4-5-20251001', 'claude-sonnet-5-5', SECOURS_AUCUN] },
+  chat_autres_modes: { default: 'grok-4.6', alternatives: ['grok-4.7', 'grok-4.3', 'claude-haiku-4-5-20251001', 'claude-sonnet-5-5', SECOURS_AUCUN] },
+  chat_skill: { default: 'grok-4.6', alternatives: ['grok-4.7', 'grok-4.3', 'claude-haiku-4-5-20251001', 'claude-sonnet-5-5', SECOURS_AUCUN] },
+  support_client: { default: 'grok-4.6', alternatives: ['grok-4.7', 'grok-4.3', 'claude-haiku-4-5-20251001', SECOURS_AUCUN] },
+  traduction_interface: { default: 'grok-4.3', alternatives: ['grok-4.6', 'claude-haiku-4-5-20251001', SECOURS_AUCUN] },
+};
+
 /** Anciens identifiants de modèle → leur remplaçant. */
 const MODELES_REMPLACES: Record<string, string> = {
   'claude-opus-5': 'claude-opus-5-5',
@@ -145,6 +161,7 @@ const MIGRATION_SITE: Record<string, string> = {
 };
 
 const cache = new Map<AiRole, string>();
+const cacheSecours = new Map<AiRole, string>();
 let cacheLoadedAt = 0;
 const CACHE_TTL_MS = 30_000; // évite de relire Mongo à chaque appel IA
 
@@ -152,7 +169,9 @@ async function ensureCache() {
   if (Date.now() - cacheLoadedAt < CACHE_TTL_MS && cache.size > 0) return;
   const rows = await AiRoleConfig.find().lean();
   cache.clear();
+  cacheSecours.clear();
   for (const row of rows) {
+    if (row.secoursModel) cacheSecours.set(row.role as AiRole, row.secoursModel);
     // Opus 5 remplacé par Opus 5.5 : un réglage admin enregistré avant la
     // mise à jour bascule automatiquement sur le nouveau modèle.
     let modele = MODELES_REMPLACES[row.activeModel] ?? row.activeModel;
@@ -172,6 +191,40 @@ async function ensureCache() {
 export async function getModelForRole(role: AiRole): Promise<string> {
   await ensureCache();
   return modeleValide(role, cache.get(role));
+}
+
+/**
+ * Modèle de secours d'un rôle de conversation, ou null si la bascule est
+ * désactivée (ou si le rôle n'en a pas). Jamais le même modèle que le
+ * principal : dans ce cas on prend l'autre fournisseur.
+ */
+export async function getSecoursForRole(role: AiRole, principal?: string): Promise<string | null> {
+  const entree = SECOURS_REGISTRY[role];
+  if (!entree) return null;
+  await ensureCache();
+  const enregistre = cacheSecours.get(role);
+  const choisi =
+    enregistre && (enregistre === entree.default || entree.alternatives.includes(enregistre)) ? enregistre : entree.default;
+  if (choisi === SECOURS_AUCUN) return null;
+  const actif = principal ?? (await getModelForRole(role));
+  if (choisi === actif) return actif.startsWith('grok-') ? 'claude-haiku-4-5-20251001' : 'grok-4.6';
+  return choisi;
+}
+
+/** Choix du modèle de secours depuis l'admin (liste fermée, comme le modèle principal). */
+export async function setSecoursForRole(role: AiRole, model: string, adminEmail?: string) {
+  const entree = SECOURS_REGISTRY[role];
+  if (!entree) throw new AppError(`Le rôle "${role}" n'a pas de modèle de secours réglable.`, 400);
+  const autorises = new Set([entree.default, ...entree.alternatives]);
+  if (!autorises.has(model)) {
+    throw new AppError(`Modèle de secours "${model}" non autorisé. Choix possibles : ${[...autorises].join(', ')}`, 400);
+  }
+  await AiRoleConfig.findOneAndUpdate(
+    { role },
+    { $set: { secoursModel: model, updatedBy: adminEmail }, $setOnInsert: { activeModel: AI_ROLE_REGISTRY[role].default } },
+    { upsert: true, new: true }
+  );
+  cacheLoadedAt = 0;
 }
 
 /**
@@ -206,7 +259,7 @@ export async function setModelForRole(role: AiRole, model: string, adminEmail?: 
   }
   await AiRoleConfig.findOneAndUpdate(
     { role },
-    { role, activeModel: model, updatedBy: adminEmail },
+    { $set: { role, activeModel: model, updatedBy: adminEmail } },
     { upsert: true, new: true }
   );
   cacheLoadedAt = 0; // force un rechargement au prochain appel
@@ -221,6 +274,17 @@ export async function listAiTeamConfig() {
     activeModel: modeleValide(role, cache.get(role)),
     defaultModel: AI_ROLE_REGISTRY[role].default,
     alternatives: AI_ROLE_REGISTRY[role].alternatives,
+    secours: SECOURS_REGISTRY[role]
+      ? {
+          actif: (() => {
+            const e = SECOURS_REGISTRY[role]!;
+            const v = cacheSecours.get(role);
+            return v && (v === e.default || e.alternatives.includes(v)) ? v : e.default;
+          })(),
+          defaut: SECOURS_REGISTRY[role]!.default,
+          choix: [SECOURS_REGISTRY[role]!.default, ...SECOURS_REGISTRY[role]!.alternatives],
+        }
+      : null,
   }));
 }
 
