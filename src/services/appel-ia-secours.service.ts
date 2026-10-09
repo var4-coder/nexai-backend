@@ -66,10 +66,9 @@ export function appelerModeleTexte(modele: string, system: Systeme, messages: Me
     return callGrok(modele as GrokModel, [{ role: 'system', content: systemeEnTexte(system) }, ...messages], {
       ...opts,
       maxTokens: Math.max(opts?.maxTokens ?? 1000, 4000),
-      sansSecours: true, // le remplaçant des conversations est celui choisi dans l'admin
     });
   }
-  return callClaude(modele as ClaudeModel, system, messages, { ...opts, sansSecours: true });
+  return callClaude(modele as ClaudeModel, system, messages, opts);
 }
 
 /** Dernier signalement par rôle : un seul incident toutes les 10 min, pas un par message. */

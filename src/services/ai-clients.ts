@@ -324,12 +324,9 @@ const XAI_BASE = 'https://api.x.ai/v1';
 
 export type GrokModel = 'grok-4.7' | 'grok-4.6' | 'grok-4.5' | 'grok-4.3' | 'grok-build-0.1';
 
-/** Partie de message Grok : texte ou image (URL publique ou data URL base64). */
-type ContenuGrok = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string; detail?: 'auto' | 'low' | 'high' } };
-
-async function callGrokDirect(
+export async function callGrok(
   model: GrokModel,
-  messages: { role: 'system' | 'user' | 'assistant'; content: string | ContenuGrok[] }[],
+  messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
   opts?: {
     maxTokens?: number;
     temperature?: number;
@@ -414,7 +411,7 @@ export type ClaudeModel =
   /** Agent qualité : diagnostic des prompts, alertes payantes, réparations complexes */
   | 'claude-fable-5-1';
 
-async function callClaudeDirect(
+export async function callClaude(
   model: ClaudeModel,
   system: Systeme,
   messages: { role: 'user' | 'assistant'; content: string }[],
@@ -485,7 +482,7 @@ async function callClaudeDirect(
  * Variante multimodale : envoie des images (par URL) à Claude pour un jugement
  * visuel réel — utilisé pour la sélection d'images mockup.
  */
-async function callClaudeVisionDirect(
+export async function callClaudeVision(
   model: ClaudeModel,
   system: Systeme,
   prompt: string,
@@ -555,7 +552,7 @@ async function callClaudeVisionDirect(
  * mémoire et envoyées directement, sans passer par un stockage — aucun coût
  * de fichier, aucune trace laissée.
  */
-async function callClaudeVisionBase64Direct(
+export async function callClaudeVisionBase64(
   model: ClaudeModel,
   system: Systeme,
   prompt: string,
@@ -616,191 +613,4 @@ async function callClaudeVisionBase64Direct(
     throw new AppError('Réponse Anthropic Vision vide ou invalide', 502);
   }
   return text;
-}
-
-
-// ─── Bascule automatique Claude ⇄ Grok (décision du 09/10/2026) ─────────
-//
-// Chaque appel IA a un remplaçant chez l'AUTRE fournisseur, choisi pour un
-// prix et un niveau proches. Si Anthropic est en panne ou à court de crédit,
-// la demande repart sur Grok (et inversement) : le client reçoit son
-// résultat au lieu de « Service indisponible ». Chaque bascule ouvre un
-// incident dans l'admin (un par fournisseur toutes les 10 min).
-//
-//   Claude Haiku 4.5   (1 $ / 5 $)  ⇄ Grok 4.3    (1,25 $ / 2,5 $)
-//   Claude Sonnet 5.5  (2 $ / 10 $) ⇄ Grok 4.7    (2 $ / 6 $)
-//   Claude Opus 5.5    (4 $ / 20 $) →  Grok 4.7    (le Grok le plus capable)
-//   Grok 4.7 / 4.6 / 4.5            →  Claude Sonnet 5.5
-//   Grok 4.3 / Grok Build           →  Claude Haiku 4.5
-// Les images (juges visuels) passent par Grok 4.7, qui lit les images.
-
-export type OptionsSecours = {
-  /** L'appelant gère lui-même son remplaçant (ex. conversations réglées dans l'admin). */
-  sansSecours?: boolean;
-  /** Modèle à ne jamais utiliser comme remplaçant (un modèle ne juge jamais son propre travail). */
-  eviterSecours?: string;
-};
-
-export function remplacantCroise(modele: string, eviter?: string): string | null {
-  let r: string | null = null;
-  if (modele.startsWith('claude-haiku')) r = 'grok-4.3';
-  else if (modele.startsWith('claude-')) r = 'grok-4.7';
-  else if (modele === 'grok-4.3' || modele === 'grok-build-0.1') r = 'claude-haiku-4-5-20251001';
-  else if (modele.startsWith('grok-')) r = 'claude-sonnet-5-5';
-  if (r && eviter && r === eviter) r = r.startsWith('grok-') ? 'grok-4.6' : 'claude-opus-5-5';
-  return r;
-}
-
-const derniereAlerteBascule = new Map<string, number>();
-function signalerBascule(de: string, vers: string, err: unknown) {
-  const cause = String((err as Error)?.message ?? err).replace(/"request_id":"[^"]*"/g, '').slice(0, 300);
-  console.error(`[bascule-ia] ${de} indisponible → ${vers} — ${cause}`);
-  const fournisseur = de.startsWith('grok-') ? 'xai' : 'anthropic';
-  const maintenant = Date.now();
-  if (maintenant - (derniereAlerteBascule.get(fournisseur) ?? 0) < 10 * 60_000) return;
-  derniereAlerteBascule.set(fournisseur, maintenant);
-  import('@/services/platform-alert.service')
-    .then(({ signalerIncident }) =>
-      signalerIncident({
-        composant: 'integration',
-        erreur: `${fournisseur === 'xai' ? 'Grok (xAI)' : 'Claude (Anthropic)'} indisponible : les appels basculent automatiquement sur l'autre fournisseur (ex. ${de} → ${vers}). Cause : ${cause}`,
-        contexte: `bascule ${fournisseur}`,
-        gravite: /credit balance|insufficient|quota|api[_ ]key|manquante/i.test(cause) ? 'critique' : 'moyenne',
-        categorie: 'serieuse',
-      })
-    )
-    .catch(() => {});
-}
-
-/** Grok raisonne avant de répondre : marge minimale pour que la réponse ne soit pas coupée. */
-const margeGrok = (n?: number) => Math.max(n ?? 4000, 4000);
-
-export async function callGrok(
-  model: GrokModel,
-  messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
-  opts?: { maxTokens?: number; temperature?: number; timeoutMs?: number; cleCache?: string } & OptionsSecours
-): Promise<string> {
-  try {
-    return await callGrokDirect(model, messages, opts);
-  } catch (err) {
-    const r = opts?.sansSecours ? null : remplacantCroise(model, opts?.eviterSecours);
-    if (!r) throw err;
-    signalerBascule(model, r, err);
-    const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
-    const conv = messages.filter((m) => m.role !== 'system') as { role: 'user' | 'assistant'; content: string }[];
-    try {
-      return await callClaudeDirect(r as ClaudeModel, system, conv.length ? conv : [{ role: 'user', content: '.' }], {
-        maxTokens: opts?.maxTokens,
-        timeoutMs: opts?.timeoutMs,
-      });
-    } catch {
-      throw err;
-    }
-  }
-}
-
-export async function callClaude(
-  model: ClaudeModel,
-  system: Systeme,
-  messages: { role: 'user' | 'assistant'; content: string }[],
-  opts?: {
-    maxTokens?: number;
-    temperature?: number;
-    timeoutMs?: number;
-    reutilisationPrevue?: boolean;
-    effort?: 'low' | 'medium' | 'high';
-  } & OptionsSecours
-): Promise<string> {
-  try {
-    return await callClaudeDirect(model, system, messages, opts);
-  } catch (err) {
-    const r = opts?.sansSecours ? null : remplacantCroise(model, opts?.eviterSecours);
-    if (!r) throw err;
-    signalerBascule(model, r, err);
-    try {
-      return await callGrokDirect(r as GrokModel, [{ role: 'system', content: systemeEnTexte(system) }, ...messages], {
-        maxTokens: margeGrok(opts?.maxTokens ?? 8000),
-        temperature: opts?.temperature,
-        timeoutMs: opts?.timeoutMs,
-      });
-    } catch {
-      throw err;
-    }
-  }
-}
-
-/** Remplaçant des appels avec images : Grok 4.7 (lecture d'images), sauf s'il est à éviter. */
-// Si le codeur était Claude, c'est Grok 4.7 qui l'a remplacé pendant la même panne : on l'évite aussi.
-const remplacantVision = (eviter?: string): GrokModel =>
-  eviter === 'grok-4.7' || eviter?.startsWith('claude-') ? 'grok-4.6' : 'grok-4.7';
-
-export async function callClaudeVision(
-  model: ClaudeModel,
-  system: Systeme,
-  prompt: string,
-  imageUrls: string[],
-  opts?: { maxTokens?: number; temperature?: number; timeoutMs?: number } & OptionsSecours
-): Promise<string> {
-  try {
-    return await callClaudeVisionDirect(model, system, prompt, imageUrls, opts);
-  } catch (err) {
-    if (opts?.sansSecours) throw err;
-    const r = remplacantVision(opts?.eviterSecours);
-    signalerBascule(model, r, err);
-    try {
-      return await callGrokDirect(
-        r,
-        [
-          { role: 'system', content: systemeEnTexte(system) },
-          {
-            role: 'user',
-            content: [
-              ...imageUrls.map((url) => ({ type: 'image_url' as const, image_url: { url, detail: 'high' as const } })),
-              { type: 'text' as const, text: prompt },
-            ],
-          },
-        ],
-        { maxTokens: margeGrok(opts?.maxTokens), temperature: opts?.temperature, timeoutMs: opts?.timeoutMs }
-      );
-    } catch {
-      throw err;
-    }
-  }
-}
-
-export async function callClaudeVisionBase64(
-  model: ClaudeModel,
-  system: Systeme,
-  prompt: string,
-  images: { base64: string; mediaType: 'image/png' | 'image/jpeg' }[],
-  opts?: { maxTokens?: number; temperature?: number; timeoutMs?: number; reutilisationPrevue?: boolean } & OptionsSecours
-): Promise<string> {
-  try {
-    return await callClaudeVisionBase64Direct(model, system, prompt, images, opts);
-  } catch (err) {
-    if (opts?.sansSecours) throw err;
-    const r = remplacantVision(opts?.eviterSecours);
-    signalerBascule(model, r, err);
-    try {
-      return await callGrokDirect(
-        r,
-        [
-          { role: 'system', content: systemeEnTexte(system) },
-          {
-            role: 'user',
-            content: [
-              ...images.map((img) => ({
-                type: 'image_url' as const,
-                image_url: { url: `data:${img.mediaType};base64,${img.base64}`, detail: 'high' as const },
-              })),
-              { type: 'text' as const, text: prompt },
-            ],
-          },
-        ],
-        { maxTokens: margeGrok(opts?.maxTokens), temperature: opts?.temperature, timeoutMs: opts?.timeoutMs }
-      );
-    } catch {
-      throw err;
-    }
-  }
 }

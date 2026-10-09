@@ -25,12 +25,10 @@ Rules:
       ? callGrok(m as GrokModel, [{ role: 'system', content: system }, { role: 'user', content: entree }], {
           maxTokens: 4000,
           temperature: 0.1,
-          sansSecours: true,
         })
       : callClaude(m as ClaudeModel, system, [{ role: 'user', content: entree }], {
           maxTokens: 4000,
           temperature: 0.1,
-          sansSecours: true,
         });
   // Un fournisseur en panne (crédit épuisé…) ne doit pas bloquer la
   // traduction : on bascule automatiquement sur l'autre.
