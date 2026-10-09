@@ -2736,9 +2736,41 @@ adminRouter.put('/bilan/reglages', requireRole('admin'), async (req: Request, re
           })
           .optional(),
         simulation: z.record(z.union([z.number(), z.string().max(40), z.boolean()])).optional(),
+        fiscalite: z
+          .object({
+            pays: z.enum(['FR', 'BJ', 'SN']),
+            baremes: z.object({
+              verifieLe: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+              france: z.record(z.number().min(0).max(1_000_000)),
+              benin: z.record(z.number().min(0).max(1_000_000_000)),
+              senegal: z.object({
+                cguTranches: z.array(z.tuple([z.number().min(0).max(1_000_000_000), z.number().min(0).max(100)])).min(1).max(10),
+                cguMinimum: z.number().min(0),
+                plafondCgu: z.number().min(0),
+                isPct: z.number().min(0).max(100),
+                imfPctCa: z.number().min(0).max(100),
+                imfPlancher: z.number().min(0),
+                imfPlafond: z.number().min(0),
+                tvaPct: z.number().min(0).max(100),
+              }),
+            }),
+            france: z.object({
+              activite: z.enum(['bnc', 'bic']),
+              acrePct: z.union([z.literal(0), z.literal(25), z.literal(50)]),
+              versementLiberatoire: z.boolean(),
+              cfeAnnuelleFcfa: z.number().min(0).max(10_000_000),
+            }),
+            benin: z.object({
+              forme: z.enum(['individuelle', 'societe']),
+              premiereAnnee: z.boolean(),
+              reductionIsPct: z.union([z.literal(0), z.literal(25), z.literal(50)]),
+            }),
+            senegal: z.object({ forme: z.enum(['individuelle', 'societe']), moinsDe3Ans: z.boolean() }),
+          })
+          .optional(),
       })
       .parse(req.body);
-    res.json(await enregistrerReglages(body));
+    res.json(await enregistrerReglages(body as never));
   } catch (err) {
     next(err);
   }

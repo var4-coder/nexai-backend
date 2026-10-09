@@ -9,6 +9,7 @@ import { Domain } from '@/models/Domain';
 import { StatsJour, DepensePub } from '@/models/StatsJour';
 import { estimateVideoAdRealCostUsd } from '@/services/credits.service';
 import { viderTamponIa } from '@/services/stats-jour.service';
+import { calculerImpots, comparerPays, normaliserFiscalite, type Fiscalite } from '@/services/fiscalite';
 
 /**
  * Bilan de l'admin.
@@ -39,6 +40,8 @@ export interface ReglagesBilan {
   fraisChariowPct: number;
   coutsFixes: CoutFixe[];
   taxes: TaxesBilan;
+  /** Pays de déclaration de NexAI, options et barèmes (modifiables dans l'admin). */
+  fiscalite: Fiscalite;
   /** Hypothèses de la simulation (curseurs), partagées entre admins. */
   simulation: Record<string, number | string | boolean>;
 }
@@ -59,6 +62,7 @@ export const REGLAGES_DEFAUT: ReglagesBilan = {
     impot: { actif: false, pct: 1.7 },
     tvaPub: { actif: true, pct: 20 },
   },
+  fiscalite: normaliserFiscalite(null),
   simulation: {},
 };
 
@@ -75,6 +79,7 @@ export async function lireReglages(): Promise<ReglagesBilan> {
         impot: { ...REGLAGES_DEFAUT.taxes.impot, ...(t.impot ?? {}) },
         tvaPub: { ...REGLAGES_DEFAUT.taxes.tvaPub, ...(t.tvaPub ?? {}) },
       },
+      fiscalite: normaliserFiscalite(v.fiscalite),
       simulation: { ...(v.simulation ?? {}) },
     };
   } catch {
@@ -89,6 +94,7 @@ export async function enregistrerReglages(r: Partial<ReglagesBilan>) {
     fraisChariowPct: r.fraisChariowPct ?? actuel.fraisChariowPct,
     coutsFixes: r.coutsFixes ?? actuel.coutsFixes,
     taxes: r.taxes ?? actuel.taxes,
+    fiscalite: r.fiscalite ? normaliserFiscalite(r.fiscalite) : actuel.fiscalite,
     simulation: r.simulation ?? actuel.simulation,
   };
   await AppConfig.findOneAndUpdate(
@@ -305,10 +311,20 @@ export async function bilanReel(du: Date, au: Date) {
     logos: Math.round(coutLogosUsd * taux),
     fixes: Math.round(fixesPeriodeUsd * taux),
     pub: pubFcfa,
-    urssaf: Math.round(encaisse * pctSi(tx.urssaf)),
-    impot: Math.round(encaisse * pctSi(tx.impot)),
     tvaPub: Math.round(pubFcfa * pctSi(tx.tvaPub)),
+    impots: 0,
   };
+  // Impôts et cotisations selon le pays de déclaration choisi dans l'admin.
+  const encParPays = Object.fromEntries(encaisseParPays.map((x: { _id: string; fcfa: number }) => [x._id, x.fcfa]));
+  const baseFiscale = {
+    ca: encaisse,
+    beneficeAvantImpot: encaisse - Object.values(couts).reduce((t, v) => t + v, 0),
+    caClientsDuPays: encParPays[r.fiscalite.pays] ?? 0,
+    jours: nbJours,
+  };
+  const fiscal = calculerImpots(r.fiscalite, baseFiscale);
+  couts.impots = fiscal.total;
+  const comparatif = comparerPays(r.fiscalite, { ...baseFiscale, caParPays: encParPays });
 
   // Ce que chaque compte fournisseur a réellement consommé sur la période (USD).
   const consoComptes = { anthropic: 0, xai: 0, autreIa: 0, alexya: 0, fal: 0, elevenlabs: 0, recraft: coutLogosUsd };
@@ -395,6 +411,9 @@ export async function bilanReel(du: Date, au: Date) {
     parSource,
     parPays,
     taxes: tx,
+    fiscalite: r.fiscalite,
+    fiscal,
+    comparatif,
     approvisionnement: {
       consoUsd: Object.fromEntries(Object.entries(consoComptes).map(([k, v]) => [k, Math.round(v * 100) / 100])),
       smsEnvoyes: telephonesVerifies,
