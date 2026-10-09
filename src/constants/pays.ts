@@ -13,7 +13,18 @@
 export type Langue = 'fr' | 'en' | 'es' | 'pt' | 'ar';
 
 /** Langues réellement proposées dans l'interface. */
-export const LANGUES_SUPPORTEES: readonly Langue[] = ['fr', 'en', 'es', 'pt', 'ar'];
+/**
+ * Langues réellement proposées : français et anglais uniquement (décision du
+ * 09/10/2026). Les pays hispanophones, lusophones et arabophones reçoivent
+ * l'anglais. Les anciennes valeurs (es, pt, ar) restent lisibles en base mais
+ * sont toujours traitées comme de l'anglais (voir langueEffective).
+ */
+export const LANGUES_SUPPORTEES: readonly Langue[] = ['fr', 'en'];
+
+/** Langue réellement appliquée : 'fr' ou 'en' (toute autre valeur → anglais). */
+export function langueEffective(l?: string | null): 'fr' | 'en' {
+  return !l || l === 'fr' ? 'fr' : 'en';
+}
 
 export const LANGUE_LABELS: Record<Langue, string> = {
   fr: 'Français',
@@ -131,14 +142,15 @@ export function getIndicatif(code?: string | null): string | null {
  */
 export function langueParDefautPourPays(code?: string | null): Langue {
   if (!code) return 'fr';
-  return PAYS_PAR_CODE.get(code.toUpperCase())?.langue ?? 'fr';
+  return langueEffective(PAYS_PAR_CODE.get(code.toUpperCase())?.langue ?? 'fr');
 }
 
 /** Normalise une valeur reçue du client en langue supportée. */
 export function normaliserLangue(valeur?: string | null): Langue | null {
   if (!valeur) return null;
-  const v = valeur.toLowerCase().slice(0, 2) as Langue;
-  return LANGUES_SUPPORTEES.includes(v) ? v : null;
+  const v = valeur.toLowerCase().slice(0, 2);
+  if (v === 'fr') return 'fr';
+  return ['en', 'es', 'pt', 'ar'].includes(v) ? 'en' : null;
 }
 
 /**
@@ -148,7 +160,8 @@ export function normaliserLangue(valeur?: string | null): Langue | null {
  * Volontairement impérative et placée en fin de prompt : les modèles suivent
  * mieux une contrainte de langue énoncée en dernier.
  */
-export function consigneLangue(langue: Langue): string {
+export function consigneLangue(langueBrute: Langue): string {
+  const langue: Langue = langueEffective(langueBrute);
   const noms: Record<Langue, string> = {
     fr: 'français',
     en: 'anglais (English)',
@@ -157,4 +170,21 @@ export function consigneLangue(langue: Langue): string {
     ar: 'arabe (العربية)',
   };
   return `LANGUE DE SORTIE OBLIGATOIRE : rédige absolument tout le contenu destiné à l'utilisateur final en ${noms[langue]}. Cela inclut les titres, paragraphes, boutons, libellés de formulaire, messages et métadonnées. N'utilise aucune autre langue, même partiellement.`;
+}
+
+/** Nom du pays (en français) à partir de son code, ou null. */
+export function nomPays(code?: string | null): string | null {
+  if (!code) return null;
+  return PAYS_PAR_CODE.get(code.toUpperCase())?.nom ?? null;
+}
+
+/**
+ * Consigne « pays du client » pour les prompts IA : les exemples, la monnaie
+ * et les moyens de paiement doivent correspondre au pays choisi dans
+ * Paramètres, pas à un pays par défaut.
+ */
+export function consignePays(code?: string | null): string {
+  const nom = nomPays(code);
+  if (!nom) return '';
+  return `PAYS DU CLIENT : ${nom} (${code!.toUpperCase()}). Adapte les exemples, la monnaie, les moyens de paiement et les usages locaux à ce pays, sauf si le client précise un autre marché.`;
 }

@@ -367,6 +367,8 @@ videoAdsRouter.get('/', requireAuth, async (req: Request, res: Response, next: N
     // s'abonner (même règle que GET /:id).
     const videos = list.map((v) => {
       const objet = v.toObject() as unknown as Record<string, unknown>;
+      // Détail technique d'un échec : réservé à l'administration.
+      if (req.auth!.role !== 'admin') delete objet.errorMessage;
       if ((v.brief as Record<string, unknown> | undefined)?.isTrialTest === true) {
         delete objet.outputUrl;
         delete objet.finalVideoUrl;

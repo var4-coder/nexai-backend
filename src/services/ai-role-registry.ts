@@ -35,6 +35,13 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
     default: 'claude-haiku-4-5-20251001',
     alternatives: ['claude-sonnet-5-5'],
   },
+  // Traduction des contenus de la base (Académie, Boutique…) dans la langue
+  // d'interface du client. Mise en cache : chaque texte n'est traduit qu'une fois.
+  traduction_interface: {
+    label: 'Traduction des contenus (Académie, Boutique, Skills) dans la langue du client',
+    default: 'claude-haiku-4-5-20251001',
+    alternatives: ['grok-4.3'],
+  },
   support_client: {
     label: 'Support client',
     default: 'claude-haiku-4-5-20251001',

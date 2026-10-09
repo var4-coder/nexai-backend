@@ -7,7 +7,7 @@ import { AppError } from '@/middleware/errorHandler';
 import { aUnAbonnementActif } from '@/utils/abonnement';
 import { User } from '@/models/User';
 import { CreditTransaction } from '@/models/CreditTransaction';
-import { LANGUES_SUPPORTEES, isPaysSupporte } from '@/constants/pays';
+import { LANGUES_SUPPORTEES, isPaysSupporte, langueEffective } from '@/constants/pays';
 
 export const usersRouter = Router();
 
@@ -46,7 +46,7 @@ usersRouter.get('/me', requireAuth, async (req, res, next) => {
         // Langue d'interface — le frontend l'applique dès le chargement, pour
         // la même raison que le thème (éviter un affichage en français puis un
         // basculement visible).
-        langue: user.langue || 'fr',
+        langue: langueEffective(user.langue),
         entrepriseNom: user.entrepriseNom || '',
         referralCode: user.referralCode || null,
         // Coordonnées paiement (Chariow) — enregistrées une fois, réutilisées
@@ -54,6 +54,9 @@ usersRouter.get('/me', requireAuth, async (req, res, next) => {
         nom: user.nom || '',
         telephone: user.telephone || '',
         telephonePays: user.telephonePays || '',
+        // Pays du compte (Paramètres). Repli sur l'indicatif téléphonique
+        // pour les comptes créés avant la séparation des deux champs.
+        pays: user.pays || user.telephonePays || '',
         // Compte admin : crédits illimités (jamais un chiffre, section 18)
         creditsIllimites: user.role === 'admin',
       },
@@ -260,7 +263,7 @@ usersRouter.patch('/langue', requireAuth, async (req, res, next) => {
   try {
     const body = z
       .object({
-        langue: z.enum(['fr', 'en', 'es', 'pt', 'ar']),
+        langue: z.enum(['fr', 'en']),
       })
       .parse(req.body);
 
@@ -291,14 +294,14 @@ usersRouter.patch('/pays', requireAuth, async (req, res, next) => {
       throw new AppError("Ce pays n'est pas encore pris en charge.", 400);
     }
 
-    const user = await User.findByIdAndUpdate(
-      req.auth!.userId,
-      { $set: { telephonePays: code } },
-      { new: true }
-    ).select('telephonePays');
+    const user = await User.findById(req.auth!.userId).select('pays telephonePays telephone');
     if (!user) throw new AppError('Utilisateur introuvable', 404);
+    user.pays = code;
+    // L'indicatif du numéro suit le pays tant qu'aucun numéro n'est enregistré.
+    if (!user.telephone || !user.telephonePays) user.telephonePays = code;
+    await user.save();
 
-    res.json({ ok: true, pays: user.telephonePays });
+    res.json({ ok: true, pays: user.pays });
   } catch (err) {
     next(err);
   }

@@ -301,7 +301,11 @@ export async function quickEditSite(
       siteUrl: adresseDuSite({ domainName: site.domainName, subdomainSlug: site.subdomainSlug }),
       paymentLink: site.paymentLink,
     });
-    const fichiers = fichiersStatiques(preparation.pages, preparation.gsap);
+    const fichiers = fichiersStatiques(
+      preparation.pages,
+      preparation.gsap,
+      adresseDuSite({ domainName: site.domainName, subdomainSlug: site.subdomainSlug })
+    );
 
     try {
       if (site.siteType === 'nextjs') {

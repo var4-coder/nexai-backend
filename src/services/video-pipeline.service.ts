@@ -1132,7 +1132,9 @@ Brief : ${JSON.stringify({ ...brief, siteMeta: undefined }).slice(0, 500)}`;
 async function langueDuProprietaire(userId: unknown): Promise<Langue> {
   try {
     const u = await User.findById(userId as string).select('langue').lean();
-    return ((u as { langue?: Langue } | null)?.langue as Langue) ?? 'fr';
+    // Français ou anglais uniquement (toute autre langue enregistrée → anglais).
+    const l = (u as { langue?: Langue } | null)?.langue;
+    return !l || l === 'fr' ? 'fr' : 'en';
   } catch {
     return 'fr';
   }

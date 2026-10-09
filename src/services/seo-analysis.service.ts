@@ -211,13 +211,17 @@ export async function analyserSeoSite(
   const retenue = site.chosenProposalId
     ? props.find((p) => p.versionId === site.chosenProposalId)
     : props[0];
-  const html = retenue?.htmlDemo;
+  // Site en ligne : on analyse la page RÉELLEMENT servie aux visiteurs (et
+  // donc à Google), pas seulement la version stockée.
+  const enLigne = await lireSiteEnLigne(site);
+  const html = enLigne?.html ?? retenue?.htmlDemo;
 
   if (!html) {
     throw new AppError("Ce site n'a pas encore de contenu à analyser.", 409);
   }
 
   const points = analyserHtml(html);
+  if (enLigne) points.push(...pointsSiteEnLigne(enLigne));
   const score = calculerScore(points);
 
   return {
@@ -230,24 +234,90 @@ export async function analyserSeoSite(
   };
 }
 
+/** Page d'accueil réellement en ligne (+ sitemap / robots), ou null si injoignable. */
+async function lireSiteEnLigne(site: {
+  status: string;
+  netlifySiteId?: string;
+  domainName?: string;
+  subdomainSlug?: string;
+}): Promise<{ html: string; sitemap: boolean; robots: boolean; suivi: boolean } | null> {
+  if (site.status !== 'launched' || !site.netlifySiteId || String(site.netlifySiteId).startsWith('local_')) return null;
+  try {
+    const { getNetlifyHost } = await import('@/services/netlify.service');
+    const hote = (await getNetlifyHost(site.netlifySiteId)).replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const base = `https://${hote}`;
+    const lire = async (chemin: string) => {
+      const r = await fetch(`${base}${chemin}`, { signal: AbortSignal.timeout(8000), redirect: 'follow' });
+      return r.ok ? await r.text() : null;
+    };
+    const html = await lire('/');
+    if (!html) return null;
+    const [sitemap, robots] = await Promise.all([lire('/sitemap.xml').catch(() => null), lire('/robots.txt').catch(() => null)]);
+    return {
+      html,
+      sitemap: Boolean(sitemap && sitemap.includes('<urlset')),
+      robots: Boolean(robots && /user-agent/i.test(robots)),
+      suivi: html.includes('/public/visite'),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function pointsSiteEnLigne(e: { sitemap: boolean; robots: boolean; suivi: boolean }): PointSeo[] {
+  return [
+    {
+      code: 'sitemap',
+      libelle: 'Plan du site (sitemap.xml)',
+      etat: e.sitemap ? 'ok' : 'attention',
+      explication: e.sitemap
+        ? 'Google dispose de la liste de toutes vos pages.'
+        : 'Pas encore de plan du site : remettez le site en ligne pour qu’il soit ajouté automatiquement.',
+      poids: 5,
+    },
+    {
+      code: 'robots',
+      libelle: 'Accès des moteurs de recherche (robots.txt)',
+      etat: e.robots ? 'ok' : 'attention',
+      explication: e.robots
+        ? 'Les moteurs de recherche sont autorisés à parcourir votre site.'
+        : 'Fichier robots.txt absent : il sera ajouté à la prochaine mise en ligne.',
+      poids: 3,
+    },
+    {
+      code: 'suivi',
+      libelle: 'Mesure des visites (Analytics)',
+      etat: e.suivi ? 'ok' : 'attention',
+      explication: e.suivi
+        ? 'Les visites de votre site sont bien comptées dans Analytics.'
+        : 'La mesure des visites n’est pas active sur la version en ligne : remettez le site en ligne pour l’activer.',
+      poids: 2,
+    },
+  ];
+}
+
 /** Analyse tous les sites du client, pour la vue d'ensemble. */
 export async function analyserSeoTousSites(userId: Types.ObjectId | string) {
   const sites = await Site.find({
     userId,
     status: { $in: ['ready', 'launched'] },
   })
-    .select('name status proposals chosenProposalId')
+    .select('name status proposals chosenProposalId netlifySiteId domainName subdomainSlug')
     .limit(50);
 
+  const enLigneParSite = await Promise.all(sites.map((site) => lireSiteEnLigne(site)));
   const rapports: RapportSeo[] = [];
-  for (const site of sites) {
+  for (const [i, site] of sites.entries()) {
     const props = site.proposals ?? [];
     const retenue = site.chosenProposalId
       ? props.find((p) => p.versionId === site.chosenProposalId)
       : props[0];
-    if (!retenue?.htmlDemo) continue;
+    const enLigne = enLigneParSite[i];
+    const html = enLigne?.html ?? retenue?.htmlDemo;
+    if (!html) continue;
 
-    const points = analyserHtml(retenue.htmlDemo);
+    const points = analyserHtml(html);
+    if (enLigne) points.push(...pointsSiteEnLigne(enLigne));
     const score = calculerScore(points);
     rapports.push({
       siteId: String(site._id),

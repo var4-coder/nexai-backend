@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { loadInternalLibraryForNiche } from '@/data/library';
 import {
   LIBRARY_COLLECTIONS,
   LibraryCollection,
@@ -412,15 +411,11 @@ export function construireBlocNiche(lib: LibrairieComplete, nicheSite: string): 
   // famille n'est disponible (voir construireBlocFamille).
   let paletteTexte = '';
 
-  // Dernier filet : librairie interne embarquée (niche inconnue de la
-  // Librairie ou base et fichiers illisibles).
+  // Librairie v8 uniquement : l'ancienne librairie embarquée (avant v8) est
+  // obsolète et n'est plus jamais utilisée. Une niche absente de la v8 (base
+  // ET fichiers livrés) est signalée plutôt que complétée par d'anciennes règles.
   if (!fiche || composants.length === 0) {
-    const interne = loadInternalLibraryForNiche(nicheSite);
-    if (!fiche && interne.niche) ficheTexte = JSON.stringify(interne.niche);
-    if (!fiche && !palette && interne.palette) paletteTexte = JSON.stringify(interne.palette);
-    if (composants.length === 0) {
-      composants = interne.components.map((c) => ({ ...(c as unknown as LibraryDoc), _id: (c as { id: string }).id }));
-    }
+    console.warn(`[librairie] Niche « ${nicheSite} » incomplète dans la Librairie v8 (fiche=${Boolean(fiche)}, composants=${composants.length}).`);
   }
 
   const composantsTexte = composants

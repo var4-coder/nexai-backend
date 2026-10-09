@@ -319,6 +319,41 @@ boutiqueRouter.get(
 );
 
 /**
+ * GET /produits-unite — produits publiés HORS pack (vendus à l'unité).
+ * Sans cette liste, un produit publié depuis l'admin sans pack n'apparaissait
+ * nulle part côté client.
+ */
+boutiqueRouter.get('/produits-unite', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = await User.findById(req.auth!.userId).select('plan role');
+    if (!user) throw new AppError('Utilisateur introuvable', 404);
+    const produits = await BoutiqueProduct.find({
+      status: 'publié',
+      $or: [{ packId: null }, { packId: { $exists: false } }],
+      ...audienceFilter(user.plan),
+    })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+    const ctx = await contexteAcces(req.auth!.userId, user.plan, user.role);
+    res.json({
+      produits: produits.map((p) => ({
+        id: String(p._id),
+        title: p.title,
+        description: p.description ?? null,
+        imageUrl: p.imageUrl ?? null,
+        creditsCost: p.creditsCost,
+        isFreeForSubscriber: p.isFreeForSubscriber,
+        categorie: p.categorie ?? 'digital',
+        unlocked: produitOuvert(p, ctx),
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * POST /packs/:id/debloquer — débloque un pack payant (débit unique). Un pack
  * débloqué ouvre tous ses produits. Un pack gratuit n'a rien à débloquer.
  */

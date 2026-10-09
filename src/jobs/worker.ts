@@ -76,6 +76,8 @@ type PipelineJobData = {
   paymentLink?: string;
   paymentProvider?: 'chariow' | 'maketou' | 'stripe' | 'autre';
   charges?: LaunchCharges;
+  /** Domaine déjà acheté par le client (« Mes domaines ») : branché, jamais racheté. */
+  ownedDomain?: boolean;
   instruction?: string;
   videoAdId?: string;
   /** Relance après refus (admin ou Fable) : le client a déjà payé. */
@@ -220,7 +222,7 @@ async function handleLaunch(data: PipelineJobData) {
     siteUrl,
     paymentLink: resolvedPaymentLink,
   });
-  const fichiers = fichiersStatiques(preparation.pages, preparation.gsap);
+  const fichiers = fichiersStatiques(preparation.pages, preparation.gsap, siteUrl);
 
   // 2. Déploiement du contenu — deux chemins selon le type de site.
   if (!String(netlifySiteId).startsWith('local_')) {
@@ -268,6 +270,22 @@ async function handleLaunch(data: PipelineJobData) {
     } catch (err) {
       console.warn('[worker] attachSubdomain failed', err);
       // non bloquant si le deploy a réussi (URL netlify.app existe)
+    }
+  } else if (data.domainType === 'godaddy' && data.domainName && data.ownedDomain) {
+    // Domaine déjà possédé : DNS chez son vendeur réel, puis rattachement.
+    const { Domain } = await import('@/models/Domain');
+    const { addNetlifyDnsRecordChez } = await import('@/services/registrar.service');
+    const possede = await Domain.findOne({ userId: data.userId, domainName: data.domainName });
+    try {
+      const netlifyHost = await getNetlifyHost(netlifySiteId);
+      await addNetlifyDnsRecordChez(possede?.registrar ?? 'godaddy', data.domainName, netlifyHost);
+    } catch (dnsErr) {
+      console.warn('[worker] DNS domaine possédé non posé', dnsErr);
+    }
+    await attachDomain(netlifySiteId, data.domainName, slug);
+    if (possede) {
+      possede.siteId = site._id;
+      await possede.save();
     }
   } else if (data.domainType === 'godaddy' && data.domainName) {
     try {

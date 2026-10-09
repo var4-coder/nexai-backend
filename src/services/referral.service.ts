@@ -163,16 +163,23 @@ export async function getReferralStats(userId: Types.ObjectId | string) {
     await user.save();
   }
 
-  const [totalFilleuls, filleulsConvertis] = await Promise.all([
+  const { CreditTransaction } = await import('@/models/CreditTransaction');
+  const [totalFilleuls, filleulsConvertis, gains] = await Promise.all([
     User.countDocuments({ referredByUserId: userId }),
     User.countDocuments({ referredByUserId: userId, referralRewardGranted: true }),
+    // Crédits RÉELLEMENT versés (une récompense bloquée par l'anti-fraude
+    // n'est pas comptée, contrairement à un simple calcul filleuls × 50).
+    CreditTransaction.aggregate<{ total: number }>([
+      { $match: { userId: new Types.ObjectId(String(userId)), note: { $regex: '^parrainage:' } } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]),
   ]);
 
   return {
     code: user.referralCode,
     totalFilleuls,
     filleulsConvertis,
-    creditsGagnes: filleulsConvertis * REFERRAL_REWARD_CREDITS,
+    creditsGagnes: gains[0]?.total ?? 0,
     recompenseParFilleul: REFERRAL_REWARD_CREDITS,
     // Texte affiché au client — la règle doit être limpide pour éviter les
     // réclamations ("j'ai parrainé 3 personnes et je n'ai rien reçu").

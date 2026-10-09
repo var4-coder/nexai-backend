@@ -22,6 +22,12 @@ export interface IUser {
   email: string;
   telephone?: string;
   telephonePays?: string;
+  /**
+   * Pays du compte (code ISO 2 lettres), choisi à l'inscription puis dans
+   * Paramètres. Distinct de `telephonePays` (indicatif du numéro Mobile
+   * Money) : changer l'un ne doit jamais réécrire l'autre.
+   */
+  pays?: string;
   prenom?: string;
   nom?: string;
   passwordHash?: string;
@@ -107,6 +113,7 @@ const userSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     telephone: { type: String },
     telephonePays: { type: String },
+    pays: { type: String, uppercase: true, trim: true },
     prenom: { type: String },
     nom: { type: String },
     passwordHash: { type: String, select: false },

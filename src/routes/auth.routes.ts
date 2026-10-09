@@ -36,6 +36,10 @@ const registerSchema = z.object({
    * Facultatif : un compte sans pays reste en français.
    */
   pays: z.string().length(2).optional(),
+  /** Code de parrainage saisi (ou repris du lien d'invitation ?ref=). Un code invalide est ignoré. */
+  referralCode: z.string().trim().max(20).optional(),
+  /** Empreinte navigateur — protège le parrainage contre l'auto-parrainage. */
+  deviceFingerprint: z.string().trim().max(128).optional(),
 });
 
 const verifySchema = z.object({
@@ -54,6 +58,9 @@ const loginSchema = z.object({
 
 const googleSchema = z.object({
   idToken: z.string().min(1),
+  referralCode: z.string().trim().max(20).optional(),
+  deviceFingerprint: z.string().trim().max(128).optional(),
+  pays: z.string().length(2).optional(),
 });
 
 const forgotPasswordSchema = z.object({
@@ -81,8 +88,8 @@ function parseOrThrow<T>(schema: z.ZodSchema<T>, data: unknown): T {
 
 authRouter.post('/register', authLimiter, async (req, res, next) => {
   try {
-    const { email, password, pays } = parseOrThrow(registerSchema, req.body);
-    const user = await registerUser({ email, password, pays, ip: req.ip });
+    const { email, password, pays, referralCode, deviceFingerprint } = parseOrThrow(registerSchema, req.body);
+    const user = await registerUser({ email, password, pays, referralCode, deviceFingerprint, ip: req.ip });
     res.status(201).json({
       message: 'Compte créé. Un code de vérification a été envoyé par email.',
       user,
@@ -127,8 +134,8 @@ authRouter.post('/login', authLimiter, async (req, res, next) => {
 
 authRouter.post('/google', authLimiter, async (req, res, next) => {
   try {
-    const { idToken } = parseOrThrow(googleSchema, req.body);
-    const { user, token } = await loginWithGoogle({ idToken, ip: req.ip });
+    const { idToken, referralCode, deviceFingerprint, pays } = parseOrThrow(googleSchema, req.body);
+    const { user, token } = await loginWithGoogle({ idToken, referralCode, deviceFingerprint, pays, ip: req.ip });
     res.cookie(AUTH_COOKIE_NAME, token, authCookieOptions);
     res.json({ user, token });
   } catch (err) {

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Types, type HydratedDocument } from 'mongoose';
 import { callClaude, ClaudeModel } from './ai-clients';
-import { consigneLangue, type Langue } from '@/constants/pays';
+import { consigneLangue, consignePays, type Langue } from '@/constants/pays';
 import { getModelForRole } from './ai-role-registry';
 import { ChatSession, IChatSession, IChatMessage, IChatAttachment, ChatHubMode } from '@/models/ChatSession';
 import { Site, SiteNiche, resolveSiteType } from '@/models/Site';
@@ -518,6 +518,8 @@ async function buildDialogueSystemPrompt(
     plan: UserPlan;
     /** Langue du client : l'assistant doit dialoguer dans SA langue. */
     langue?: Langue;
+    /** Pays du compte (Paramètres) : exemples, monnaie, moyens de paiement locaux. */
+    pays?: string;
   }
 ): Promise<string> {
   let guidance: string;
@@ -544,6 +546,8 @@ async function buildDialogueSystemPrompt(
   return `${ANTI_RULES}
 
 ${guidance}${appendAdminBlock(admin)}
+
+${consignePays(opts.pays)}
 
 ${consigneLangue(opts.langue ?? 'fr')}`;
 }
@@ -667,7 +671,7 @@ async function callDialogueTurn(session: InstanceType<typeof ChatSession>) {
   // Utile au guidage du mode 'business' pour le ton de conversion (voir
   // buildBusinessModeGuidance) — 'trial' par défaut si l'utilisateur n'est
   // pas trouvé (ne devrait pas arriver, la session appartient forcément à un compte existant).
-  const planUser = await User.findById(session.userId).select('plan langue').lean();
+  const planUser = await User.findById(session.userId).select('plan langue pays telephonePays').lean();
   const plan: UserPlan = (planUser?.plan as UserPlan) || 'trial';
 
   const system = await buildDialogueSystemPrompt(hubMode, {
@@ -676,6 +680,8 @@ async function callDialogueTurn(session: InstanceType<typeof ChatSession>) {
     siteName,
     plan,
     langue: (planUser?.langue as Langue) ?? 'fr',
+    pays: (planUser as { pays?: string; telephonePays?: string } | null)?.pays ||
+      (planUser as { telephonePays?: string } | null)?.telephonePays,
   });
   const history = toClaudeHistory(session.messages);
   const baseMessages = history.length ? history : [{ role: 'user' as const, content: 'Bonjour' }];

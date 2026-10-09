@@ -62,3 +62,16 @@ export async function detailsDomaineChez(
   const details = await getGodaddyDetails(domain);
   return { expires: details.expires ?? undefined };
 }
+
+/** DNS chez le vendeur RÉEL du domaine (un domaine acheté avant un changement de vendeur reste chez l'ancien). */
+export async function addNetlifyDnsRecordChez(
+  vendeur: VendeurDomaine,
+  domain: string,
+  netlifyHost: string
+): Promise<void> {
+  if (vendeur === 'porkbun') {
+    await addPorkbunNetlifyDns(domain, netlifyHost);
+    return;
+  }
+  await addGodaddyDns(domain, netlifyHost);
+}

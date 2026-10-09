@@ -1495,7 +1495,7 @@ async function executerGeneration(
   const pagePlan = resolvePagePlan(site.niche, site.brief, ctx.lib);
   // Langue du propriétaire du site : le contenu livré doit être dans SA langue
   // (voir consigneLangue), pas dans celle de la plateforme.
-  const langueClient = (owner?.langue as Langue) ?? 'fr';
+  const langueClient: Langue = !owner?.langue || owner.langue === 'fr' ? 'fr' : 'en';
   const proposals: ISiteProposal[] = [];
 
   // ── Famille et combinaison imposées (Librairie v8, TH1–TH5) ──
@@ -2456,7 +2456,14 @@ export async function enqueueLaunch(
   // un domaine indisponible, et permet de facturer le prix exact + 5cr —
   // voir getDomainPriceCredits — plutôt qu'un forfait générique).
   let godaddyPriceUsd: number | null = null;
+  // Domaine déjà acheté par ce client (page Domaines → « Mes domaines ») :
+  // jamais racheté ni refacturé, il est simplement branché sur le site.
+  let domaineDejaPossede = false;
   if (opts.domainType === 'godaddy' && resolvedDomainName) {
+    const { domainePossede } = await import('@/services/mes-domaines.service');
+    domaineDejaPossede = Boolean(await domainePossede(userId, resolvedDomainName));
+  }
+  if (opts.domainType === 'godaddy' && resolvedDomainName && !domaineDejaPossede) {
     try {
       const { available, priceUsd } = await checkDomainAvailability(resolvedDomainName);
       if (!available) {
@@ -2502,7 +2509,7 @@ export async function enqueueLaunch(
     usedQuota: false,
   };
   try {
-    domainResult = await resolveDomainCostAndConsume(userId, opts.domainType, {
+    domainResult = await resolveDomainCostAndConsume(userId, domaineDejaPossede ? 'byod' : opts.domainType, {
       relatedSiteId: siteId,
       domainName: resolvedDomainName,
       priceUsd: godaddyPriceUsd,
@@ -2547,6 +2554,7 @@ export async function enqueueLaunch(
       paymentLink: resolvedPaymentLink,
       paymentProvider: resolvedPaymentProvider,
       charges,
+      ownedDomain: domaineDejaPossede,
     };
 
     bullJob = await pipelineQueue.add('launch_site', jobPayload, {

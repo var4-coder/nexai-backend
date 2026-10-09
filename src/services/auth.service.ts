@@ -56,6 +56,7 @@ export interface SafeUser {
   langue?: Langue;
   /** Pays du compte (code ISO 2 lettres). */
   telephonePays?: string;
+  pays?: string;
   emailVerifiedAt?: Date;
   createdAt: Date;
 }
@@ -71,8 +72,9 @@ function toSafeUser(user: UserDoc): SafeUser {
     trialEndsAt: user.trialEndsAt,
     creditsBalance: user.creditsBalance,
     domainsUsed: user.domainsUsed ?? 0,
-    langue: (user.langue as Langue) ?? 'fr',
+    langue: !user.langue || user.langue === 'fr' ? 'fr' : 'en',
     telephonePays: user.telephonePays,
+    pays: user.pays || user.telephonePays,
     emailVerifiedAt: user.emailVerifiedAt,
     createdAt: user.createdAt,
   };
@@ -166,6 +168,7 @@ export async function registerUser(params: {
     telephonePays: isPaysSupporte(params.pays)
       ? params.pays!.toUpperCase()
       : undefined,
+    pays: isPaysSupporte(params.pays) ? params.pays!.toUpperCase() : undefined,
     ipHash,
     deviceFingerprint: params.deviceFingerprint,
     referralCode: await generateUniqueReferralCode(),
@@ -308,6 +311,7 @@ export async function loginWithGoogle(params: {
       telephonePays: isPaysSupporte(params.pays)
         ? params.pays!.toUpperCase()
         : undefined,
+      pays: isPaysSupporte(params.pays) ? params.pays!.toUpperCase() : undefined,
       ipHash,
       deviceFingerprint: params.deviceFingerprint,
       referralCode: await generateUniqueReferralCode(),

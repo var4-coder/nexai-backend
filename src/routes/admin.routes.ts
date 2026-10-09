@@ -1730,7 +1730,15 @@ adminRouter.post(
         isFreeForSubscriber: body.isFreeForSubscriber,
         audience: body.audience,
         ...(body.packId ? { packId: body.packId } : {}),
-        type: principal.role === 'zip' ? 'archive' : 'pdf',
+        // Type affiché au client, d'après l'extension du fichier principal
+        // (PDF, ZIP, vidéo, image… tout format est accepté).
+        type: /\.(mp4|mov|webm|mkv|avi|m4v)$/i.test(principal.nom)
+          ? 'video'
+          : /\.(png|jpe?g|webp|gif|svg)$/i.test(principal.nom)
+            ? 'image'
+            : principal.role === 'pdf' || principal.role === 'guide_pdf'
+              ? 'pdf'
+              : 'archive',
         cloudinaryPublicId: principal.publicId,
         fichiers: enregistres,
         ...(body.categorie === 'skill' ? { texteACopier: texteACopier ?? texteSkillMd } : {}),
@@ -2702,6 +2710,40 @@ adminRouter.get(
   }
 );
 
+/** DELETE /logs/:id — supprime une ligne du journal. */
+adminRouter.delete(
+  '/logs/:id',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const r = await SystemLog.findByIdAndDelete(req.params.id);
+      if (!r) throw new AppError('Entrée de journal introuvable.', 404);
+      res.json({ supprime: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /logs/nettoyer — vide le journal (tout, ou les entrées de plus de
+ * `joursMin` jours). body { joursMin? }
+ */
+adminRouter.post(
+  '/logs/nettoyer',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { joursMin } = z.object({ joursMin: z.number().int().min(0).max(3650).optional() }).parse(req.body ?? {});
+      const filtre = joursMin ? { createdAt: { $lt: new Date(Date.now() - joursMin * 86_400_000) } } : {};
+      const r = await SystemLog.deleteMany(filtre);
+      res.json({ supprimes: r.deletedCount ?? 0 });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 /**
  * POST /logs/envoyer-email — envoie à l'adresse administrateur un
  * récapitulatif des journaux les plus récents.
@@ -2967,6 +3009,8 @@ adminRouter.get(
           fichiersSuspects: i.fichiersSuspects ?? [],
           derniereOccurrence: i.derniereOccurrence,
           compteRenduAgent: i.compteRenduAgent ?? null,
+          resoluA: i.resoluA ?? null,
+          creeLe: i.createdAt ?? null,
         })),
       });
     } catch (err) {
@@ -3024,6 +3068,63 @@ adminRouter.post(
       inc.resoluA = new Date();
       await inc.save();
       res.json({ incident: inc });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** Rouvre un incident marqué résolu par erreur. */
+adminRouter.post(
+  '/incidents/:id/rouvrir',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const inc = await PlatformAlert.findById(req.params.id);
+      if (!inc) throw new AppError('Incident introuvable.', 404);
+      inc.statut = 'nouveau';
+      inc.resoluA = undefined;
+      await inc.save();
+      res.json({ incident: inc });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** Supprime un incident de l'historique. */
+adminRouter.delete(
+  '/incidents/:id',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const inc = await PlatformAlert.findByIdAndDelete(req.params.id);
+      if (!inc) throw new AppError('Incident introuvable.', 404);
+      res.json({ supprime: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /incidents/nettoyer — met à jour l'historique : supprime les
+ * incidents résolus (d'une catégorie, ou tous). body { categorie?, tous? }
+ * `tous: true` vide toute la catégorie, résolus ou non.
+ */
+adminRouter.post(
+  '/incidents/nettoyer',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z
+        .object({ categorie: z.enum(['fable', 'serieuse']).optional(), tous: z.boolean().optional() })
+        .parse(req.body ?? {});
+      const filtre: Record<string, unknown> = {};
+      if (body.categorie) filtre.categorie = body.categorie;
+      if (!body.tous) filtre.statut = 'resolu';
+      const r = await PlatformAlert.deleteMany(filtre);
+      res.json({ supprimes: r.deletedCount ?? 0 });
     } catch (err) {
       next(err);
     }
@@ -3104,7 +3205,17 @@ adminRouter.patch(
         .parse(req.body);
       const pack = await BoutiquePack.findByIdAndUpdate(req.params.id, body, { new: true });
       if (!pack) throw new AppError('Pack introuvable.', 404);
-      res.json({ pack });
+      // Publier un pack publie aussi ses produits : sans cela, le client
+      // voyait un pack publié… mais vide (ses produits restaient en brouillon).
+      let produitsPublies = 0;
+      if (body.status === 'publié') {
+        const r = await BoutiqueProduct.updateMany(
+          { packId: pack._id, status: 'brouillon' },
+          { $set: { status: 'publié' } }
+        );
+        produitsPublies = r.modifiedCount ?? 0;
+      }
+      res.json({ pack, produitsPublies });
     } catch (err) {
       next(err);
     }

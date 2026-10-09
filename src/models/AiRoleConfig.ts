@@ -26,7 +26,8 @@ export type AiRole =
   | 'aide_ia_essai'
   | 'aide_ia_payant'
   | 'amelioration_prompts'
-  | 'titre_accroche_academy_boutique';
+  | 'titre_accroche_academy_boutique'
+  | 'traduction_interface';
 
 export interface IAiRoleConfig {
   _id: Types.ObjectId;

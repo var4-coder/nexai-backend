@@ -1,3 +1,4 @@
+import express from 'express';
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -204,11 +205,20 @@ publicRouter.get('/galerie', async (_req: Request, res: Response) => {
   }
 });
 
-publicRouter.post('/visite', async (req: Request, res: Response) => {
+publicRouter.post('/visite', express.text({ type: ['text/plain', 'text/*'], limit: '4kb' }), async (req: Request, res: Response) => {
   // Réponse immédiate : l'enregistrement se poursuit en arrière-plan.
   res.status(204).end();
 
   try {
+    // Le script de suivi envoie du texte brut (requête « simple », jamais
+    // bloquée entre domaines) ; les anciens sites envoyaient du JSON.
+    if (typeof req.body === 'string') {
+      try {
+        req.body = JSON.parse(req.body);
+      } catch {
+        return;
+      }
+    }
     const siteId = String(req.body?.siteId ?? '');
     if (!siteId || !/^[0-9a-f]{24}$/i.test(siteId)) return;
 

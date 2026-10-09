@@ -10,6 +10,12 @@ import { checkDomainAvailability } from '@/services/registrar.service';
 import { lireVendeurDomaine } from '@/services/registrar-reglage.service';
 import { estDomaineRacine, getNetlifyHost } from '@/services/netlify.service';
 import {
+  listerMesDomaines,
+  acheterDomaineSeul,
+  attribuerDomaine,
+  retirerAttribution,
+} from '@/services/mes-domaines.service';
+import {
   getDomainQuotaInfo,
   resolveDomainCharge,
   isDomainTooExpensive,
@@ -442,3 +448,54 @@ domainsRouter.get('/dns/:siteId', requireAuth, async (req: Request, res: Respons
     next(err);
   }
 });
+
+// ══════════════════════════════════════════════════════════════════
+// MES DOMAINES — domaines achetés par le client, attribuables à un site
+// ══════════════════════════════════════════════════════════════════
+
+/** GET /mes-domaines — domaines achetés, avec le site auquel chacun est attribué. */
+domainsRouter.get('/mes-domaines', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.json({ domaines: await listerMesDomaines(req.auth!.userId) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /acheter — achat d'un domaine sans site (il rejoint « Mes domaines »). */
+domainsRouter.post('/acheter', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = z.object({ domain: z.string().min(3).max(253) }).parse(req.body);
+    const domaine = await acheterDomaineSeul(req.auth!.userId, body.domain);
+    res.status(201).json({ domaine, message: `${domaine.domaine} a été acheté et ajouté à vos domaines.` });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /mes-domaines/:id/attribuer — body { siteId } */
+domainsRouter.post(
+  '/mes-domaines/:id/attribuer',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = z.object({ siteId: z.string().min(1) }).parse(req.body);
+      res.json(await attribuerDomaine(req.auth!.userId, req.params.id, body.siteId));
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** POST /mes-domaines/:id/retirer — retire l'attribution (site pas encore en ligne). */
+domainsRouter.post(
+  '/mes-domaines/:id/retirer',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({ domaine: await retirerAttribution(req.auth!.userId, req.params.id) });
+    } catch (err) {
+      next(err);
+    }
+  }
+);

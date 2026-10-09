@@ -103,8 +103,23 @@ function liensDepuisRacine(html: string): string {
  * `slug/index.html`, pour que l'adresse sans « .html » — /mentions-legales —
  * fonctionne partout), plus les fichiers GSAP si une page les charge.
  */
-export function fichiersStatiques(pages: PageSite[], gsap: boolean): FichierPublie[] {
+export function fichiersStatiques(pages: PageSite[], gsap: boolean, siteUrl?: string): FichierPublie[] {
   const fichiers: FichierPublie[] = [];
+  // Référencement : plan du site + robots.txt, pour que Google découvre
+  // toutes les pages (et pas seulement l'accueil).
+  if (siteUrl) {
+    const base = siteUrl.replace(/\/+$/, '');
+    const jour = new Date().toISOString().slice(0, 10);
+    const urls = pages.map((p) => (p.slug === 'index' ? `${base}/` : `${base}/${p.slug}`));
+    fichiers.push({
+      path: 'sitemap.xml',
+      content:
+        '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+        urls.map((u) => `  <url><loc>${u}</loc><lastmod>${jour}</lastmod></url>`).join('\n') +
+        '\n</urlset>\n',
+    });
+    fichiers.push({ path: 'robots.txt', content: `User-agent: *\nAllow: /\nSitemap: ${base}/sitemap.xml\n` });
+  }
   for (const p of pages) {
     if (p.slug === 'index') {
       fichiers.push({ path: 'index.html', content: p.html });

@@ -6,6 +6,7 @@ import {
   type LibraryCollection,
   type LibraryDoc,
   lireSeedLocal,
+  GENERATION_LIBRAIRIE,
 } from '@/services/library-seed.service';
 import {
   chargerLibrairie,
@@ -111,7 +112,31 @@ export async function listerLibrairie() {
       aTexte: typeof d.content_md === 'string',
     })),
   }));
-  return { version: lib.version, collections };
+  // Génération active : la Librairie v8 est la seule utilisée partout
+  // (codeur, juges, IA Aide, pages intérieures). L'ancienne version n'est
+  // conservée qu'en archive (« library_sauvegardes »), jamais lue.
+  let generation: { active: string | null; installeeLe: Date | null; precedente: string | null } = {
+    active: null,
+    installeeLe: null,
+    precedente: null,
+  };
+  try {
+    const meta = await db()
+      .collection<{ _id: string; valeur?: string; le?: Date; precedente?: string }>('library_meta')
+      .findOne({ _id: 'generation' });
+    generation = { active: meta?.valeur ?? null, installeeLe: meta?.le ?? null, precedente: meta?.precedente ?? null };
+  } catch {
+    /* méta illisible : l'interface affiche la génération attendue */
+  }
+  return {
+    version: lib.version,
+    collections,
+    generation: {
+      ...generation,
+      attendue: GENERATION_LIBRAIRIE,
+      aJour: generation.active === GENERATION_LIBRAIRIE,
+    },
+  };
 }
 
 /** Un document complet + son historique (30 dernières versions). */

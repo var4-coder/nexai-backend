@@ -4,6 +4,11 @@ import { AppError } from '@/middleware/errorHandler';
 import { callClaude, callGrok, ClaudeModel, GrokModel } from '@/services/ai-clients';
 import { getModelForRole } from '@/services/ai-role-registry';
 import { construireConnaissanceNexai } from '@/services/nexai-connaissance.service';
+import { GUIDE_NEXAI } from '@/data/guide-nexai';
+import { User } from '@/models/User';
+import { AppConfig, CHAT_ADMIN_INSTRUCTIONS_KEY } from '@/models/AppConfig';
+import { consigneLangue, consignePays, type Langue } from '@/constants/pays';
+import { MESSAGE_RESEAU_INDISPONIBLE } from '@/utils/erreur-client';
 
 const ESCALATE_RE =
   /\b(bug|erreur|crash|ne marche|ne fonctionne|rembours|arnaque|urgent|plainte|avocat|humain|conseiller|opérateur|operateur|scam|fraude)\b/i;
@@ -16,9 +21,30 @@ const ESCALATE_RE =
  * répercute ici tout seul. Avant, les montants étaient recopiés à la main
  * dans ce fichier — et ils étaient devenus faux.
  */
-const SYSTEM_PROMPT = `Tu es l'assistant NexAI, la plateforme de création de sites web, de logos et de vidéos publicitaires par IA.
+async function construireConsigneSupport(userId: string): Promise<string> {
+  const u = await User.findById(userId).select('plan langue pays telephonePays role').lean();
+  const langue = ((u?.langue as Langue) ?? 'fr') as Langue;
+  let instructionsAdmin = '';
+  try {
+    const doc = await AppConfig.findOne({ key: CHAT_ADMIN_INSTRUCTIONS_KEY }).lean();
+    instructionsAdmin = String(doc?.value || '').trim();
+  } catch {
+    /* sans instructions admin, l'assistant reste opérationnel */
+  }
+  const libellesPlans: Record<string, string> = {
+    trial: 'Essai gratuit',
+    starter: 'Starter',
+    createur: 'Créateur+',
+    agence: 'Agence',
+    pro_max: 'Pro Max',
+  };
+  const plan = u?.role === 'admin' ? 'Administrateur (accès complet)' : libellesPlans[String(u?.plan)] ?? 'Essai gratuit';
 
-Réponds en français, clairement et sans jargon. Tes clients sont des commerçants et des entrepreneurs, pas des techniciens : explique simplement, avec des exemples concrets.
+  return `Tu es l'assistant NexAI (« Assistance NexAI »), la plateforme de création de sites web, de logos, de vidéos publicitaires, de Skills IA, avec une Académie et une Boutique.
+
+Explique clairement et sans jargon. Tes clients sont des commerçants et des entrepreneurs, pas des techniciens : explique simplement, avec des exemples concrets, et indique toujours OÙ cliquer dans le menu (ex. « Sites → Domaines → Mes domaines »).
+
+ABONNEMENT ACTUEL DU CLIENT : ${plan}. Tiens-en compte : si une fonction n'est pas incluse dans son abonnement, dis-le et indique l'abonnement qui la débloque.
 
 Sois précis sur les chiffres : les tarifs et les règles ci-dessous sont exacts, appuie-toi dessus. Si une question sort de ce que tu sais, dis-le franchement plutôt que d'inventer.
 
@@ -26,7 +52,15 @@ Quand un client semble perdu, ne te contente pas de répondre : propose-lui l'é
 
 ${construireConnaissanceNexai()}
 
-Si le problème est technique et grave, si un paiement est bloqué, s'il y a une plainte, ou si tu n'es pas sûr : réponds brièvement que tu transmets à un conseiller, et termine ta réponse par la balise exacte [ESCALADE].`;
+# GUIDE COMPLET DE NEXAI (le même que la page « Guide » du client)
+${GUIDE_NEXAI}
+${instructionsAdmin ? `\n# INSTRUCTIONS COMPLÉMENTAIRES DE L'ADMINISTRATEUR (à respecter)\n${instructionsAdmin}\n` : ''}
+Si le problème est technique et grave, si un paiement est bloqué, s'il y a une plainte, ou si tu n'es pas sûr : réponds brièvement que tu transmets à un conseiller, et termine ta réponse par la balise exacte [ESCALADE].
+
+${consignePays(u?.pays || u?.telephonePays)}
+
+${consigneLangue(langue)}`;
+}
 
 function shouldEscalate(userText: string, aiText: string): boolean {
   if (ESCALATE_RE.test(userText)) return true;
@@ -91,23 +125,23 @@ export async function sendUserMessage(
     // Le modèle actif pour ce rôle est basculable depuis l'admin ("Équipe
     // IA") entre Haiku 4.5 (défaut) et Grok 4.3 (alternative moins chère,
     // GA mai 2026) — voir ai-role-registry.ts.
+    const SYSTEM_PROMPT = await construireConsigneSupport(userId);
     const model = await getModelForRole('support_client');
     if (model.startsWith('grok-')) {
       aiText = await callGrok(
         model as GrokModel,
         [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
-        { maxTokens: 800, temperature: 0.3 }
+        { maxTokens: 1000, temperature: 0.3 }
       );
     } else {
       aiText = await callClaude(model as ClaudeModel, SYSTEM_PROMPT, history, {
-        maxTokens: 800,
+        maxTokens: 1000,
         temperature: 0.3,
       });
     }
   } catch (err) {
     console.warn('[support] IA indisponible', err);
-    aiText =
-      "Je rencontre un souci technique pour répondre. Un conseiller NexAI va prendre le relais. [ESCALADE]";
+    aiText = `${MESSAGE_RESEAU_INDISPONIBLE} Un conseiller NexAI a été prévenu et vous répondra ici. [ESCALADE]`;
   }
 
   const escalated = shouldEscalate(trimmed, aiText);

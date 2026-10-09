@@ -1,6 +1,9 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+import { requireAuth } from '@/middleware/auth';
+import { traduireTextes } from '@/services/traduction.service';
 import * as T from '@/constants/textes-client';
-import { PAYS, LANGUES_SUPPORTEES, LANGUE_LABELS } from '@/constants/pays';
+import { PAYS, LANGUES_SUPPORTEES, LANGUE_LABELS, langueEffective } from '@/constants/pays';
 
 export const textesRouter = Router();
 
@@ -90,10 +93,31 @@ textesRouter.get('/', (_req: Request, res: Response) => {
 textesRouter.get('/pays', (_req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'public, max-age=86400');
   res.json({
-    pays: PAYS,
+    pays: PAYS.map((p) => ({ ...p, langue: langueEffective(p.langue) })),
     langues: LANGUES_SUPPORTEES.map((code) => ({
       code,
       label: LANGUE_LABELS[code],
     })),
   });
+});
+
+/**
+ * POST /textes/traduire — traduit des contenus de la base (titres et
+ * descriptions de l'Académie, de la Boutique, des skills…) dans la langue
+ * d'interface du client. Réservé aux comptes connectés ; résultats en cache.
+ * body { langue: 'en', textes: string[] } → { traductions: { [source]: traduction } }
+ */
+textesRouter.post('/traduire', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = z
+      .object({
+        langue: z.enum(['en']),
+        textes: z.array(z.string().max(5000)).max(200),
+      })
+      .parse(req.body);
+    const traductions = await traduireTextes(body.textes, body.langue);
+    res.json({ traductions });
+  } catch (err) {
+    next(err);
+  }
 });

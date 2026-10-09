@@ -172,8 +172,11 @@ var d=document,n=navigator;
 function envoyer(){
   var u=${JSON.stringify(base)}+"/api/v1/public/visite";
   var c={siteId:${JSON.stringify(siteId)},chemin:location.pathname,referer:d.referrer||""};
-  if(n.sendBeacon){n.sendBeacon(u,new Blob([JSON.stringify(c)],{type:"application/json"}));}
-  else{fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(c),keepalive:true}).catch(function(){});}
+  var b=JSON.stringify(c);
+  // text/plain : requête « simple », jamais bloquée par le navigateur entre
+  // deux domaines (un Blob application/json est refusé par sendBeacon).
+  if(n.sendBeacon&&n.sendBeacon(u,new Blob([b],{type:"text/plain;charset=UTF-8"}))){return;}
+  fetch(u,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:b,keepalive:true}).catch(function(){});
 }
 if(d.readyState==="complete"){envoyer();}else{addEventListener("load",envoyer);}
 }catch(e){}})();</script>`;

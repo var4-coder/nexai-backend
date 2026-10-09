@@ -1,4 +1,5 @@
-import { CREDIT_COSTS, PLAN_CREDITS } from '@/services/credits.service';
+import { CREDIT_COSTS, PLAN_CREDITS, PLAN_DOMAIN_QUOTA, PLAN_LOGO_QUOTA } from '@/services/credits.service';
+import { REFERRAL_REWARD_CREDITS } from '@/services/referral.service';
 
 /**
  * Base de connaissance de l'assistant NexAI.
@@ -80,6 +81,41 @@ choisir en connaissance de cause. Ne minimise jamais ce chiffre et ne le cache p
 ## Les domaines
 Un domaine acheté est valable un an. À partir du 13e mois, une part de crédits est prélevée chaque mois pour financer son renouvellement (8 crédits/mois pour un .com). Le client est prévenu aux mois 10 et 12, et peut payer les 12 mois d'un coup.
 Si un domaine expire, le site NE DEVIENT PAS inaccessible : il retrouve automatiquement son adresse NexAI.
+
+## Skill NexAI
+- Un Skill NexAI est un assistant IA spécialisé, conçu sur mesure pour UNE tâche précise du métier du client (ex. rédiger ses devis, répondre à ses clients WhatsApp, préparer ses fiches produits). Le client le colle ensuite dans son outil d'IA (ChatGPT, Claude, Gemini…) et l'utilise autant qu'il veut.
+- Où : menu « Skill NexAI » → « Créer un skill IA » (conversation guidée : métier, tâche, public, langue, contexte), puis « Mes skills » pour retrouver, copier et télécharger ses skills (texte à coller, fichiers, version PDF).
+- Prix : ${c.SKILL_NEXAI} crédits par skill. Réservé à Créateur+, Agence et Pro Max (visible mais verrouillé en essai et Starter).
+- Délai : en général quelques dizaines de minutes ; l'équipe IA de NexAI le conçoit, le teste puis le livre dans « Mes skills ». Si le premier essai n'aboutit pas, une relance GRATUITE est proposée après 30 minutes ; si elle échoue aussi, le client est orienté vers l'assistance.
+- Le skill d'un client est PRIVÉ : il n'est jamais mis en boutique.
+- Des packs de skills déjà prêts (créés par NexAI) sont disponibles dans la Boutique.
+
+## Les logos
+- Coût : ${c.LOGO} crédits par logo. Logos inclus chaque mois : Agence ${PLAN_LOGO_QUOTA.agence}, Pro Max ${PLAN_LOGO_QUOTA.pro_max}. Où : « Créer un site » → « Créer un logo ».
+
+## Les domaines — où les retrouver
+- Page « Sites → Domaines ». Trois options : sous-domaine NexAI gratuit, acheter un nom de domaine (Créateur+ et plus), ou utiliser un domaine déjà possédé (gratuit).
+- Domaines inclus dans l'abonnement : Agence ${PLAN_DOMAIN_QUOTA.agence}, Pro Max ${PLAN_DOMAIN_QUOTA.pro_max} (.com ou .net). Sinon, le prix exact en crédits s'affiche avant de valider.
+- Un client peut acheter PLUSIEURS domaines, avec ou sans site. Tous ses domaines achetés sont dans « Domaines → Mes domaines ». De là, il voit à quel site chaque domaine est attribué et peut l'attribuer à un site en un clic. Un domaine attribué à un site déjà en ligne est branché tout de suite (mise en service de quelques minutes à 24 h). Attribué à un site pas encore en ligne, il est rempli automatiquement sur la page de mise en ligne et n'est jamais refacturé.
+
+## La mise en ligne d'un site
+Sur la page de mise en ligne, le client renseigne l'adresse (domaine) et choisit comment il reçoit ses paiements pour CE site : « Recevoir via mon compte NexAI » ou « Utiliser un lien de paiement personnel ou différent ». Le mode par défaut vient de « Compte → Méthode de retrait », mais il reste modifiable site par site sur cette page.
+
+## Méthode de retrait (Créateur+ et plus)
+Menu « Compte → Méthode de retrait ». Deux boutons : « Compte NexAI » (Mobile Money ou crypto USDT/BTC, reversement tous les 3 jours, NexAI garde 25 %) et « Enregistrer mon lien de paiement personnel » (Chariow, Maketou, Stripe ou autre : le client est payé directement, NexAI ne prélève rien).
+
+## Parrainage
+Chaque compte a un code de parrainage (page « Abonnement », section Parrainage) et un lien d'invitation à partager. Le filleul saisit le code à l'inscription (ou s'inscrit via le lien). Le parrain reçoit ${REFERRAL_REWARD_CREDITS} crédits dès que son filleul paie son PREMIER abonnement. Rien n'est versé à la simple inscription. Plafond : 10 parrainages récompensés par mois.
+
+## Historiques
+- Crédits : page « Compte → Crédits », bouton « Historique des crédits ».
+- Abonnement : page « Abonnement », bouton « Historique d'abonnement » (reçus téléchargeables, Agence et Pro Max).
+
+## Paramètres
+« Compte → Paramètres → Profil » : pays et langue de l'interface. La langue choisie s'applique à TOUT NexAI (menus, pages, assistant, sites, vidéos, skills, Académie, Boutique). Deux langues : français et anglais. Par défaut, elle dépend du pays choisi à l'inscription : pays francophone → français, tous les autres pays → anglais. Le client peut la changer ensuite.
+
+## Analytics & SEO (Agence et Pro Max)
+Menu « Visibilité ». Analytics compte les visites réelles des sites en ligne (pages vues, visiteurs, provenance, appareils, pages les plus vues), sans cookie. SEO analyse la page d'accueil en ligne (titre, description, balises…) avec des conseils simples. Les statistiques apparaissent dès les premières visites du site en ligne.
 
 ## Les aperçus
 NexAI peut proposer une ou plusieurs versions du site selon les cas. Ce n'est

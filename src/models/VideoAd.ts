@@ -279,6 +279,8 @@ videoAdSchema.set('toJSON', {
   transform(_doc, ret: any) {
     ret.id = String(ret._id);
     delete ret._id;
+    // Détail technique d'un échec (fournisseur, crédit…) : jamais montré au client.
+    delete ret.errorMessage;
     return ret;
   },
 });

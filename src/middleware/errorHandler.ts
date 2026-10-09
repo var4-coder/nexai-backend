@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { isProd } from '@/config/env';
+import { estErreurTechnique, MESSAGE_RESEAU_INDISPONIBLE } from '@/utils/erreur-client';
 
 export class AppError extends Error {
   statusCode: number;
@@ -49,10 +50,35 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
       )
       .catch(() => {});
   }
-  res.status(statusCode).json({
+  // Panne d'un fournisseur (IA à court de crédit, API indisponible…) : le
+  // client voit « Réseau indisponible », jamais le détail technique ;
+  // l'administrateur garde le message complet et un incident est ouvert.
+  const role = _req.auth?.role;
+  const technique = estErreurTechnique(err.message);
+  if (technique && statusCode !== 500) {
+    import('@/services/platform-alert.service')
+      .then(({ signalerIncident }) =>
+        signalerIncident({
+          composant: 'integration',
+          erreur: err?.message ?? String(err),
+          contexte: `${_req.method} ${_req.baseUrl || ''}${_req.route?.path ?? ''}`,
+          gravite: /credit balance|insufficient_quota|api[_ ]key|authentication/i.test(err.message) ? 'critique' : 'moyenne',
+        })
+      )
+      .catch(() => {});
+  }
+  const messageClient =
+    role === 'admin'
+      ? err.message
+      : technique
+        ? MESSAGE_RESEAU_INDISPONIBLE
+        : statusCode === 500 && isProd
+          ? 'Erreur serveur interne'
+          : err.message;
+  res.status(technique && role !== 'admin' ? 503 : statusCode).json({
     error: {
-      message: statusCode === 500 && isProd ? 'Erreur serveur interne' : err.message,
-      details: err instanceof AppError ? err.details : undefined,
+      message: messageClient,
+      details: err instanceof AppError && !(technique && role !== 'admin') ? err.details : undefined,
     },
   });
 }
