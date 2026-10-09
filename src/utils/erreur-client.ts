@@ -5,7 +5,7 @@
  * le détail complet (réponse API pour un compte admin + incident enregistré).
  */
 
-export const MESSAGE_RESEAU_INDISPONIBLE = 'Réseau indisponible pour le moment. Réessayez plus tard.';
+export const MESSAGE_RESEAU_INDISPONIBLE = 'Service momentanément indisponible. Réessayez plus tard.';
 
 const MOTIF_TECHNIQUE =
   /(anthropic|claude|openai|gpt-|\bxai\b|grok|recraft|fal\.ai|\bfal\b|elevenlabs|gemini|google ai|replicate|pexels|cloudinary|bunny|netlify api|godaddy api|porkbun|api error|credit balance|insufficient_quota|quota exceeded|rate.?limit|overloaded|invalid_request_error|request_id|authentication_error|permission_error|api[_ ]key|ECONNRESET|ETIMEDOUT|ENOTFOUND|ECONNREFUSED|EAI_AGAIN|fetch failed|socket hang up|\b(?:5\d\d)\b.*(?:error|erreur)|status code \d{3}|unexpected token|json\.parse|cannot read prop|is not a function|mongo|mongoose|redis|bullmq|stack)/i;

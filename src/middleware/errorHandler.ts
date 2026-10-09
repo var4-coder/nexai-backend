@@ -1,6 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
-import { isProd } from '@/config/env';
 import { estErreurTechnique, MESSAGE_RESEAU_INDISPONIBLE } from '@/utils/erreur-client';
 
 export class AppError extends Error {
@@ -72,13 +71,14 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
       ? err.message
       : technique
         ? MESSAGE_RESEAU_INDISPONIBLE
-        : statusCode === 500 && isProd
-          ? 'Erreur serveur interne'
+        : statusCode >= 500
+          ? MESSAGE_RESEAU_INDISPONIBLE
           : err.message;
   res.status(technique && role !== 'admin' ? 503 : statusCode).json({
     error: {
       message: messageClient,
-      details: err instanceof AppError && !(technique && role !== 'admin') ? err.details : undefined,
+      details:
+        err instanceof AppError && (role === 'admin' || (!technique && statusCode < 500)) ? err.details : undefined,
     },
   });
 }
