@@ -80,7 +80,7 @@ import type { PaymentProvider } from '@/models/Site';
  * Un seul aperçu par commande (décision du 02/10/2026) et UN seul codeur par
  * site (décision du 03/10/2026) : le modèle lu au début de la génération code
  * l'accueil ET toutes les pages intérieures.
- * - Essai gratuit et Standard → codeur_normale (Grok 4.7 par défaut, Sonnet 5.5 en alternance)
+ * - Essai gratuit et Standard → codeur_normale (Sonnet 5.5 par défaut, Grok 4.7 en alternance)
  * - Premium                   → codeur_premium (Opus 5.5)
  * - Réparateur                → reparateur_code (Grok Build par défaut, Sonnet 5.5), corrections ciblées
  * - IA Aide (plans payants)   → aide_ia_payant, seulement si le score reste sous 70
@@ -1571,7 +1571,7 @@ async function executerGeneration(
   // UN codeur et UN réparateur pour tout le site (décision du 03/10/2026),
   // lus une seule fois ici : l'accueil, les pages intérieures et une
   // éventuelle finalisation utilisent exactement les mêmes modèles.
-  //   · Essai et Standard → codeur_normale (Grok 4.7 par défaut, Sonnet 5.5 en alternance)
+  //   · Essai et Standard → codeur_normale (Sonnet 5.5 par défaut, Grok 4.7 en alternance)
   //   · Premium           → codeur_premium (Opus 5.5)
   const modeleCodeurSite = await getModelForRole(isPremium ? 'codeur_premium' : 'codeur_normale');
   const modeleReparateur = await getModelForRole('reparateur_code');
