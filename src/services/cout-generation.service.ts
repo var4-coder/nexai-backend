@@ -80,16 +80,14 @@ export type TypeGeneration = 'essai' | 'normale' | 'premium';
  *
  * Au-delà, la génération s'arrête et l'administrateur est alerté. Ces
  * valeurs laissent 20 % au-dessus du pire cas légitime :
- *  · essai    : plafond 1,10 $ — l'essai livre le site COMPLET (pages
- *    intérieures jugées comprises) : 0,63 à 0,87 $ pour 3-4 pages avec
- *    Grok 4.7, environ 0,10 à 0,15 $ de plus avec Sonnet 5.5 (codeur par
- *    défaut depuis le 10/10/2026)
+ *  · essai    : plafond 0,90 $ — l'essai livre le site COMPLET (pages
+ *    intérieures jugées comprises) : 0,63 à 0,87 $ pour 3-4 pages
  *  · normale  : plafond 1,50 $ (décision admin 26/09/2026 : la Librairie
  *    complète et les pages intérieures jugées augmentent le pire cas)
  *  · premium  : 1,62 $ au pire → plafond 2,20 $ (marge plancher 52 %)
  */
 export const PLAFOND_DEPENSE_USD: Record<TypeGeneration, number> = {
-  essai: 1.1,
+  essai: 0.9,
   normale: 1.5,
   premium: 2.2,
 };

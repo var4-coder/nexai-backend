@@ -22,8 +22,10 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
     // les deux peuvent être basculés indépendamment entre Haiku et Sonnet 5
     // depuis ce panneau, sans toucher au code.
     label: 'Chat création de site — sous-mode "site" (dialogue + extraction brief)',
-    default: 'claude-haiku-4-5-20251001',
-    alternatives: ['claude-sonnet-5-5', 'grok-4.6'],
+    // Sonnet 5.5 par défaut (décision du 10/10/2026). En cas de souci chez
+    // Anthropic, le secours du rôle (Grok 4.6 par défaut) prend le relais.
+    default: 'claude-sonnet-5-5',
+    alternatives: ['claude-haiku-4-5-20251001', 'grok-4.6'],
   },
   chat_autres_modes: {
     label: 'Chat — sous-modes Logo / Modifier un site / Coach business',
@@ -55,17 +57,15 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
     default: 'claude-haiku-4-5-20251001',
     alternatives: ['grok-4.3', 'grok-4.6'],
   },
-  // Codeur de l'essai gratuit ET du Standard (décision du 10/10/2026) :
-  // Sonnet 5.5 par défaut, Grok 4.7 au choix depuis l'admin. Si Anthropic est
-  // en panne (crédit, saturation…), le remplaçant de la famille Sonnet
-  // (Grok 4.7 par défaut, page Équipe IA → Remplaçants) prend le relais. Le modèle
+  // Codeur de l'essai gratuit ET du Standard (décision du 03/10/2026) :
+  // Grok 4.7 par défaut, Sonnet 5.5 en alternance depuis l'admin. Le modèle
   // est lu UNE fois au début de la génération : il code l'accueil ET toutes
   // les pages intérieures du site (un seul codeur par site). Le juge visuel
   // s'adapte automatiquement (voir getJugeVisuelPour).
   codeur_normale: {
     label: 'Codeur — essai gratuit et Standard (toutes les pages du site)',
-    default: 'claude-sonnet-5-5',
-    alternatives: ['grok-4.7'],
+    default: 'grok-4.7',
+    alternatives: ['claude-sonnet-5-5'],
   },
   // Premium : Opus 5.5 code l'accueil et toutes les pages intérieures.
   codeur_premium: {
