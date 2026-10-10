@@ -174,6 +174,14 @@ const envSchema = z.object({
     ),
 
   /** Jeton dédié à l agent de maintenance externe — jamais le JWT admin */
+  /**
+   * Retour à la version d'avant depuis l'administration (bouton « Revenir à
+   * la version d'avant » d'un incident). Facultatif : sans ces valeurs, le
+   * bouton indique comment le faire à la main sur Render / Netlify.
+   */
+  RENDER_API_KEY: z.string().optional().default(''),
+  RENDER_SERVICE_ID: z.string().optional().default(''),
+  NETLIFY_SITE_ID_NEXAI: z.string().optional().default(''),
   PLATFORM_AGENT_TOKEN: z.string().optional().default(''),
   /**
    * Lance le worker dans le processus de l'API (même service Render).

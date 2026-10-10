@@ -265,5 +265,7 @@ export async function getTachesApprouvees() {
     causeProbable: t.causeProbable ?? null,
     pisteCorrection: t.pisteCorrection ?? null,
     fichiersSuspects: t.fichiersSuspects ?? [],
+    approbationAuto: t.approbationAuto === true,
+    essaisDejaFaits: t.essaisAgent ?? 0,
   }));
 }

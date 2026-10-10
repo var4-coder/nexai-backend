@@ -776,6 +776,17 @@ export async function startWorker() {
         console.error('[worker] Récupération vidéos/skills bloqués échouée', e);
       }
 
+      // Surveillance gratuite (sans IA) et intervention de l'agent sans réponse de l'admin.
+      try {
+        const { surveiller, confierIncidentsSansReponse } = await import('@/services/surveillance.service');
+        // En arrière-plan : la vérification des sites ne retarde jamais le reste du balayage.
+        surveiller().catch((e) => console.error('[worker] Surveillance des sites échouée', e));
+        const confies = await confierIncidentsSansReponse();
+        if (confies > 0) console.log(`[worker] ${confies} incident(s) confié(s) à l'agent faute de réponse`);
+      } catch (e) {
+        console.error('[worker] Surveillance échouée', e);
+      }
+
       const alertes = await traiterAlertesEnAttente();
       if (alertes > 0) {
         console.log(`[worker] Fable a traité ${alertes} alerte(s) qualité`);

@@ -1,3 +1,4 @@
+import { sendAgentNotificationEmail } from '@/services/brevo.service';
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { env } from '@/config/env';
@@ -53,13 +54,49 @@ platformAgentRouter.get('/tasks', async (_req: Request, res: Response, next: Nex
 /** POST /tasks/:id/start — l'agent prend l'incident en charge. */
 platformAgentRouter.post('/tasks/:id/start', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const inc = await PlatformAlert.findById(req.params.id);
-    if (!inc) throw new AppError('Incident introuvable.', 404);
-    if (inc.statut !== 'approuve') {
-      throw new AppError("Cet incident n'a pas été approuvé par l'administrateur.", 409);
-    }
-    inc.statut = 'en_reparation';
-    await inc.save();
+    // Point de retour OBLIGATOIRE : la version qui tourne avant toute
+    // modification. Sans lui, l'agent ne peut pas commencer.
+    const body = z
+      .object({
+        pointDeRetour: z.object({
+          commitServeur: z.string().min(4).max(80),
+          deployServeur: z.string().max(80).optional(),
+          deploySite: z.string().max(80).optional(),
+        }),
+      })
+      .parse(req.body ?? {});
+    const inc = await PlatformAlert.findOneAndUpdate(
+      { _id: req.params.id, statut: 'approuve' },
+      {
+        $set: { statut: 'en_reparation', pointDeRetour: { ...body.pointDeRetour, noteA: new Date() } },
+        $inc: { essaisAgent: 1 },
+        $unset: { retourArriere: 1, reparation: 1 },
+      },
+      { new: true }
+    );
+    if (!inc) throw new AppError("Cet incident n'est pas approuvé, ou déjà pris en charge.", 409);
+    res.json({ ok: true, essai: inc.essaisAgent });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /tasks/:id/en-ligne — la correction vient d'être mise en ligne (versions déployées). */
+platformAgentRouter.post('/tasks/:id/en-ligne', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = z
+      .object({
+        commitServeur: z.string().max(80).optional(),
+        deployServeur: z.string().max(80).optional(),
+        deploySite: z.string().max(80).optional(),
+      })
+      .parse(req.body ?? {});
+    const inc = await PlatformAlert.findOneAndUpdate(
+      { _id: req.params.id, statut: 'en_reparation' },
+      { $set: { reparation: { ...body, enLigneA: new Date() } } },
+      { new: true }
+    );
+    if (!inc) throw new AppError('Incident introuvable ou pas en réparation.', 404);
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -73,6 +110,8 @@ platformAgentRouter.post('/tasks/:id/report', async (req: Request, res: Response
       .object({
         compteRendu: z.string().min(5).max(4000),
         resolu: z.boolean().default(true),
+        /** Vrai si l'agent a remis la version d'avant (correction mauvaise ou insuffisante). */
+        retourArriere: z.boolean().default(false),
       })
       .parse(req.body);
 
@@ -80,6 +119,14 @@ platformAgentRouter.post('/tasks/:id/report', async (req: Request, res: Response
     if (!inc) throw new AppError('Incident introuvable.', 404);
 
     inc.compteRenduAgent = body.compteRendu;
+    if (body.retourArriere) inc.retourArriere = { par: 'agent', le: new Date(), detail: body.compteRendu.slice(0, 500) };
+    if (!body.resolu) {
+      sendAgentNotificationEmail({
+        titre: body.retourArriere ? 'Réparation annulée : tout est revenu comme avant' : 'L’agent n’a pas pu réparer',
+        texte: body.compteRendu.slice(0, 800),
+        alerteId: String(inc._id),
+      }).catch(() => undefined);
+    }
     // Si l'agent n'a pas résolu, l'incident retourne en attente de décision
     // plutôt que d'être clos à tort.
     inc.statut = body.resolu ? 'resolu' : 'diagnostique';

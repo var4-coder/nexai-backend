@@ -3385,10 +3385,29 @@ adminRouter.get(
           fichiersSuspects: i.fichiersSuspects ?? [],
           derniereOccurrence: i.derniereOccurrence,
           compteRenduAgent: i.compteRenduAgent ?? null,
+          approbationAuto: i.approbationAuto === true,
+          essaisAgent: i.essaisAgent ?? 0,
+          pointDeRetour: i.pointDeRetour ?? null,
+          reparation: i.reparation ?? null,
+          retourArriere: i.retourArriere ?? null,
           resoluA: i.resoluA ?? null,
           creeLe: i.createdAt ?? null,
         })),
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** Annule la réparation de l'agent : remet la version d'avant (serveur et site). */
+adminRouter.post(
+  '/incidents/:id/revenir',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { revenirVersionAvant } = await import('@/services/retour-arriere.service');
+      res.json({ etapes: await revenirVersionAvant(req.params.id, 'admin') });
     } catch (err) {
       next(err);
     }

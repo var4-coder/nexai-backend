@@ -72,6 +72,21 @@ export interface IPlatformAlert {
   compteRenduAgent?: string;
   resoluA?: Date;
 
+  // ── Intervention de l'agent (décision du 10/10/2026) ─────────
+  /** Approuvé automatiquement, faute de réponse de l'admin dans le délai. */
+  approbationAuto?: boolean;
+  /** Nombre de prises en charge par l'agent (au plus 2 automatiques). */
+  essaisAgent?: number;
+  /**
+   * Point de retour : la version qui tournait AVANT la réparation. Permet
+   * de tout remettre exactement comme avant si la correction est mauvaise.
+   */
+  pointDeRetour?: { commitServeur?: string; deployServeur?: string; deploySite?: string; noteA?: Date };
+  /** Version mise en ligne par l'agent. */
+  reparation?: { commitServeur?: string; deployServeur?: string; deploySite?: string; enLigneA?: Date };
+  /** Retour à la version d'avant effectué (par l'agent ou par l'admin). */
+  retourArriere?: { par: 'agent' | 'admin'; le: Date; detail?: string };
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -103,6 +118,11 @@ const platformAlertSchema = new Schema<IPlatformAlert>(
     decideA: { type: Date },
     compteRenduAgent: { type: String },
     resoluA: { type: Date },
+    approbationAuto: { type: Boolean },
+    essaisAgent: { type: Number, default: 0 },
+    pointDeRetour: { commitServeur: String, deployServeur: String, deploySite: String, noteA: Date },
+    reparation: { commitServeur: String, deployServeur: String, deploySite: String, enLigneA: Date },
+    retourArriere: { par: { type: String, enum: ['agent', 'admin'] }, le: Date, detail: String },
   },
   { timestamps: true }
 );

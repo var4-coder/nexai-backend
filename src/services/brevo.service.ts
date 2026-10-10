@@ -416,6 +416,22 @@ export async function sendPlatformIncidentEmail(params: {
  * espace. Une seule alerte par panne, quel que soit le nombre de clients
  * touchés : les incidents identiques sont regroupés en amont.
  */
+/** Prévient l'admin qu'un incident est confié à l'agent, ou qu'une réparation a été annulée. */
+export async function sendAgentNotificationEmail(params: { titre: string; texte: string; alerteId: string }): Promise<void> {
+  const lien = `${env.CLIENT_URL.replace(/\/$/, '')}/admin?tab=incidents&alerte=${params.alerteId}`;
+  await sendEmail({
+    to: env.ADMIN_EMAIL,
+    subject: `NexAI — ${params.titre}`,
+    htmlContent: `
+      <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#0F172A">
+        <h2 style="margin-bottom:8px">${escapeHtml(params.titre)}</h2>
+        <p style="font-size:14px;line-height:1.6">${escapeHtml(params.texte)}</p>
+        <p><a href="${lien}" style="color:#2563EB">Voir l'incident dans l'administration</a></p>
+      </div>
+    `,
+  });
+}
+
 export async function sendIncidentSerieuxEmail(params: {
   composant: string;
   erreur: string;
