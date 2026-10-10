@@ -53,7 +53,7 @@ const PLANS = [
       'Tout Starter',
       'Créer un site (Normale et Premium)',
       'Créer un logo',
-      'Vidéo IA : Pub Express et Pub Présentateur IA',
+      'Vidéo IA : Pub Express et Pub Présentateur IA (présentateur ou votre propre visage)',
       'Skill NexAI (créer vos propres skills IA)',
       'Sous-domaine NexAI gratuit et illimité',
       'Achat de domaine en crédits',

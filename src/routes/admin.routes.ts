@@ -623,10 +623,10 @@ adminRouter.get(
 
 adminRouter.get(
   '/paiements',
-  requireRole('admin', 'finance'),
+  requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const statut = req.query.statut as string | undefined;
+      const statut = typeof req.query.statut === 'string' ? req.query.statut : undefined;
       const filter = statut ? { statut } : {};
       const paiements = await PaiementChariow.find(filter)
         .populate('siteId', 'domainName niche userId')
@@ -641,7 +641,7 @@ adminRouter.get(
 
 adminRouter.post(
   '/paiements/:id/paye',
-  requireRole('admin', 'finance'),
+  requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const paiement = await markPaiementPaye(req.params.id);
@@ -2002,10 +2002,10 @@ adminRouter.patch(
 
 adminRouter.get(
   '/payments',
-  requireRole('admin', 'finance'),
+  requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const statut = req.query.statut as string | undefined;
+      const statut = typeof req.query.statut === 'string' ? req.query.statut : undefined;
       const filter = statut ? { statut } : {};
       const paiements = await PaiementChariow.find(filter)
         .populate('siteId', 'domainName niche userId')
@@ -2038,7 +2038,7 @@ adminRouter.get(
 
 adminRouter.post(
   '/payments/:id/mark-paid',
-  requireRole('admin', 'finance'),
+  requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const paiement = await markPaiementPaye(req.params.id);
@@ -2325,7 +2325,7 @@ adminRouter.post(
 /** Liste des clients ayant un solde dû > 0, du plus gros au plus petit. */
 adminRouter.get(
   '/reversements',
-  requireRole('admin', 'finance'),
+  requireRole('admin'),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const clients = await listerClientsAReverser();
@@ -2339,7 +2339,7 @@ adminRouter.get(
 /** Historique + solde détaillé d'un client précis. */
 adminRouter.get(
   '/reversements/:userId',
-  requireRole('admin', 'finance'),
+  requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const [solde, historique] = await Promise.all([
@@ -2360,7 +2360,7 @@ adminRouter.get(
  */
 adminRouter.post(
   '/reversements/:userId/marquer-reverse',
-  requireRole('admin', 'finance'),
+  requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const body = z
@@ -2714,7 +2714,10 @@ adminRouter.put('/associe', requireRole('admin'), async (req: Request, res: Resp
     const autre = await User.findOne({ email: body.email, ...(existant ? { _id: { $ne: existant._id } } : {}) }).select('_id').lean();
     if (autre) throw new AppError('Cette adresse email est déjà utilisée par un autre compte.', 409);
     if (!existant && !body.motDePasse) throw new AppError('Choisissez un mot de passe pour créer le compte associé.', 400);
-    const maj: Record<string, unknown> = { email: body.email };
+    // Compte de consultation : abonnement neutre et inactif, aucun crédit. Il
+    // ne peut rien produire (sites, vidéos…), quel que soit l'écran atteint ;
+    // la prévisualisation des abonnements se fait côté affichage.
+    const maj: Record<string, unknown> = { email: body.email, plan: 'starter', planExpiresAt: new Date(0), creditsBalance: 0 };
     if (body.nom !== undefined) maj.nom = body.nom;
     if (body.motDePasse) maj.passwordHash = await hashValue(body.motDePasse);
     if (existant) {
@@ -2723,9 +2726,6 @@ adminRouter.put('/associe', requireRole('admin'), async (req: Request, res: Resp
       await User.create({
         ...maj,
         role: 'finance',
-        // Plan d'affichage : l'associé prévisualise chaque abonnement depuis le menu.
-        plan: 'pro_max',
-        creditsBalance: 0,
         emailVerifiedAt: new Date(),
       });
     }
@@ -2866,7 +2866,7 @@ adminRouter.delete('/bilan/pub/comptes/:plateforme', requireRole('admin'), async
   }
 });
 
-adminRouter.post('/bilan/pub/synchroniser', requireRole('admin', 'finance'), async (_req: Request, res: Response, next: NextFunction) => {
+adminRouter.post('/bilan/pub/synchroniser', requireRole('admin'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const synchro = await synchroniserDepenses();
     res.json({ synchro, ...(await statutComptes()), depenses: await listerDepensesPub() });

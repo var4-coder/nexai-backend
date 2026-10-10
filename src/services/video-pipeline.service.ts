@@ -5,7 +5,7 @@ import {
   MSG_VIDEO_PLUS_COURTE,
 } from '@/constants/textes-client';
 import { classerEchec } from '@/services/echec-classifier.service';
-import { normaliserChoixAvatar, construirePromptPortrait } from '@/services/avatar-choix.service';
+import { normaliserChoixAvatar, construirePromptPortrait, portraitAuFormat } from '@/services/avatar-choix.service';
 import { signalerIncident } from '@/services/platform-alert.service';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
@@ -15,7 +15,7 @@ import { Types, type HydratedDocument } from 'mongoose';
 import { redisConnection } from '@/config/redis';
 import { VideoAd } from '@/models/VideoAd';
 import { Site, ISite } from '@/models/Site';
-import { User } from '@/models/User';
+import { User, type UserPlan } from '@/models/User';
 import { callClaude } from '@/services/ai-clients';
 import { consigneLangue, type Langue } from '@/constants/pays';
 import { generateGrokImagine } from '@/services/grok-imagine.service';
@@ -30,7 +30,7 @@ import {
   FALAI_AVATAR_MAX_SECONDS_PER_CALL,
   type AvatarQuality,
 } from '@/services/falai-avatar.service';
-import { synthesizeSpeech, pickVoiceId } from '@/services/tts.service';
+import { synthesizeSpeech, pickVoiceId, voixPourGenre } from '@/services/tts.service';
 import { uploadVideoAd, uploadNarrationAudio, deleteVideoAdClip } from '@/services/cloudinary.service';
 import {
   debitCredits,
@@ -99,6 +99,20 @@ export async function enqueueVideoAd(
   const user = await User.findById(userId);
   if (!user) throw new AppError('Utilisateur introuvable', 404);
   assertVideoAdModeAllowed(user.plan, opts.mode);
+
+  // Champs internes du brief : remplis UNIQUEMENT par NexAI (analyse du site,
+  // test d'essai). Le client ne peut pas les fournir lui-même — sinon il
+  // pourrait faire télécharger une adresse arbitraire par nos serveurs ou
+  // dicter des consignes aux IA.
+  opts.brief = { ...opts.brief };
+  for (const cle of ['siteMeta', 'siteContentDossier', 'offerHighlights', 'isTrialTest']) delete opts.brief[cle];
+  // Photos du client : seulement celles envoyées par NexAI (notre stockage).
+  if (Array.isArray(opts.brief.clientProductImageUrls)) {
+    const prefixe = `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/`;
+    opts.brief.clientProductImageUrls = (opts.brief.clientProductImageUrls as unknown[])
+      .filter((u): u is string => typeof u === 'string' && !!env.CLOUDINARY_CLOUD_NAME && u.startsWith(prefixe))
+      .slice(0, 6);
+  }
 
   let site: HydratedDocument<ISite> | null = null;
   if (opts.siteId) {
@@ -174,14 +188,15 @@ export async function enqueueVideoAd(
   // Garde-fou légal/fraude — voir content-compliance.service.ts. S'applique
   // même quand un site/URL est fourni (le texte libre du brief peut décrire
   // une activité problématique indépendamment du site associé).
-  const briefForCompliance = opts.brief as { description?: string; brandName?: string };
+  const briefForCompliance = opts.brief as { description?: string; brandName?: string; scenario?: string };
   const compliance = await assertBusinessCompliant({
-    description: briefForCompliance.description,
+    // L'histoire écrite par le client (mini-film) est contrôlée comme la description.
+    description: [briefForCompliance.description, briefForCompliance.scenario].filter(Boolean).join('\n\n') || undefined,
     brandName: briefForCompliance.brandName,
   });
   if (!compliance.allowed) {
     console.warn(`[video-pipeline] Génération bloquée (conformité) user=${userId} : ${compliance.reason}`);
-    throw new AppError(compliance.clientMessage, 403, { complianceReason: compliance.reason });
+    throw new AppError(compliance.clientMessage, 403); // la raison détaillée reste dans les journaux
   }
 
   // Anti double-commande — AVANT le débit. Une vidéo coûte cher (appel
@@ -301,8 +316,8 @@ export async function enqueueVideoAd(
 
 /**
  * Relance corrective d'une vidéo livrée avec un défaut mineur (voir
- * processVideoAd / video-qc.service.ts). Débite le prix réduit (50% de
- * l'originale pour la 1ère relance, plein tarif au-delà), marque l'offre de
+ * processVideoAd / video-qc.service.ts). Débite le prix de la vidéo (plein
+ * tarif : voir getVideoAdRelaunchCost), marque l'offre de
  * l'originale comme utilisée, et crée une NOUVELLE vidéo (même brief/mode/
  * format/site) qui repasse par le pipeline complet.
  *
@@ -402,7 +417,16 @@ export async function enqueueVideoAdRelaunch(
     if (original.relaunchOffer.used) {
       throw new AppError('Une relance corrective a déjà été utilisée pour cette vidéo.', 400);
     }
-    cost = original.relaunchOffer.priceCredits || getVideoAdRelaunchCost(original.creditsCharged, !original.isRelaunchOf);
+    cost =
+      original.relaunchOffer.priceCredits ||
+      getVideoAdRelaunchCost(
+        original.creditsCharged || getVideoAdCreditCost(original.mode as VideoAdMode, original.format as VideoAdFormat),
+        !original.isRelaunchOf
+      );
+    // Relance payante = nouvelle génération : l'offre doit être encore
+    // accessible avec l'abonnement actuel.
+    const proprietaire = await User.findById(userId).select('plan role');
+    if (proprietaire?.role !== 'admin') assertVideoAdModeAllowed(proprietaire?.plan as UserPlan, original.mode as VideoAdMode);
   }
 
   // ── Réservation ATOMIQUE de la relance ──
@@ -780,6 +804,7 @@ async function rembourserVideoNonLivree(video: {
   userId: unknown;
   creditsCharged?: number;
   isRelaunchOf?: unknown;
+  offerte?: boolean;
 }): Promise<number> {
   // Montant payé par le client pour cette chaîne (0 pour une vidéo offerte).
   const montant = await montantPayeDeLaChaine(video);
@@ -792,8 +817,12 @@ async function rembourserVideoNonLivree(video: {
   );
   if (!verrou) return montant; // déjà remboursée lors d'un appel précédent
 
-  // Une vidéo offerte n'a rien coûté au client : rien à rendre.
-  if (montant <= 0) return 0;
+  // Une vidéo offerte n'a rien coûté au client : rien à rendre en crédits,
+  // mais le cadeau lui est restitué (il n'a jamais reçu sa vidéo).
+  if (montant <= 0) {
+    if (video.offerte) await User.updateOne({ _id: video.userId }, { $set: { videoOfferteDisponible: true } }).catch(() => undefined);
+    return 0;
+  }
 
   try {
     await creditCredits(String(video.userId), montant, 'ajustement_admin', {
@@ -1443,6 +1472,23 @@ function buildOffersOverlayLine(offerHighlights?: string[]): string {
   return offerHighlights.slice(0, 3).join('  •  ').slice(0, 70);
 }
 
+/** Ajoute une piste audio muette (stéréo 44,1 kHz) à une vidéo qui n'en a pas. */
+async function ajouterPisteMuette(entree: string, sortie: string): Promise<void> {
+  await new Promise<void>((ok, ko) => {
+    const proc = spawn('ffmpeg', [
+      '-y', '-i', entree,
+      '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+      '-map', '0:v', '-map', '1:a',
+      '-c:v', 'copy', '-c:a', 'aac', '-shortest',
+      '-movflags', '+faststart', sortie,
+    ]);
+    let err = '';
+    proc.stderr.on('data', (d) => (err = (err + d.toString()).slice(-2000)));
+    proc.on('error', ko);
+    proc.on('close', (code) => (code === 0 ? ok() : ko(new Error(`Piste muette impossible (code ${code}) : ${err.slice(-400)}`))));
+  });
+}
+
 /**
  * Tier "avec_son" : le clip arrive déjà avec une narration/ambiance sonore.
  *
@@ -2085,7 +2131,12 @@ export async function processVideoAd(videoAdId: string): Promise<void> {
       videoAd.relaunchOffer = {
         eligible: true,
         used: false,
-        priceCredits: getVideoAdRelaunchCost(videoAd.creditsCharged, isFirstRelaunch),
+        // Une vidéo offerte se relance au prix normal de son offre : sinon la
+        // relance corrective serait gratuite et répétable à l'infini.
+        priceCredits: getVideoAdRelaunchCost(
+          videoAd.creditsCharged || getVideoAdCreditCost(videoAd.mode, videoAd.format),
+          isFirstRelaunch
+        ),
       };
     }
 
@@ -2178,13 +2229,17 @@ Activité : ${p.niche}
 Brief : ${JSON.stringify({ ...p.brief, siteContentDossier: undefined, siteMeta: undefined }).slice(0, 1500)}
 ${b.siteMeta?.url ? `Site : ${b.siteMeta.url}` : ''}${buildDossierContext(p.brief).slice(0, 3000)}`;
 
-  const brut = await callClaude('claude-sonnet-5-5', system, [{ role: 'user', content: user }], { maxTokens: 1800, temperature: 0.6 });
+  const brut = await callClaude('claude-sonnet-5-5', system, [{ role: 'user', content: user }], { maxTokens: 2500, temperature: 0.6 });
   const json = (() => {
     try {
       return JSON.parse(brut.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
     } catch {
       const m = brut.match(/\{[\s\S]*\}/);
-      return m ? JSON.parse(m[0]) : null;
+      try {
+        return m ? JSON.parse(m[0]) : null;
+      } catch {
+        return null;
+      }
     }
   })() as (StoryboardExpress & { voix?: string }) | null;
   if (!json || !Array.isArray(json.plans) || json.plans.length < 2) throw new Error('Scénario Pub Express illisible');
@@ -2205,6 +2260,10 @@ ${b.siteMeta?.url ? `Site : ${b.siteMeta.url}` : ''}${buildDossierContext(p.brie
     }));
   // Le dernier plan est toujours l'appel à l'action.
   if (plans[plans.length - 1]?.type !== 'appel') plans = [...plans.filter((x) => x.type !== 'appel'), { type: 'appel', duree: 3, titre: undefined }];
+  // Assez de plans pour que chacun reste court et rythmé.
+  while (plans.length < fourchette.min) {
+    plans.splice(plans.length - 1, 0, { type: 'produit', duree: 3, image: plans.length % Math.max(1, p.nbPhotos) });
+  }
   // Durée totale EXACTE (le contrôle qualité vérifie la durée livrée).
   const somme = plans.reduce((t, x) => t + x.duree, 0);
   plans = plans.map((x) => ({ ...x, duree: (x.duree * p.duree) / somme }));
@@ -2331,6 +2390,14 @@ async function runExpressPipeline(
     } catch (err) {
       console.warn('[video-express] Voix indisponible, livraison sans voix', err);
     }
+  }
+  if (finalPath === silencieuse) {
+    // Sans voix, l'animation n'a aucune piste audio : on en ajoute une muette
+    // pour que le mixage musical et le contrôle qualité fonctionnent toujours.
+    const avecPiste = `${base}_piste_muette.mp4`;
+    tmpFiles.push(avecPiste);
+    await ajouterPisteMuette(silencieuse, avecPiste);
+    finalPath = avecPiste;
   }
   const track = resolveMusicTrack(niche);
   if (track?.url) {
@@ -3068,11 +3135,9 @@ async function runAvatarPipeline(
   tmpFiles: string[]
 ): Promise<string> {
   const isScenario = videoAd.mode === 'mini_film';
-  // Qualité de l'avatar FalAI : 'pro' pour les formats longs (60 s et le
-  // mini-film), 'standard' pour les formats courts. Suit la même logique que
-  // le moteur vidéo — la qualité découle de la durée, jamais d'un choix.
-  const quality: AvatarQuality =
-    getVideoEngineForFormat(videoAd.format as VideoAdFormat) === 'kling' ? 'pro' : 'standard';
+  // Pub Présentateur (30 s, 45 s) : qualité standard, sur laquelle son prix
+  // est calculé ; le mini-film (2 min) : qualité pro.
+  const quality: AvatarQuality = isScenario ? 'pro' : 'standard';
   // Durée déduite du format, toujours (le brief du client ne peut pas
   // l'imposer : sinon une vidéo payée 30 s pourrait en produire 120).
   // Table explicite plutôt qu'une cascade de ternaires : celle-ci renvoyait
@@ -3096,22 +3161,35 @@ async function runAvatarPipeline(
   // il anime le portrait qu'on lui fournit. Le choix est donc entièrement
   // ouvert — genre, carnation, âge, style — et mémorisé sur le compte pour
   // que le présentateur reste le même d'une vidéo à l'autre.
-  const proprietaire = await User.findById(videoAd.userId).select('plan avatarPrefere');
+  const proprietaire = await User.findById(videoAd.userId).select('plan avatarPrefere avatarPhoto');
   const choixAvatar = normaliserChoixAvatar(brief?.avatar ?? proprietaire?.avatarPrefere);
-  const portraitPrompt = construirePromptPortrait(choixAvatar, brand);
-  // Palier image du portrait : 2.0 (le portrait est ensuite animé par Kling
-  // Avatar, et tout défaut y est amplifié). La vidéo est réservée aux abonnés.
-  const portrait = await generateGrokImagine({
-    prompt: portraitPrompt,
-    aspectRatio: videoAd.aspectRatio,
-    tier: 'v2',
-  });
+  // « Mon propre visage » : la photo validée du client remplace le portrait
+  // généré. Elle vient TOUJOURS du compte, jamais du brief (le client ne peut
+  // pas faire animer une image arbitraire en passant une URL).
+  const photoClient =
+    proprietaire?.avatarPrefere?.source === 'photo' && proprietaire.avatarPhoto?.url ? proprietaire.avatarPhoto : null;
+  let portrait: { url: string };
+  if (photoClient) {
+    portrait = { url: portraitAuFormat(photoClient.url, videoAd.aspectRatio) };
+  } else {
+    const portraitPrompt = construirePromptPortrait(choixAvatar, brand);
+    // Palier image du portrait : 2.0 (le portrait est ensuite animé, et tout
+    // défaut y est amplifié). La vidéo est réservée aux abonnés.
+    portrait = await generateGrokImagine({
+      prompt: portraitPrompt,
+      aspectRatio: videoAd.aspectRatio,
+      tier: 'v2',
+    });
+  }
   videoAd.characterImageUrl = portrait.url;
+  // La voix correspond toujours à la personne à l'écran.
+  const voiceId = voixPourGenre(photoClient ? photoClient.voix : choixAvatar.genre);
+  videoAd.voiceId = voiceId;
   await videoAd.save();
 
   // 2. Narration TTS complète (une seule synthèse — assure la continuité de
   // voix entre les segments chaînés du Mode Scénario)
-  const tts = await synthesizeSpeech(script);
+  const tts = await synthesizeSpeech(script, { voiceId });
   const fullNarrationPath = path.join(os.tmpdir(), `${videoAdId}_narration_full.mp3`);
   tmpFiles.push(fullNarrationPath);
   await fs.writeFile(fullNarrationPath, tts.audioBuffer);

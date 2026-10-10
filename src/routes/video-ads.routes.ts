@@ -7,11 +7,11 @@ import { VIDEO_TEST_INCITATION, VIDEO_TEST_TELECHARGEMENT_VERROUILLE } from '@/c
 import { VideoAd } from '@/models/VideoAd';
 import { enqueueVideoAd, enqueueVideoAdRelaunch } from '@/services/video-pipeline.service';
 import { CREDIT_COSTS, FORMATS_PAR_MODE, getVideoAdCreditCost, type VideoAdMode } from '@/services/credits.service';
-import { uploadVideoAdProductImage } from '@/services/cloudinary.service';
+import { uploadVideoAdProductImage, uploadAvatarClient, supprimerImageSite } from '@/services/cloudinary.service';
 import { analyzeVideoBriefCompleteness } from '@/services/video-brief-quality.service';
 import { AppError } from '@/middleware/errorHandler';
 import { User } from '@/models/User';
-import { AVATAR_OPTIONS, normaliserChoixAvatar } from '@/services/avatar-choix.service';
+import { AVATAR_OPTIONS, normaliserChoixAvatar, verifierPhotoAvatar } from '@/services/avatar-choix.service';
 import { questionnairePourMode, relancerSiVague } from '@/services/brief-questionnaire.service';
 import { estimerAttente } from '@/services/attente.service';
 
@@ -128,14 +128,104 @@ videoAdsRouter.post('/questionnaire/relancer', requireAuth, async (req: Request,
 
 videoAdsRouter.get('/avatar', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = await User.findById(req.auth!.userId).select('avatarPrefere');
+    const user = await User.findById(req.auth!.userId).select('avatarPrefere avatarPhoto');
+    const photo = user?.avatarPhoto?.url ? { url: user.avatarPhoto.url, voix: user.avatarPhoto.voix } : null;
     res.json({
       options: AVATAR_OPTIONS,
       choixActuel: normaliserChoixAvatar(user?.avatarPrefere),
       // Vrai si le client n'a encore jamais choisi : le frontend peut alors
       // mettre l'étape en avant plutôt que de la laisser passer inaperçue.
-      premierChoix: !user?.avatarPrefere?.genre,
+      premierChoix: !user?.avatarPrefere?.genre && !photo,
+      source: photo && user?.avatarPrefere?.source === 'photo' ? 'photo' : 'ia',
+      photo,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /avatar/photo — « Mon propre visage ».
+ *
+ * Le client envoie une photo de lui ; elle est vérifiée automatiquement
+ * (une seule personne, visage net de face, adulte, pas une célébrité), puis
+ * devient son présentateur. Le consentement est obligatoire et daté. La
+ * photo précédente éventuelle est supprimée.
+ */
+const PLANS_PRESENTATEUR = new Set(['createur', 'agence', 'pro_max']);
+videoAdsRouter.post(
+  '/avatar/photo',
+  requireAuth,
+  productImageUpload.single('file'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = await User.findById(req.auth!.userId).select('plan role avatarPhoto avatarPrefere');
+      if (!user) throw new AppError('Compte introuvable.', 404);
+      if (user.role !== 'admin' && !PLANS_PRESENTATEUR.has(String(user.plan))) {
+        throw new AppError('« Mon propre visage » est disponible à partir de l’abonnement Créateur+.', 403);
+      }
+      const { consentement, voix } = z
+        .object({ consentement: z.literal('oui'), voix: z.enum(['homme', 'femme']) })
+        .parse(req.body ?? {});
+      void consentement;
+      const file = req.file;
+      if (!file) throw new AppError('Aucune photo reçue.', 400);
+      if (!ALLOWED_PRODUCT_IMAGE_MIME.has(file.mimetype)) {
+        throw new AppError('Format non supporté (PNG, JPEG ou WEBP uniquement).', 400);
+      }
+      const envoi = await uploadAvatarClient(file.buffer);
+      const controle = await verifierPhotoAvatar(envoi.url);
+      if (!controle.ok) {
+        await supprimerImageSite(envoi.publicId).catch(() => undefined);
+        throw new AppError(controle.raison ?? 'Cette photo ne convient pas.', 422);
+      }
+      const ancienne = user.avatarPhoto?.publicId;
+      await User.updateOne(
+        { _id: user._id },
+        {
+          $set: {
+            avatarPhoto: { url: envoi.url, publicId: envoi.publicId, voix, consentementLe: new Date() },
+            'avatarPrefere.source': 'photo',
+            'avatarPrefere.genre': voix,
+          },
+        }
+      );
+      if (ancienne && ancienne !== envoi.publicId) await supprimerImageSite(ancienne).catch(() => undefined);
+      res.status(201).json({
+        message: 'Votre photo est validée. Vous présenterez vous-même vos prochaines vidéos avec présentateur.',
+        photo: { url: envoi.url, voix },
+        source: 'photo',
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return next(new AppError('Cochez la case d’accord et choisissez la voix (homme ou femme).', 400));
+      }
+      next(err);
+    }
+  }
+);
+
+/** PUT /avatar/source — choisir entre sa photo (déjà validée) et le présentateur IA. */
+videoAdsRouter.put('/avatar/source', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { source } = z.object({ source: z.enum(['ia', 'photo']) }).parse(req.body ?? {});
+    const user = await User.findById(req.auth!.userId).select('avatarPhoto');
+    if (source === 'photo' && !user?.avatarPhoto?.url) throw new AppError('Envoyez d’abord votre photo.', 400);
+    await User.updateOne({ _id: req.auth!.userId }, { $set: { 'avatarPrefere.source': source } });
+    res.json({ source });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** DELETE /avatar/photo — retire la photo (supprimée de nos serveurs) et revient au présentateur IA. */
+videoAdsRouter.delete('/avatar/photo', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = await User.findById(req.auth!.userId).select('avatarPhoto');
+    const publicId = user?.avatarPhoto?.publicId;
+    await User.updateOne({ _id: req.auth!.userId }, { $unset: { avatarPhoto: 1 }, $set: { 'avatarPrefere.source': 'ia' } });
+    if (publicId) await supprimerImageSite(publicId).catch(() => undefined);
+    res.json({ message: 'Votre photo a été supprimée. Vos vidéos utiliseront le présentateur choisi ci-dessous.', source: 'ia' });
   } catch (err) {
     next(err);
   }
@@ -150,10 +240,13 @@ videoAdsRouter.get('/avatar', requireAuth, async (req: Request, res: Response, n
 videoAdsRouter.patch('/avatar', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const choix = normaliserChoixAvatar(req.body ?? {});
-    await User.updateOne({ _id: req.auth!.userId }, { $set: { avatarPrefere: choix } });
+    // Enregistrer un présentateur IA le remet en service (la photo éventuelle
+    // reste gardée pour revenir dessus, tant que le client ne la supprime pas).
+    await User.updateOne({ _id: req.auth!.userId }, { $set: { avatarPrefere: { ...choix, source: 'ia' } } });
     res.json({
       message: 'Votre présentateur est enregistré. Il apparaîtra dans toutes vos prochaines vidéos avec avatar.',
       choixActuel: choix,
+      source: 'ia',
     });
   } catch (err) {
     next(err);
@@ -261,8 +354,8 @@ videoAdsRouter.post('/', requireAuth, async (req: Request, res: Response, next: 
 
 /**
  * POST /:id/relancer — relance corrective d'une vidéo livrée avec un défaut
- * mineur (badge "résultat perfectible"). Débite le prix réduit (50% pour la
- * 1ère relance), crée une nouvelle génération complète, laisse la vidéo
+ * mineur (badge "résultat perfectible"). Débite le prix de la vidéo (plein
+ * tarif), crée une nouvelle génération complète, laisse la vidéo
  * d'origine intacte. Renvoie 400 si la vidéo n'est pas éligible (pas de
  * défaut détecté, ou relance déjà utilisée).
  */

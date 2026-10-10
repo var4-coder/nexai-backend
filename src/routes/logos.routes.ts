@@ -34,7 +34,7 @@ logosRouter.get('/', requireAuth, async (req: Request, res: Response, next: Next
 });
 
 /**
- * Génération de 3 logos (Recraft) — abonnés payants, 5 crédits.
+ * Génération de 3 logos (Recraft) — abonnés payants, CREDIT_COSTS.LOGO crédits (11).
  * Source de Vérité A.4 + C.2.
  */
 logosRouter.post('/generate', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
@@ -231,7 +231,7 @@ logosRouter.post(
         })
         .parse(req.body);
 
-      // Coût aligné sur une génération image (réutilise coût logo ou 5 crédits)
+      // Même coût qu'un logo (CREDIT_COSTS.LOGO).
       await debitCredits(user._id, CREDIT_COSTS.LOGO, 'logo', {
         relatedSiteId: body.siteId,
         note: `embellissement:${body.mode}`,

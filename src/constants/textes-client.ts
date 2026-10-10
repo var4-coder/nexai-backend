@@ -47,7 +47,7 @@ export const VERROU_MISE_EN_LIGNE =
   "La mise en ligne rend votre site accessible publiquement à l'adresse de votre choix. Elle coûte 15 crédits. L'hébergement et le certificat de sécurité sont inclus avec votre abonnement. Réservée aux abonnements payants.";
 
 export const VERROU_VIDEO_IA =
-  "Créez vos publicités vidéo prêtes à publier : Pub Express animée avec vos produits, Pub Présentateur IA face caméra, et en Agence et Pro Max la Pub Cinéma IA et le Mini-film IA. Disponible dès l'abonnement Créateur+.";
+  "Créez vos publicités vidéo prêtes à publier : Pub Express animée avec vos produits, Pub Présentateur IA face caméra (avec un présentateur ou votre propre visage), et en Agence et Pro Max la Pub Cinéma IA et le Mini-film IA. Disponible dès l'abonnement Créateur+.";
 
 export const VERROU_PUB_CINEMA =
   "La Pub Cinéma IA est réservée aux abonnements Agence et Pro Max : des scènes cinématographiques tournées par l'IA autour de votre produit, comme une vraie publicité télé. Passez à Agence pour la débloquer.";
@@ -72,7 +72,7 @@ export const VERROU_MINI_FILM =
 
 /** Affiché sous une ancienne vidéo de test d'essai gratuit. */
 export const VIDEO_TEST_INCITATION =
-  'Cette vidéo a été générée pendant votre essai gratuit. Abonnez-vous dès Créateur+ pour créer vos propres publicités : formats 20 s, 30 s et 60 s, et mini-films de 2 minutes avec Pro Max.';
+  'Cette vidéo a été générée pendant votre essai gratuit. Abonnez-vous dès Créateur+ pour créer vos propres publicités : Pub Express (15 s, 30 s) et Pub Présentateur IA (30 s, 45 s), puis avec Agence et Pro Max la Pub Cinéma IA (1 min) et le Mini-film IA (2 min).';
 
 /** Remplace le bouton de téléchargement, verrouillé sur ces vidéos. */
 export const VIDEO_TEST_TELECHARGEMENT_VERROUILLE =

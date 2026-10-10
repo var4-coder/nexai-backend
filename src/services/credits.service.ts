@@ -821,9 +821,9 @@ export async function resolveDomainCostAndConsume(
     }
   }
 
-  if (!usedQuota) {
-    await User.findByIdAndUpdate(userId, { $inc: { domainsUsed: 1 } });
-  }
+  // domainsUsed compte uniquement les domaines pris sur l'offre incluse : un
+  // domaine payé plein tarif (extension hors offre, quota épuisé) ne doit pas
+  // consommer le domaine inclus du client.
 
   return { chargedCredits, usedQuota, budgetSpentUsd: usedQuota ? charge.budgetSpentUsd : 0 };
 }
@@ -852,7 +852,7 @@ export async function refundLaunchCharges(
       note: opts?.reason || 'remboursement_lancement_echoue',
     });
   }
-  if (charges.usedDomainQuota || charges.domainCredits > 0) {
+  if (charges.usedDomainQuota) {
     await User.findByIdAndUpdate(userId, {
       $inc: {
         domainsUsed: -1,

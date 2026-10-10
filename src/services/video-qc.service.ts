@@ -20,7 +20,7 @@ import { AppError } from '@/middleware/errorHandler';
  *      - DÉFAUT MINEUR (non bloquant) : durée hors tolérance stricte mais
  *        dans une marge raisonnable (jusqu'à 7s), ratio légèrement décalé
  *        (jusqu'à 10%). La vidéo reste livrée, avec un badge "résultat
- *        perfectible" et une offre de relance corrective à prix réduit.
+ *        perfectible" et une offre de relance corrective (plein tarif).
  * 2. Équilibre voix/musique (non bloquant, diagnostic) — mesure le volume
  *    moyen (dB) de la narration et de la musique de fond AVANT mixage, pour
  *    vérifier que la voix reste bien au-dessus de la musique une fois le

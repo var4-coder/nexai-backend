@@ -422,6 +422,24 @@ export function versionOptimisee(url: string): string {
   return url.replace('/image/upload/', '/image/upload/f_auto,q_auto,w_2400,c_limit/');
 }
 
+/**
+ * Photo du client pour « Mon propre visage » (Pub Présentateur IA).
+ * Rangée à part : elle est supprimée dès que le client la retire.
+ */
+export function uploadAvatarClient(buffer: Buffer): Promise<{ url: string; publicId: string }> {
+  ensureConfigured();
+  return new Promise((resolve, reject) => {
+    const upload = cloudinary.uploader.upload_stream(
+      { resource_type: 'image', type: 'upload', folder: 'nexai/video-ads/avatars-clients', unique_filename: true },
+      (error, result) => {
+        if (error || !result) return reject(error || new AppError('Échec de l’envoi de la photo', 502));
+        resolve({ url: result.secure_url, publicId: result.public_id });
+      }
+    );
+    upload.end(buffer);
+  });
+}
+
 /** Supprime une image du dossier d'un site (image client refusée au contrôle de qualité). */
 export function supprimerImageSite(publicId: string): Promise<void> {
   ensureConfigured();

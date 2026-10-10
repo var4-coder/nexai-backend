@@ -16,7 +16,9 @@ import { videoQueue, siteQueue } from '@/jobs/queue';
 /** Durée moyenne observée d'une génération, en secondes. */
 const DUREE_MOYENNE_SECONDES: Record<string, number> = {
   site: 5 * 60,
+  video_15s: 2 * 60,
   video_30s: 3 * 60,
+  video_45s: 4 * 60,
   video_60s: 5 * 60,
   video_120s: 9 * 60,
 };

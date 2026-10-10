@@ -35,6 +35,22 @@ export function pickVoiceId(): string {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+/** Voix connues du pool par défaut, classées par genre. */
+const VOIX_FEMMES = new Set(['21m00Tcm4TlvDq8ikWAM', 'EXAVITQu4vr4xnSDxMaL', 'MF3mGyEYCl7XYWbV9V6O']);
+const VOIX_HOMMES = new Set(['ErXwobaYiN019PkySvjV', 'TxGEqnHWrfWFTfGW9XjX', 'pNInz6obpgDQGcFmaJgB']);
+
+/**
+ * Voix d'un présentateur : elle doit correspondre à la personne à l'écran
+ * (un homme ne parle pas avec une voix de femme). Prend une voix du bon genre
+ * dans le pool configuré ; à défaut, une voix connue du bon genre.
+ */
+export function voixPourGenre(genre: 'homme' | 'femme'): string {
+  const cible = genre === 'homme' ? VOIX_HOMMES : VOIX_FEMMES;
+  const pool = env.ELEVENLABS_VOICE_IDS.split(',').map((id) => id.trim()).filter((id) => cible.has(id));
+  const liste = pool.length ? pool : [...cible];
+  return liste[Math.floor(Math.random() * liste.length)];
+}
+
 /**
  * Synthétise un texte en voix off (mp3).
  * `voiceId` optionnel : permet de garder une voix cohérente pour un même

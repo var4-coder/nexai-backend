@@ -51,15 +51,21 @@ export async function sendLeadNotificationEmail(
   data: Record<string, unknown>
 ): Promise<void> {
   const rows = Object.entries(data)
-    .map(([k, v]) => `<tr><td style="padding:4px 8px;color:#64748B">${k}</td><td style="padding:4px 8px">${String(v)}</td></tr>`)
+    // Données saisies par un visiteur anonyme : toujours échappées (pas de HTML injecté dans l'email).
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:4px 8px;color:#64748B">${escapeHtml(k)}</td><td style="padding:4px 8px">${escapeHtml(
+          typeof v === 'string' ? v : JSON.stringify(v) ?? ''
+        )}</td></tr>`
+    )
     .join('');
   await sendEmail({
     to,
-    subject: `Nouvelle soumission (${type}) sur ${siteLabel}`,
+    subject: `Nouvelle soumission (${type.replace(/[\r\n]/g, ' ').slice(0, 40)}) sur ${siteLabel.replace(/[\r\n]/g, ' ')}`,
     htmlContent: `
       <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#0F172A">
-        <h2 style="margin-bottom:8px">Nouveau message reçu sur ${siteLabel}</h2>
-        <p style="color:#64748B;font-size:14px">Type : ${type}</p>
+        <h2 style="margin-bottom:8px">Nouveau message reçu sur ${escapeHtml(siteLabel)}</h2>
+        <p style="color:#64748B;font-size:14px">Type : ${escapeHtml(type)}</p>
         <table style="border-collapse:collapse;margin-top:12px">${rows}</table>
       </div>
     `,

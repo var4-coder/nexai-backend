@@ -84,6 +84,18 @@ export interface IUser {
     carnation?: string;
     age?: string;
     style?: string;
+    /** 'photo' : le client présente lui-même ses vidéos (voir avatarPhoto). */
+    source?: 'ia' | 'photo';
+  };
+  /**
+   * « Mon propre visage » : photo fournie par le client, animée à la place
+   * d'un présentateur généré. Consentement daté ; supprimée quand il la retire.
+   */
+  avatarPhoto?: {
+    url: string;
+    publicId: string;
+    voix: 'homme' | 'femme';
+    consentementLe: Date;
   };
   creditsBalance: number;
   domainsUsed: number;
@@ -156,6 +168,13 @@ const userSchema = new Schema<IUser>(
       carnation: { type: String },
       age: { type: String },
       style: { type: String },
+      source: { type: String, enum: ['ia', 'photo'] },
+    },
+    avatarPhoto: {
+      url: { type: String },
+      publicId: { type: String },
+      voix: { type: String, enum: ['homme', 'femme'] },
+      consentementLe: { type: Date },
     },
     creditsBalance: { type: Number, default: 0, min: 0 },
     domainsUsed: { type: Number, default: 0, min: 0 },

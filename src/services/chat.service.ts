@@ -904,7 +904,7 @@ const OPT_COPY_NON = 'Non, rédigez directement';
 const OPT_COPY_VALIDER = 'Valider ces textes';
 const OPT_COPY_CORRIGER = 'Je les corrige';
 const OPT_STD = `Qualité Standard — ${CREDIT_COSTS.GENERER_SITE} crédits`;
-const OPT_PREM = 'Qualité Premium — 25 crédits';
+const OPT_PREM = `Qualité Premium — ${CREDIT_COSTS.GENERER_SITE_PREMIUM} crédits`;
 
 async function proposerTextesSite(brief: Record<string, unknown>): Promise<string> {
   const raw = await appelerAvecSecours(
@@ -1192,6 +1192,16 @@ export async function switchChatMode(
     session.editSiteId = site._id;
   }
 
+  // Coach business : payant à chaque nouvelle session, y compris quand on y
+  // arrive par bascule depuis un autre mode (sinon il serait gratuit).
+  // debitCredits contrôle aussi l'essai terminé et l'abonnement inactif.
+  if (newMode === 'business' && fromMode !== 'business') {
+    await debitCredits(userId, CREDIT_COSTS.BUSINESS_COACH, 'coach_business', {
+      action: 'BUSINESS_COACH',
+      note: 'Trouver un business — 1 idée par session (bascule de mode)',
+    });
+  }
+
   session.mode = newMode;
   session.status = 'collecting';
   session.collectedBrief = {};
@@ -1239,6 +1249,28 @@ async function passerAuRecap(session: InstanceType<typeof ChatSession>): Promise
   });
 }
 
+/**
+ * Après les textes : choix de la qualité pour les abonnements qui ont le
+ * Premium ; l'essai et Starter passent directement au récapitulatif, en
+ * Standard.
+ */
+async function proposerQualiteOuRecap(session: InstanceType<typeof ChatSession>): Promise<void> {
+  const user = await User.findById(session.userId).select('plan role');
+  if (user && (user.role === 'admin' || (user.plan !== 'trial' && user.plan !== 'starter'))) {
+    session.postBriefStep = 'quality';
+    session.messages.push({
+      role: 'assistant',
+      content: messageChoixQualite(),
+      mode: 'choices',
+      options: [OPT_STD, OPT_PREM],
+      createdAt: new Date(),
+    });
+  } else {
+    session.collectedBrief = { ...session.collectedBrief, qualityTier: 'normal' };
+    await passerAuRecap(session);
+  }
+}
+
 async function avancerPostBrief(
   session: InstanceType<typeof ChatSession>,
   reply: string
@@ -1250,20 +1282,7 @@ async function avancerPostBrief(
   if (step === 'copy_offer') {
     if (normalized === OPT_COPY_NON || /non|direct/i.test(normalized)) {
       session.collectedBrief = { ...session.collectedBrief, copyChoice: 'auto' };
-      const user = await User.findById(session.userId).select('plan');
-      if (user && user.plan !== 'trial' && user.plan !== 'starter') {
-        session.postBriefStep = 'quality';
-        session.messages.push({
-          role: 'assistant',
-          content: messageChoixQualite(),
-          mode: 'choices',
-          options: [OPT_STD, OPT_PREM],
-          createdAt: new Date(),
-        });
-      } else {
-        session.collectedBrief = { ...session.collectedBrief, qualityTier: 'normal' };
-        await passerAuRecap(session);
-      }
+      await proposerQualiteOuRecap(session);
       return true;
     }
     session.collectedBrief = { ...session.collectedBrief, copyChoice: 'propose' };
@@ -1282,14 +1301,7 @@ async function avancerPostBrief(
     } catch (err) {
       console.warn('[chat] Proposition de textes indisponible', err);
       session.collectedBrief = { ...session.collectedBrief, copyChoice: 'auto' };
-      session.postBriefStep = 'quality';
-      session.messages.push({
-        role: 'assistant',
-        content: `${messageChoixQualite()}`,
-        mode: 'choices',
-        options: [OPT_STD, OPT_PREM],
-        createdAt: new Date(),
-      });
+      await proposerQualiteOuRecap(session);
     }
     return true;
   }
@@ -1311,25 +1323,15 @@ async function avancerPostBrief(
     if (validated.length >= 20) {
       session.collectedBrief = { ...session.collectedBrief, validatedCopy: validated };
     }
-    const user = await User.findById(session.userId).select('plan');
-    if (user && user.plan !== 'trial' && user.plan !== 'starter') {
-      session.postBriefStep = 'quality';
-      session.messages.push({
-        role: 'assistant',
-        content: messageChoixQualite(),
-        mode: 'choices',
-        options: [OPT_STD, OPT_PREM],
-        createdAt: new Date(),
-      });
-    } else {
-      session.collectedBrief = { ...session.collectedBrief, qualityTier: 'normal' };
-      await passerAuRecap(session);
-    }
+    await proposerQualiteOuRecap(session);
     return true;
   }
 
   if (step === 'quality') {
-    const premium = normalized === OPT_PREM || /premium|fable/i.test(normalized);
+    // Premium réservé aux abonnements qui le proposent, même si la réponse le demande.
+    const user = await User.findById(session.userId).select('plan role');
+    const premiumPossible = !!user && (user.role === 'admin' || (user.plan !== 'trial' && user.plan !== 'starter'));
+    const premium = premiumPossible && (normalized === OPT_PREM || /premium|fable/i.test(normalized));
     session.collectedBrief = { ...session.collectedBrief, qualityTier: premium ? 'premium' : 'normal' };
     await passerAuRecap(session);
     return true;

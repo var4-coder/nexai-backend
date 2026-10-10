@@ -54,6 +54,8 @@ export interface ImageExpress {
 }
 
 const DUREE_TRANSITION = 0.45;
+/** Durée maximale d'un rendu (une 30 s prend 1 à 3 minutes). */
+const DELAI_MAX_RENDU_MS = 12 * 60 * 1000;
 /** Chromium : celui installé par Playwright (serveur), ou un autre chemin fourni (postes de test). */
 const lancer = () =>
   chromium.launch({
@@ -109,7 +111,7 @@ export async function construirePage(p: {
   let t = 0;
   const meta: { debut: number; duree: number; mouvement: Mouvement; transition: Transition; type: TypePlan }[] = [];
   const scenes = sb.plans.map((pl, i) => {
-    const duree = Math.max(1.5, Math.min(8, pl.duree || 3));
+    const duree = Math.max(0.5, pl.duree || 3); // la somme exacte est garantie par le scénario
     meta.push({
       debut: t,
       duree,
@@ -283,6 +285,12 @@ export async function rendreVideoExpress(p: {
   await fs.writeFile(pagePath, html);
 
   let navigateur: Browser | null = null;
+  let ffmpeg: ReturnType<typeof spawn> | null = null;
+  // Garde-fou : un rendu ne peut jamais bloquer le worker indéfiniment.
+  const limite = setTimeout(() => {
+    ffmpeg?.kill('SIGKILL');
+    navigateur?.close().catch(() => undefined);
+  }, DELAI_MAX_RENDU_MS);
   try {
     navigateur = await lancer();
     const page = await navigateur.newPage({ viewport: { width: p.largeur, height: p.hauteur }, deviceScaleFactor: 1 });
@@ -290,7 +298,7 @@ export async function rendreVideoExpress(p: {
     await page.evaluate('window.__pret');
 
     const nbImages = Math.round(duree * p.fps);
-    const ffmpeg = spawn('ffmpeg', [
+    const proc = spawn('ffmpeg', [
       '-y',
       '-f', 'image2pipe',
       '-framerate', String(p.fps),
@@ -304,22 +312,31 @@ export async function rendreVideoExpress(p: {
       '-movflags', '+faststart',
       p.sortie,
     ]);
+    ffmpeg = proc;
     let erreurs = '';
-    ffmpeg.stderr.on('data', (d) => (erreurs = (erreurs + d.toString()).slice(-4000)));
+    proc.stderr!.on('data', (d) => (erreurs = (erreurs + d.toString()).slice(-4000)));
+    // Une écriture après la mort de ffmpeg (EPIPE) ne doit jamais faire tomber le worker.
+    proc.stdin!.on('error', () => undefined);
     const termine = new Promise<void>((ok, ko) => {
-      ffmpeg.on('error', ko);
-      ffmpeg.on('close', (code) => (code === 0 ? ok() : ko(new Error(`ffmpeg (Pub Express) code ${code} : ${erreurs.slice(-600)}`))));
+      proc.on('error', ko);
+      proc.on('close', (code) => (code === 0 ? ok() : ko(new Error(`Montage de la Pub Express interrompu (code ${code}) : ${erreurs.slice(-600)}`))));
     });
+    termine.catch(() => undefined); // évite un rejet non géré si la boucle s'arrête avant
 
     for (let f = 0; f < nbImages; f++) {
+      if (proc.exitCode !== null) break;
       await page.evaluate(`window.__seek(${(f / p.fps).toFixed(4)})`);
       const image = await page.screenshot({ type: 'jpeg', quality: 90 });
-      if (!ffmpeg.stdin.write(image)) await new Promise((r) => ffmpeg.stdin.once('drain', r));
+      if (!proc.stdin!.write(image)) {
+        await Promise.race([new Promise((r) => proc.stdin!.once('drain', r)), termine.then(() => undefined, () => undefined)]);
+      }
     }
-    ffmpeg.stdin.end();
+    proc.stdin!.end();
     await termine;
     return { duree };
   } finally {
+    clearTimeout(limite);
+    if (ffmpeg && ffmpeg.exitCode === null) ffmpeg.kill('SIGKILL');
     if (navigateur) await navigateur.close().catch(() => undefined);
   }
 }

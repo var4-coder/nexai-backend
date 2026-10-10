@@ -4,6 +4,7 @@ import { env } from '@/config/env';
 import { AppConfig } from '@/models/AppConfig';
 import { User } from '@/models/User';
 import { AppError } from '@/middleware/errorHandler';
+import { redisConnection } from '@/config/redis';
 
 /**
  * Vérification du téléphone par SMS (Brevo) avant le site d'essai gratuit.
@@ -21,6 +22,18 @@ const DELAI_RENVOI_MS = 60_000;
 const MAX_TENTATIVES = 5;
 /** Garde-fou contre l'envoi massif de SMS payants par un même compte. */
 const MAX_ENVOIS_PAR_JOUR = 5;
+
+/**
+ * Pays où un code peut être envoyé (marchés NexAI). Un SMS vers d'autres pays
+ * est souvent cher, et c'est la cible classique de la fraude au SMS (envois
+ * massifs vers des numéros surtaxés). Ajustable sans code : SMS_PAYS_AUTORISES.
+ */
+const PAYS_SMS_DEFAUT =
+  'BJ,SN,CI,TG,BF,ML,NE,GN,CM,GA,CG,CD,TD,CF,MR,MG,KM,DJ,BI,RW,MA,TN,DZ,GH,NG,FR,BE,CH,LU,CA,US,GB';
+const paysSmsAutorises = () =>
+  new Set((process.env.SMS_PAYS_AUTORISES || PAYS_SMS_DEFAUT).split(',').map((p) => p.trim().toUpperCase()).filter(Boolean));
+/** Plafond global d'envois par jour, tous comptes confondus (ajustable : SMS_MAX_PAR_JOUR). */
+const MAX_SMS_GLOBAL_PAR_JOUR = () => Number(process.env.SMS_MAX_PAR_JOUR) || 400;
 
 export const CODE_TELEPHONE_A_VERIFIER = 'TELEPHONE_A_VERIFIER';
 
@@ -133,6 +146,32 @@ export async function envoyerCodeTelephone(userId: string, numero: string, pays?
   const envois = debutFenetre === c?.fenetreDebut ? (c?.envois ?? 0) : 0;
   if (envois >= MAX_ENVOIS_PAR_JOUR) {
     throw new AppError('Trop de codes demandés aujourd’hui. Réessayez demain ou contactez l’Assistance.', 429);
+  }
+
+  const paysNumero = parsePhoneNumberFromString(e164)?.country;
+  if (!paysNumero || !paysSmsAutorises().has(paysNumero)) {
+    throw new AppError(
+      'Nous ne pouvons pas encore envoyer de code vers ce pays. Contactez l’Assistance pour activer votre essai.',
+      400
+    );
+  }
+  // Plafond global : protège la facture SMS si de nombreux comptes sont créés d'un coup.
+  const cleJour = `sms:envois:${new Date().toISOString().slice(0, 10)}`;
+  const envoisDuJour = await redisConnection.incr(cleJour).catch(() => 0);
+  if (envoisDuJour === 1) await redisConnection.expire(cleJour, 2 * 86400).catch(() => undefined);
+  if (envoisDuJour > MAX_SMS_GLOBAL_PAR_JOUR()) {
+    import('@/services/platform-alert.service')
+      .then(({ signalerIncident }) =>
+        signalerIncident({
+          composant: 'integration',
+          erreur: `Plafond quotidien de SMS atteint (${MAX_SMS_GLOBAL_PAR_JOUR()}) — envois suspendus jusqu'à demain. Afflux normal ou abus ?`,
+          contexte: 'verification telephone',
+          gravite: 'critique',
+          categorie: 'serieuse',
+        })
+      )
+      .catch(() => {});
+    throw new AppError('Le service de vérification est très sollicité. Réessayez dans quelques heures.', 429);
   }
 
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');

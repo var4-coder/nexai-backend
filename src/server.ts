@@ -5,6 +5,7 @@ import { redisConnection } from '@/config/redis';
 import { autoSeedLibraryOnBoot } from '@/services/library-seed.service';
 import { migrerTextesParDefaut } from '@/services/textes-commerciaux.service';
 import { assurerCatalogue } from '@/services/academy-programme.service';
+import { User } from '@/models/User';
 
 async function bootstrap() {
   await connectMongo();
@@ -15,6 +16,11 @@ async function bootstrap() {
   await autoSeedLibraryOnBoot();
   // Textes commerciaux dont la valeur par défaut a changé (essai, vidéo IA, bonus Pro Max).
   await migrerTextesParDefaut().catch(() => {});
+  // Compte associé (consultation du Bilan) : jamais d'abonnement actif ni de crédits.
+  await User.updateMany(
+    { role: 'finance' },
+    { $set: { plan: 'starter', planExpiresAt: new Date(0), creditsBalance: 0, videoOfferteDisponible: false } }
+  ).catch(() => {});
 
   // Académie : crée les 22 domaines et 60 formations du programme s'ils
   // manquent (textes de base). Ne bloque jamais le démarrage.

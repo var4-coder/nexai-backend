@@ -290,6 +290,11 @@ export async function loginWithGoogle(params: {
   if (!payload?.email) {
     throw new AppError('Jeton Google invalide.', 401);
   }
+  // Adresse non vérifiée par Google : elle pourrait appartenir à quelqu'un
+  // d'autre, et la connexion donnerait accès au compte NexAI de cette adresse.
+  if (payload.email_verified !== true) {
+    throw new AppError('Votre adresse Google n’est pas vérifiée. Vérifiez-la chez Google, ou inscrivez-vous avec votre email.', 401);
+  }
 
   const email = payload.email.toLowerCase().trim();
   const googleId = payload.sub;

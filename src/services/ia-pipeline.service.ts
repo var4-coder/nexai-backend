@@ -547,7 +547,7 @@ export async function enqueueSiteGeneration(
   });
   if (!compliance.allowed) {
     console.warn(`[ia-pipeline] Génération bloquée (conformité) site=${siteId} : ${compliance.reason}`);
-    throw new AppError(compliance.clientMessage, 403, { complianceReason: compliance.reason });
+    throw new AppError(compliance.clientMessage, 403); // la raison détaillée reste dans les journaux
   }
 
   // Pré-IA : clés présentes → aucun débit si config cassée (0 token, 0 crédit)
@@ -1221,6 +1221,20 @@ function texteMesures(r: ResultatControle | null): string | undefined {
   ].join('\n');
 }
 
+/** Liens qui ne visent pas une page du site : ancres et tout schéma d'adresse (https:, tel:, sms:, whatsapp:, geo:…). */
+const LIEN_NON_PAGE = /^(#|\/\/|[a-z][a-z0-9+.-]*:)/i;
+
+/**
+ * Pages qui existeront une fois le site en ligne : celles du plan, plus les
+ * pages légales créées par le système à la mise en ligne (liens du pied de
+ * page, à ne jamais signaler ni réécrire).
+ */
+function fichiersDuSite(plan: { slug: string }[]): Set<string> {
+  const fichiers = new Set(plan.map((p) => (p.slug === 'index' ? 'index.html' : `${p.slug}.html`)));
+  for (const f of ['index', 'mentions-legales', 'confidentialite', 'cgv']) fichiers.add(`${f}.html`);
+  return fichiers;
+}
+
 /**
  * Contrôles PAR PROGRAMME propres aux pages intérieures (gratuits, sûrs) :
  * le juge visuel ne regarde que l'accueil, donc on vérifie ici, sans IA,
@@ -1236,15 +1250,14 @@ export function controlerPageInterieure(
   const erreurs: ErreurMesuree[] = [];
   const ajouter = (regle: string, gravite: ErreurMesuree['gravite'], ou: string, constat: string, correction: string) =>
     erreurs.push({ regle, gravite, ou, constat, correction_attendue: correction, source: 'pre-juge' });
-  const fichiers = new Set(plan.map((p) => (p.slug === 'index' ? 'index.html' : `${p.slug}.html`)));
-  fichiers.add('index.html');
+  const fichiers = fichiersDuSite(plan);
 
   // 1. Liens internes cassés (vers un fichier .html absent du plan du site).
   const morts = new Set<string>();
   for (const m of htmlSansKit.matchAll(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']/gi)) {
     const href = m[1].trim();
-    if (/^(https?:|mailto:|tel:|#|data:|javascript:|\/\/)/i.test(href)) continue;
-    const fichier = href.replace(/^\.?\//, '').split(/[?#]/)[0];
+    if (LIEN_NON_PAGE.test(href)) continue;
+    const fichier = href.replace(/^\.?\//, '').split(/[?#]/)[0].replace(/\/$/, '');
     if (!fichier || /\.(?!html?$)[a-z0-9]{2,5}$/i.test(fichier)) continue; // fichier non HTML (pdf, image…)
     const cible = /\.html?$/i.test(fichier) ? fichier.replace(/\.htm$/i, '.html') : `${fichier}.html`;
     if (!fichiers.has(cible)) morts.add(href);
@@ -1255,7 +1268,7 @@ export function controlerPageInterieure(
       'veto',
       'liens',
       `lien(s) vers une page qui n'existe pas : ${[...morts].slice(0, 4).join(', ')}`,
-      `Remplacer chaque lien par l'une des pages du site : ${[...fichiers].join(', ')} (ou supprimer le lien).`
+      `Remplacer chaque lien par l'une des pages du site : ${plan.map((p) => (p.slug === 'index' ? 'index.html' : `${p.slug}.html`)).join(', ')} (ou supprimer le lien).`
     );
 
   // 2. Texte de remplissage oublié.
@@ -1264,7 +1277,9 @@ export function controlerPageInterieure(
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  const remplissage = texte.match(/lorem ipsum|dolor sit amet|\[(?:à compléter|a completer|votre [^\]]{1,30}|texte[^\]]{0,20}|placeholder)\]|\bTODO\b|\bXXX\b|à compléter par le client|insérez votre|insert your|your text here|votre texte ici/i);
+  const remplissage = texte.match(/lorem ipsum|dolor sit amet|\[(?:à compléter|a completer|votre [^\]]{1,30}|texte[^\]]{0,20}|placeholder)\]|à compléter par le client|insérez votre|insert your|your text here|votre texte ici/i) ??
+    // En majuscules seulement : « todo » est un mot espagnol courant.
+    texte.match(/\bTODO\b|\bXXX\b/);
   if (remplissage)
     ajouter(
       'CONTENU',
@@ -1283,7 +1298,9 @@ export function controlerPageInterieure(
   // 4. Page presque vide (hors en-tête et pied de page).
   const main = htmlSansKit.match(/<main\b[\s\S]*?<\/main>/i)?.[0] ?? htmlSansKit;
   const texteMain = main.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  if (texteMain.length < 300)
+  // Une page de contact courte mais dotée d'un formulaire n'est pas vide.
+  const seuil = /<form\b/i.test(main) ? 120 : 300;
+  if (texteMain.length < seuil)
     ajouter(
       'CONTENU',
       'veto',
@@ -1296,11 +1313,10 @@ export function controlerPageInterieure(
 
 /** Remplace les liens internes vers une page absente par un lien vers l'accueil. */
 export function corrigerLiensMorts(html: string, plan: { slug: string }[]): string {
-  const fichiers = new Set(plan.map((p) => (p.slug === 'index' ? 'index.html' : `${p.slug}.html`)));
-  fichiers.add('index.html');
+  const fichiers = fichiersDuSite(plan);
   return html.replace(/(<a\b[^>]*\bhref\s*=\s*["'])([^"']+)(["'])/gi, (tout, debut: string, href: string, fin: string) => {
-    if (/^(https?:|mailto:|tel:|#|data:|javascript:|\/\/)/i.test(href.trim())) return tout;
-    const fichier = href.trim().replace(/^\.?\//, '').split(/[?#]/)[0];
+    if (LIEN_NON_PAGE.test(href.trim())) return tout;
+    const fichier = href.trim().replace(/^\.?\//, '').split(/[?#]/)[0].replace(/\/$/, '');
     if (!fichier || /\.(?!html?$)[a-z0-9]{2,5}$/i.test(fichier)) return tout;
     const cible = /\.html?$/i.test(fichier) ? fichier.replace(/\.htm$/i, '.html') : `${fichier}.html`;
     return fichiers.has(cible) ? tout : `${debut}index.html${fin}`;
@@ -1533,26 +1549,34 @@ async function appelerCodeur(
   modele: string,
   systemPrompt: string | BlocSysteme[],
   instruction: string,
-  opts: { maxTokens: number; temperature: number; cleCache?: string; reutilisationPrevue?: boolean; sansSecours?: boolean }
+  opts: { maxTokens: number; temperature: number; cleCache?: string; reutilisationPrevue?: boolean; sansSecours?: boolean },
+  /** Rempli avec le modèle qui a réellement écrit le code (après une éventuelle bascule). */
+  suivi?: { modeleUtilise?: string }
 ): Promise<string> {
   // Claude reçoit les blocs (mise en cache explicite) ; Grok reçoit le même
   // texte d'un seul tenant, dans le même ordre (cache automatique xAI sur
   // le début commun, regroupé par la clé de cache).
+  // Les clients IA ne basculent jamais d'eux-mêmes ici (sansSecours) : la
+  // seule bascule est celle ci-dessous, une fois, d'une famille à l'autre.
+  // Sinon le modèle réellement utilisé serait inconnu, et le juge pourrait
+  // être le même modèle que le codeur (il jugerait son propre travail).
+  const optsClient = { ...opts, sansSecours: true };
   const lancer = (m: string) =>
     m.startsWith('claude-')
-      ? callClaude(m as ClaudeModel, systemPrompt, [{ role: 'user', content: instruction }], opts)
+      ? callClaude(m as ClaudeModel, systemPrompt, [{ role: 'user', content: instruction }], optsClient)
       : callGrok(
           m as GrokModel,
           [
             { role: 'system', content: systemeEnTexte(systemPrompt) },
             { role: 'user', content: instruction },
           ],
-          opts
+          optsClient
         );
 
   try {
     const resultat = await lancer(modele);
     compterDernierAppel();
+    if (suivi) suivi.modeleUtilise = modele;
     return resultat;
   } catch (err) {
     // ── Bascule automatique, UNIQUEMENT sur indisponibilité ──
@@ -1575,6 +1599,7 @@ async function appelerCodeur(
     );
     const resultat = await lancer(secours);
     compterDernierAppel();
+    if (suivi) suivi.modeleUtilise = secours;
     return resultat;
   }
 }
@@ -1636,9 +1661,18 @@ export async function processGeneration(
   );
   depense.reprendre(site.depenseCumuleeUsd || 0);
   reinitialiserUsage();
-  return avecCompteurDepense(depense, () =>
-    executerGeneration(site, owner, plan, isPremium, depense, opts)
-  );
+  return avecCompteurDepense(depense, async () => {
+    try {
+      return await executerGeneration(site, owner, plan, isPremium, depense, opts);
+    } catch (err) {
+      // La dépense déjà engagée est gardée : une nouvelle tentative de la même
+      // génération repart de ce montant, le plafond reste donc respecté.
+      await Site.updateOne({ _id: site._id }, { $set: { depenseCumuleeUsd: Number(depense.totalUsd.toFixed(4)) } }).catch(
+        () => undefined
+      );
+      throw err;
+    }
+  });
 }
 
 async function executerGeneration(
@@ -1783,12 +1817,19 @@ async function executerGeneration(
     const userInstruction = `Génère le site du client. Seed Direction Artistique : ${seedDa}.${consigneStructure}${consigneTextes}${consigneVariation}`;
 
     const modeleCodeur = modeleCodeurSite;
-    let html = await appelerCodeur(modeleCodeur, systemPrompt, userInstruction, {
-      sansSecours: isPremium, // site Premium : jamais remplacé
-      maxTokens: 22000,
-      temperature: 0.5 + i * 0.05,
-      cleCache: cleCacheGrok('codeur', ctx),
-    });
+    const suiviCodeur: { modeleUtilise?: string } = {};
+    let html = await appelerCodeur(
+      modeleCodeur,
+      systemPrompt,
+      userInstruction,
+      {
+        sansSecours: isPremium, // site Premium : jamais remplacé
+        maxTokens: 22000,
+        temperature: 0.5 + i * 0.05,
+        cleCache: cleCacheGrok('codeur', ctx),
+      },
+      suiviCodeur
+    );
 
     // Nettoyage éventuel de fences markdown ; le kit éventuellement recopié
     // par le codeur est retiré (le système l'insère lui-même).
@@ -1939,7 +1980,8 @@ async function executerGeneration(
     let erreursVisuelles: ErreurJuge[] = [];
     let vetosVisuels: string[] = [];
     try {
-      const modeleJugeVisuel = await getJugeVisuelPour(modeleCodeur);
+      // Juge choisi d'après le modèle qui a RÉELLEMENT codé (bascule comprise).
+      const modeleJugeVisuel = await getJugeVisuelPour(suiviCodeur.modeleUtilise ?? modeleCodeur);
       const consigneJuge = systemeJugeVisuel(ctx);
 
       // Le juge analyse le RENDU RÉEL : captures sur téléphone (390 px) et
@@ -2254,9 +2296,13 @@ async function executerGeneration(
     if (pagePlan.length > 1) {
       if (kept.length > 1) {
         for (const p of kept) p.pagesStatut = 'a_finaliser';
-      } else if (!depense.depasse) {
+      } else {
         for (const p of kept) {
-          if (depense.depasse) break;
+          // Plafond atteint : les pages restent à finaliser (gratuit pour le client).
+          if (depense.depasse) {
+            p.pagesStatut = 'a_finaliser';
+            continue;
+          }
           const { manquantes } = await generateSecondaryPagesForProposal(p, pagePlan, site, ctx, isPremium);
           pagesManquantes = manquantes;
           p.pagesStatut = manquantes.length === 0 ? 'pretes' : 'echec';

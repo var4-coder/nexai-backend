@@ -45,11 +45,24 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   }
 }
 
+/**
+ * Réservé à certains rôles. Le rôle est relu en base à chaque requête : un
+ * jeton reste valable 7 jours, et un compte retiré (associé supprimé, rôle
+ * changé) ne doit pas garder ses accès jusqu'à son expiration.
+ */
 export function requireRole(...roles: UserRole[]) {
-  return (req: Request, _res: Response, next: NextFunction) => {
+  return async (req: Request, _res: Response, next: NextFunction) => {
     if (!req.auth || !roles.includes(req.auth.role)) {
       return next(new AppError('Accès refusé', 403));
     }
-    next();
+    try {
+      const { User } = await import('@/models/User');
+      const actuel = await User.findById(req.auth.userId).select('role').lean<{ role?: UserRole }>();
+      if (!actuel?.role || !roles.includes(actuel.role)) return next(new AppError('Accès refusé', 403));
+      req.auth.role = actuel.role;
+      next();
+    } catch (err) {
+      next(err);
+    }
   };
 }
