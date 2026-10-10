@@ -425,12 +425,18 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
       }
 
       // Ouvre ou prolonge la période payée. Sans cette date, un seul paiement
-      // donnait accès au plan pour toujours. Un renouvellement anticipé
-      // s'ajoute aux jours restants, il n'en fait perdre aucun.
+      // donnait accès au plan pour toujours.
+      //  · Même abonnement (renouvellement anticipé) : les 30 jours s'ajoutent
+      //    aux jours restants, le client n'en perd aucun.
+      //  · Changement d'abonnement (décision du 10/10/2026) : les jours
+      //    restants de l'ancien abonnement sont abandonnés, les 30 jours du
+      //    nouveau comptent à partir d'aujourd'hui. Les crédits, eux,
+      //    s'additionnent toujours.
+      const changementAbonnement = !wasTrial && user.plan !== plan;
       const misAJour = await User.findByIdAndUpdate(
         user._id,
         {
-          $set: { plan, planExpiresAt: prolongerAbonnement(user.planExpiresAt) },
+          $set: { plan, planExpiresAt: prolongerAbonnement(changementAbonnement ? null : user.planExpiresAt) },
           $unset: { trialEndsAt: '' },
           $inc: { creditsBalance: creditsPlan },
         },

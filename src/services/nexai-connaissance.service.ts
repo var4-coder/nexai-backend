@@ -22,6 +22,8 @@ export function construireConnaissanceNexai(): string {
 - Agence — 25 000 FCFA/mois, ${PLAN_CREDITS.agence} crédits : tout Créateur+, plus 10 clients, Analytics & SEO, Pub Cinéma IA et Mini-film IA, 1 domaine inclus, 2 logos.
 - Pro Max — 35 000 FCFA/mois, ${PLAN_CREDITS.pro_max} crédits : tout Agence, plus clients illimités, 2 domaines, 3 logos. Bonus Pro Max : la première Pub Présentateur IA de 30 s est offerte à la souscription.
 
+- Changer d'abonnement : la nouvelle formule démarre le jour du changement, pour 30 jours ; les jours restants de l'ancienne formule ne sont pas reportés. Les crédits s'additionnent (solde restant + crédits du nouvel abonnement). Renouveler la même formule en avance : les 30 jours s'ajoutent aux jours restants.
+
 ## Le coût des actions, en crédits
 - Créer un site : ${c.GENERER_SITE} (qualité Normale) · ${c.GENERER_SITE_PREMIUM} (Premium, notre meilleure IA)
 - Mettre en ligne : ${c.METTRE_EN_LIGNE}
@@ -89,7 +91,7 @@ Si un domaine expire, le site NE DEVIENT PAS inaccessible : il retrouve automati
 - Des packs de skills déjà prêts (créés par NexAI) sont disponibles dans la Boutique.
 
 ## Les logos
-- Coût : ${c.LOGO} crédits par logo. Logos inclus chaque mois : Agence ${PLAN_LOGO_QUOTA.agence}, Pro Max ${PLAN_LOGO_QUOTA.pro_max}. Où : « Créer un site » → « Créer un logo ».
+- Coût : ${c.LOGO} crédits par création (3 propositions). Chaque création payée (ou logo inclus) donne droit à UNE relance gratuite : 3 nouvelles propositions si aucune ne plaît. Une relance gratuite n'en ouvre jamais une autre : la création suivante revient à ${c.LOGO} crédits. Logos inclus chaque mois : Agence ${PLAN_LOGO_QUOTA.agence}, Pro Max ${PLAN_LOGO_QUOTA.pro_max}. Où : « Créer un site » → « Créer un logo ».
 
 ## Les domaines — où les retrouver
 - Page « Sites → Domaines ». Trois options : sous-domaine NexAI gratuit, acheter un nom de domaine (Créateur+ et plus), ou utiliser un domaine déjà possédé (gratuit).

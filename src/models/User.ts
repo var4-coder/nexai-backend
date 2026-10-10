@@ -97,6 +97,8 @@ export interface IUser {
     voix: 'homme' | 'femme';
     consentementLe: Date;
   };
+  /** Une relance de logo gratuite est disponible (voir consommerRelanceLogoOfferte). */
+  logoRelanceOfferte?: boolean;
   creditsBalance: number;
   domainsUsed: number;
   /**
@@ -176,6 +178,7 @@ const userSchema = new Schema<IUser>(
       voix: { type: String, enum: ['homme', 'femme'] },
       consentementLe: { type: Date },
     },
+    logoRelanceOfferte: { type: Boolean, default: false },
     creditsBalance: { type: Number, default: 0, min: 0 },
     domainsUsed: { type: Number, default: 0, min: 0 },
     domainFreeBudgetUsedUsd: { type: Number, default: 0, min: 0 },

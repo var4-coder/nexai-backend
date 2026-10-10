@@ -22,6 +22,8 @@ import {
   creditCredits,
   CREDIT_COSTS,
   reserverLogoInclus,
+  consommerRelanceLogoOfferte,
+  accorderRelanceLogoOfferte,
   restituerLogoInclus,
   assertLogoGenerationPlanAllowed,
   assertSkillPlanAllowed,
@@ -1649,8 +1651,12 @@ export async function confirmChatSession(sessionId: string, userId: string, conf
 
     let usedIncludedQuota = false;
     let creditsSpentOnLogo = 0;
+    // Relance offerte (une seule, après une création payée) : 0 crédit.
+    const relanceLogoOfferte = await consommerRelanceLogoOfferte(user._id);
     try {
-      if (await reserverLogoInclus(user._id, user.plan)) {
+      if (relanceLogoOfferte) {
+        // rien à débiter
+      } else if (await reserverLogoInclus(user._id, user.plan)) {
         usedIncludedQuota = true;
       } else {
         await debitCredits(user._id, CREDIT_COSTS.LOGO, 'logo', {
@@ -1674,13 +1680,17 @@ export async function confirmChatSession(sessionId: string, userId: string, conf
       );
       site.logoProposals = proposals;
       await site.save();
+      // Une création payée ouvre droit à une relance gratuite ; une relance gratuite, non.
+      if (!relanceLogoOfferte) await accorderRelanceLogoOfferte(user._id);
     } catch {
       // Ne bloque JAMAIS la création du site pour un échec de génération de
       // logo : le site part sans logo, le client pourra en générer un plus
       // tard depuis sa bibliothèque (mode 'logo' ou page du site). On
       // rembourse ce qui a été consommé pour ne pas lui faire perdre du
       // quota/crédits pour un logo qu'il n'a jamais reçu.
-      if (usedIncludedQuota) {
+      if (relanceLogoOfferte) {
+        await accorderRelanceLogoOfferte(user._id);
+      } else if (usedIncludedQuota) {
         await restituerLogoInclus(user._id);
       } else if (creditsSpentOnLogo > 0) {
         await creditCredits(user._id, creditsSpentOnLogo, 'ajustement_admin', {

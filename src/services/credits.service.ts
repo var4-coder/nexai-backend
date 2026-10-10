@@ -588,6 +588,20 @@ export async function restituerLogoInclus(userId: Types.ObjectId | string): Prom
   await User.updateOne({ _id: userId, logosUsed: { $gt: 0 } }, { $inc: { logosUsed: -1 } });
 }
 
+/*
+ * Relance de logo offerte (décision du 10/10/2026) : chaque création de logo
+ * payée (11 crédits ou logo inclus) donne droit à UNE relance gratuite —
+ * 3 nouvelles propositions si aucune ne plaît. Une relance gratuite n'en
+ * ouvre jamais une autre : la suivante revient à 11 crédits.
+ */
+export async function consommerRelanceLogoOfferte(userId: Types.ObjectId | string): Promise<boolean> {
+  const maj = await User.findOneAndUpdate({ _id: userId, logoRelanceOfferte: true }, { $set: { logoRelanceOfferte: false } });
+  return !!maj;
+}
+export async function accorderRelanceLogoOfferte(userId: Types.ObjectId | string): Promise<void> {
+  await User.updateOne({ _id: userId }, { $set: { logoRelanceOfferte: true } });
+}
+
 export const PROPOSAL_MIN_SCORE = 65;
 
 export const CREDIT_PACKS = [

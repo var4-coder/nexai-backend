@@ -70,6 +70,8 @@ usersRouter.get('/me', requireAuth, async (req, res, next) => {
         creditsBalance: user.creditsBalance,
         domainsUsed: user.domainsUsed ?? 0,
         logosUsed: user.logosUsed ?? 0,
+        /** Relance de logo gratuite disponible (une seule, après une création payée). */
+        logoRelanceOfferte: user.logoRelanceOfferte === true,
         hasGoogle: Boolean(user.googleId),
         emailVerifiedAt: user.emailVerifiedAt,
         telephoneVerifie: user.telephoneVerifie ?? null,

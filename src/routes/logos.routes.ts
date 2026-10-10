@@ -10,6 +10,8 @@ import {
   CREDIT_COSTS,
   getLogoQuotaInfo,
   reserverLogoInclus,
+  consommerRelanceLogoOfferte,
+  accorderRelanceLogoOfferte,
   restituerLogoInclus,
 } from '@/services/credits.service';
 import { generateLogoProposals, generateEmbellishmentImage } from '@/services/recraft.service';
@@ -65,7 +67,11 @@ logosRouter.post('/generate', requireAuth, async (req: Request, res: Response, n
     // Solde renvoyé dans la réponse (voir plus bas) pour rafraîchir l'affichage
     // frontend immédiatement, sans dépendre d'un second appel.
     let creditsBalanceAfter = user.creditsBalance;
-    if (await reserverLogoInclus(user._id, user.plan)) {
+    // Relance offerte (une seule, après une création payée) : 0 crédit.
+    const relanceOfferte = await consommerRelanceLogoOfferte(user._id);
+    if (relanceOfferte) {
+      creditsSpent = 0;
+    } else if (await reserverLogoInclus(user._id, user.plan)) {
       creditsSpent = 0;
       usedIncludedQuota = true;
     } else {
@@ -89,7 +95,9 @@ logosRouter.post('/generate', requireAuth, async (req: Request, res: Response, n
       // Aucune image valide obtenue (voir recraft.service.ts) : on rembourse
       // ce qui a été consommé plutôt que de faire perdre du quota/crédits
       // au client pour un logo qu'il n'a jamais reçu.
-      if (usedIncludedQuota) {
+      if (relanceOfferte) {
+        await accorderRelanceLogoOfferte(user._id);
+      } else if (usedIncludedQuota) {
         await restituerLogoInclus(user._id);
       } else if (creditsSpent > 0) {
         creditsBalanceAfter = await creditCredits(user._id, creditsSpent, 'ajustement_admin', {
@@ -99,6 +107,8 @@ logosRouter.post('/generate', requireAuth, async (req: Request, res: Response, n
       }
       throw genErr;
     }
+    // Une création payée ouvre droit à une relance gratuite ; une relance gratuite, non.
+    if (!relanceOfferte) await accorderRelanceLogoOfferte(user._id);
 
     // Persistance en bibliothèque (compte) — indépendant du site pour lequel
     // c'est généré, réutilisable ensuite pour n'importe quel site futur.
@@ -130,6 +140,8 @@ logosRouter.post('/generate', requireAuth, async (req: Request, res: Response, n
       creditsSpent,
       logosRemaining: getLogoQuotaInfo(user.plan, apres?.logosUsed ?? 0).remaining,
       creditsBalance: creditsBalanceAfter,
+      relanceOfferteUtilisee: relanceOfferte,
+      relanceGratuiteDisponible: !relanceOfferte,
     });
   } catch (err) {
     next(err);
