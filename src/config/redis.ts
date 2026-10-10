@@ -7,7 +7,9 @@ import { env } from './env';
  * connexions utilisées par ses workers/queues.
  */
 export function createRedisConnection(): Redis {
-  const connection = new IORedis(env.REDIS_URL, {
+  const url = env.REDIS_PROVIDER === 'render' && env.REDIS_URL_RENDER ? env.REDIS_URL_RENDER : env.REDIS_URL;
+  console.log(`[redis] Fournisseur : ${env.REDIS_PROVIDER === 'render' && env.REDIS_URL_RENDER ? 'Render' : 'Upstash'}`);
+  const connection = new IORedis(url, {
     maxRetriesPerRequest: null,
   });
 

@@ -14,6 +14,14 @@ const envSchema = z.object({
 
   MONGODB_URI: z.string().min(1, 'MONGODB_URI est requis'),
   REDIS_URL: z.string().min(1, 'REDIS_URL est requis'),
+  /**
+   * Redis utilisé par les files (sites, vidéos, skills…) :
+   *  · 'upstash' (défaut) → REDIS_URL
+   *  · 'render'           → REDIS_URL_RENDER (Redis Render, même datacenter)
+   * Basculer = changer cette seule variable sur Render, sans toucher au code.
+   */
+  REDIS_PROVIDER: z.enum(['upstash', 'render']).optional().default('upstash'),
+  REDIS_URL_RENDER: z.string().optional().default(''),
 
   JWT_SECRET: z.string().min(1, 'JWT_SECRET est requis'),
   JWT_EXPIRES_IN: z.string().default('7d'),
