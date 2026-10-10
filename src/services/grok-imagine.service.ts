@@ -13,8 +13,8 @@ const XAI_BASE = 'https://api.x.ai/v1';
 /**
  * Palier de modèle.
  *
- * - 'standard' → grok-imagine-image (~0,02 $/image). Réservé à l'ESSAI GRATUIT
- *   et au test vidéo 8s : le coût d'acquisition doit rester bas.
+ * - 'standard' → grok-imagine-image (~0,02 $/image). Réservé à l'ESSAI GRATUIT :
+ *   le coût d'acquisition doit rester bas.
  * - 'v2'       → grok-imagine-image-2.0 (~0,04 $/image). Utilisé pour tout ce
  *   qui est PAYANT : aperçus de site et images de départ des vidéos.
  *

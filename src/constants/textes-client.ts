@@ -47,7 +47,10 @@ export const VERROU_MISE_EN_LIGNE =
   "La mise en ligne rend votre site accessible publiquement à l'adresse de votre choix. Elle coûte 15 crédits. L'hébergement et le certificat de sécurité sont inclus avec votre abonnement. Réservée aux abonnements payants.";
 
 export const VERROU_VIDEO_IA =
-  "Générez des vidéos publicitaires professionnelles en 4K, avec avatar IA ou voix off, prêtes à publier en quelques minutes. Disponible dès l'abonnement Créateur+.";
+  "Créez vos publicités vidéo prêtes à publier : Pub Express animée avec vos produits, Pub Présentateur IA face caméra, et en Agence et Pro Max la Pub Cinéma IA et le Mini-film IA. Disponible dès l'abonnement Créateur+.";
+
+export const VERROU_PUB_CINEMA =
+  "La Pub Cinéma IA est réservée aux abonnements Agence et Pro Max : des scènes cinématographiques tournées par l'IA autour de votre produit, comme une vraie publicité télé. Passez à Agence pour la débloquer.";
 
 export const VERROU_ACHAT_CREDITS =
   "Les packs de crédits vous permettent de générer plus de sites, logos et vidéos sans attendre votre renouvellement mensuel. Disponible dès votre abonnement.";
@@ -56,7 +59,7 @@ export const VERROU_ESPACE_AGENCE =
   "L'Espace Agence vous permet de gérer plusieurs sites clients depuis un seul compte : suivi, statistiques et modification rapide des textes, sans repasser par le chat IA. Réservé aux abonnements Agence et Pro Max.";
 
 export const VERROU_MINI_FILM =
-  'Le mode Mini-film/série est réservé au plan Pro Max — idéal pour les créateurs de contenu qui publient des formats longs sur les réseaux sociaux.';
+  "Le Mini-film IA est réservé aux abonnements Agence et Pro Max — idéal pour raconter l'histoire de votre marque, ou pour les créateurs de contenu qui publient des séries sur TikTok, Facebook et YouTube. Passez à Agence pour le débloquer.";
 
 // ══════════════════════════════════════════════════════════════════
 // ANCIENNES VIDÉOS DE TEST — comptes d'essai antérieurs
@@ -81,7 +84,7 @@ export const VIDEO_TEST_TELECHARGEMENT_VERROUILLE =
 // ══════════════════════════════════════════════════════════════════
 
 export const BANDEAU_BIENVENUE_ESSAI =
-  "Bienvenue sur NexAI ! Vous démarrez votre essai gratuit de 7 jours avec 15 crédits offerts. À la moindre question, un doute ou une difficulté, l'Assistance NexAI est disponible à tout moment depuis le menu — n'hésitez pas à la solliciter.";
+  "Bienvenue sur NexAI ! Vous démarrez votre essai gratuit de 7 jours avec votre site offert et 10 crédits pour trouver votre business avec le Coach IA. À la moindre question, un doute ou une difficulté, l'Assistance NexAI est disponible à tout moment depuis le menu — n'hésitez pas à la solliciter.";
 
 /** `planNom` : libellé commercial du plan (« Créateur+ », « Pro Max »…). */
 export function bandeauAbonnementActif(planNom: string): string {
@@ -150,8 +153,11 @@ export const SITE_RELANCE_GRATUITE_ATTENTE =
 export const SITE_RELANCE_GRATUITE_PRETE =
   'Vous pouvez relancer cette création gratuitement. Une seule relance offerte. Si elle n’aboutit pas, vos crédits vous seront rendus.';
 
+export const SITE_ESSAI_DEJA_UTILISE =
+  'Votre site offert de l’essai gratuit a déjà été créé. Pour créer d’autres sites et mettre vos sites en ligne, choisissez un abonnement.';
+
 export const SITE_GENERATION_REMBOURSEE =
-  'Cette création n’a pas pu aboutir malgré les reprises. Vos crédits ont été rendus. Nous corrigeons la panne : vous pourrez relancer une nouvelle création plus tard, ou supprimer cet essai.';
+  'Cette création n’a pas pu aboutir malgré les reprises. Vos crédits (ou votre site offert de l’essai) vous ont été rendus. Nous corrigeons la panne : vous pourrez relancer une nouvelle création plus tard, ou supprimer cet essai.';
 
 /** Ligne de temps restant, commune aux deux écrans. */
 export function attenteTempsEstime(minutes: number): string {

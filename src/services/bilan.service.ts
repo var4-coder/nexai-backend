@@ -114,11 +114,14 @@ const COUT_LOGO_USD = 0.15;
 
 /**
  * Répartition du coût d'une vidéo entre les comptes fournisseurs :
- * voix off 20/30 s → Alexya ; formats longs, avatar et mini-film → fal.ai
- * (Kling, avatar) ; la voix (ElevenLabs) ≈ 8 % du coût. Estimation.
+ * scènes de 20/30 s → Alexya ; formats longs, avatar et mini-film → fal.ai
+ * (Kling, avatar) ; la voix (ElevenLabs) ≈ 8 % du coût ; Pub Express → voix
+ * seulement. Estimation.
  */
 function fournisseursVideo(mode?: string, format?: string): { alexya: number; fal: number; elevenlabs: number } {
   const cout = estimateVideoAdRealCostUsd(mode as never, format as never) ?? 0;
+  // Pub Express : pas de moteur vidéo, seulement la voix (le scénario est compté dans l'IA).
+  if (mode === 'express') return { alexya: 0, fal: 0, elevenlabs: cout * 0.4 };
   const voix = cout * 0.08;
   const moteur = cout - voix;
   const alexya = mode === 'voix_off' && (format === '20s' || format === '30s');
@@ -126,9 +129,11 @@ function fournisseursVideo(mode?: string, format?: string): { alexya: number; fa
 }
 
 /** Fournisseur (compte à approvisionner) d'un modèle IA mesuré. */
-function fournisseurIa(modele: string): 'anthropic' | 'xai' | 'autre' {
+function fournisseurIa(modele: string): 'anthropic' | 'xai' | 'openai' | 'deepseek' | 'autre' {
   if (/^claude/i.test(modele)) return 'anthropic';
   if (/^grok/i.test(modele)) return 'xai';
+  if (/^(gpt|o\d)/i.test(modele)) return 'openai';
+  if (/^deepseek/i.test(modele)) return 'deepseek';
   return 'autre';
 }
 
@@ -327,11 +332,13 @@ export async function bilanReel(du: Date, au: Date) {
   const comparatif = comparerPays(r.fiscalite, { ...baseFiscale, caParPays: encParPays });
 
   // Ce que chaque compte fournisseur a réellement consommé sur la période (USD).
-  const consoComptes = { anthropic: 0, xai: 0, autreIa: 0, alexya: 0, fal: 0, elevenlabs: 0, recraft: coutLogosUsd };
+  const consoComptes = { anthropic: 0, xai: 0, openai: 0, deepseek: 0, autreIa: 0, alexya: 0, fal: 0, elevenlabs: 0, recraft: coutLogosUsd };
   for (const m of iaParModele as { _id: string; usd: number }[]) {
     const f = fournisseurIa(m._id);
     if (f === 'anthropic') consoComptes.anthropic += m.usd;
     else if (f === 'xai') consoComptes.xai += m.usd;
+    else if (f === 'openai') consoComptes.openai += m.usd;
+    else if (f === 'deepseek') consoComptes.deepseek += m.usd;
     else consoComptes.autreIa += m.usd;
   }
   for (const v of videos as { mode?: string; format?: string }[]) {

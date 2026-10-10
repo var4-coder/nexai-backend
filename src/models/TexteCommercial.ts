@@ -9,7 +9,7 @@ import { Schema, model, Types } from 'mongoose';
  * guide et l'aide continuent d'annoncer d'anciens prix, et le client
  * découvre l'écart au moment de payer.
  *
- * La mise à jour est PROPOSÉE par Sonnet 5, jamais publiée directement :
+ * La mise à jour est PROPOSÉE par Sonnet 5.5, jamais publiée directement :
  * l'administrateur voit l'avant/après, peut corriger, puis valide. Un modèle
  * qui réécrirait seul une vitrine commerciale pourrait déformer une
  * promesse sans que personne ne s'en aperçoive.

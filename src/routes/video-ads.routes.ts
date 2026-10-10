@@ -6,7 +6,7 @@ import { getVideoTestStatus, lancerVideoTest } from '@/services/video-test.servi
 import { VIDEO_TEST_INCITATION, VIDEO_TEST_TELECHARGEMENT_VERROUILLE } from '@/constants/textes-client';
 import { VideoAd } from '@/models/VideoAd';
 import { enqueueVideoAd, enqueueVideoAdRelaunch } from '@/services/video-pipeline.service';
-import { CREDIT_COSTS } from '@/services/credits.service';
+import { CREDIT_COSTS, FORMATS_PAR_MODE, getVideoAdCreditCost, type VideoAdMode } from '@/services/credits.service';
 import { uploadVideoAdProductImage } from '@/services/cloudinary.service';
 import { analyzeVideoBriefCompleteness } from '@/services/video-brief-quality.service';
 import { AppError } from '@/middleware/errorHandler';
@@ -56,41 +56,17 @@ videoAdsRouter.post(
  * GET /tarifs — grille publique des prix (crédits NexAI), les 3 produits vidéo IA.
  */
 videoAdsRouter.get('/tarifs', (_req: Request, res: Response) => {
-  // Grille PLATE par durée : `formats[durée] = crédits`. Aucun choix de
-  // qualité côté client — le moteur découle de la durée (voir
-  // getVideoEngineForFormat). Le frontend lit exactement cette forme.
+  // Grille par offre : `formats[durée] = crédits`. Le frontend lit cette forme.
+  // Logique commerciale : jusqu'à 45 s, Express et Présentateur ; à partir de
+  // 60 s, uniquement le cinéma (Agence et Pro Max).
+  const grille = (mode: VideoAdMode) =>
+    Object.fromEntries(FORMATS_PAR_MODE[mode].map((f) => [f, getVideoAdCreditCost(mode, f)]));
   res.json({
-    voix_off: {
-      label: 'Vidéo pub voix off',
-      description:
-        'Une publicité visuelle avec voix off et musique de fond, pour présenter votre activité ou vos produits.',
-      formats: {
-        '20s': CREDIT_COSTS.VOIX_OFF_20S,
-        '30s': CREDIT_COSTS.VOIX_OFF_30S,
-        '60s': CREDIT_COSTS.VOIX_OFF_60S,
-      },
-      planRequis: ['createur', 'agence', 'pro_max'],
-    },
-    avatar_pub: {
-      label: 'Avatar pub',
-      description: 'Un présentateur IA qui parle face caméra pour promouvoir votre activité.',
-      formats: {
-        '20s': CREDIT_COSTS.AVATAR_PUB_20S,
-        '30s': CREDIT_COSTS.AVATAR_PUB_30S,
-        '60s': CREDIT_COSTS.AVATAR_PUB_60S,
-      },
-      planRequis: ['createur', 'agence', 'pro_max'],
-    },
-    mini_film: {
-      label: 'Mini-film',
-      description:
-        "Deux minutes en qualité cinéma, plusieurs scènes qui racontent une histoire. Pour votre entreprise, une vraie publicité de présentation. Pour les créateurs de contenu, des histoires et des séries prêtes à publier sur TikTok, Instagram, Facebook ou YouTube.",
-      formats: { '120s': CREDIT_COSTS.MINI_FILM_120S },
-      // Réservé à Pro Max. Visible par tous, génération verrouillée ailleurs.
-      planRequis: ['pro_max'],
-    },
-    note:
-      "Outils visibles par tous. Génération réservée aux abonnements Créateur+, Agence et Pro Max ; le mini-film est réservé à Pro Max.",
+    express: { label: 'Pub Express', formats: grille('express'), planRequis: ['createur', 'agence', 'pro_max'] },
+    avatar_pub: { label: 'Pub Présentateur IA', formats: grille('avatar_pub'), planRequis: ['createur', 'agence', 'pro_max'] },
+    voix_off: { label: 'Pub Cinéma IA', formats: grille('voix_off'), planRequis: ['agence', 'pro_max'] },
+    mini_film: { label: 'Mini-film IA', formats: grille('mini_film'), planRequis: ['agence', 'pro_max'] },
+    note: 'Toutes les offres sont visibles dès Créateur+. Pub Cinéma IA et Mini-film IA sont réservés à Agence et Pro Max.',
   });
 });
 
@@ -119,13 +95,13 @@ videoAdsRouter.get('/tarifs', (_req: Request, res: Response) => {
  */
 videoAdsRouter.get('/questionnaire', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const mode = String(req.query.mode ?? 'voix_off');
-    if (!['voix_off', 'avatar_pub', 'mini_film'].includes(mode)) {
+    const mode = String(req.query.mode ?? 'express');
+    if (!['express', 'voix_off', 'avatar_pub', 'mini_film'].includes(mode)) {
       throw new AppError('Mode vidéo inconnu.', 400);
     }
     res.json({
       questions: questionnairePourMode(
-        mode as 'voix_off' | 'avatar_pub' | 'mini_film',
+        mode as 'express' | 'voix_off' | 'avatar_pub' | 'mini_film',
         req.query.composition ? String(req.query.composition) : undefined
       ),
     });
@@ -202,9 +178,8 @@ videoAdsRouter.post('/analyser-brief', requireAuth, async (req: Request, res: Re
 
 /**
  * POST / — lance une génération vidéo.
- * mode : 'voix_off' (30s/60s/120s) | 'avatar_pub' (30s/60s/120s) |
- *        'mini_film' (120s uniquement — Pro Max exclusivement).
- * quality : 'standard' | 'premium' (Premium = ×2 crédits, tous modes).
+ * mode / durées : voir FORMATS_PAR_MODE (credits.service.ts).
+ * quality : conservé pour compatibilité, sans effet sur le prix.
  * siteId optionnel (site NexAI existant).
  * brief.siteUrl optionnel : URL du site à analyser pour personnaliser la vidéo.
  * Au moins une description dans brief est attendue côté frontend.
@@ -214,8 +189,8 @@ videoAdsRouter.post('/', requireAuth, async (req: Request, res: Response, next: 
     const body = z
       .object({
         siteId: z.string().min(1).optional(),
-        mode: z.enum(['voix_off', 'avatar_pub', 'mini_film']),
-        format: z.enum(['20s', '30s', '60s', '120s']),
+        mode: z.enum(['express', 'voix_off', 'avatar_pub', 'mini_film']),
+        format: z.enum(['15s', '30s', '45s', '60s', '120s']),
         quality: z.enum(['standard', 'premium']).default('standard'),
         aspectRatio: z.enum(['16:9', '9:16']).default('16:9'),
         brief: z
@@ -264,10 +239,9 @@ videoAdsRouter.post('/', requireAuth, async (req: Request, res: Response, next: 
       );
     }
 
-    // Garde-fou format (message clair avant même de débiter les crédits —
-    // getVideoAdCreditCost lèverait la même erreur mais plus tard dans enqueueVideoAd).
-    if (body.mode === 'mini_film' && body.format !== '120s') {
-      throw new AppError('Le mode Mini-film/série est disponible en 120 secondes uniquement.', 400);
+    // Garde-fou durée : message clair avant tout débit.
+    if (!FORMATS_PAR_MODE[body.mode].includes(body.format)) {
+      throw new AppError('Cette durée n’est pas proposée pour cette vidéo. Choisissez une des durées affichées.', 400);
     }
 
     const result = await enqueueVideoAd(req.auth!.userId, {
@@ -405,8 +379,8 @@ videoAdsRouter.get('/test/status', requireAuth, async (req: Request, res: Respon
 });
 
 /**
- * POST /test — lance la génération du test (8s, avatar générique, 10cr,
- * une seule fois, sans téléchargement possible).
+ * POST /test — ancien test vidéo de l'essai (retiré) : répond toujours par
+ * un refus explicite, voir video-test.service.ts.
  */
 videoAdsRouter.post('/test', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {

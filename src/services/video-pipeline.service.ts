@@ -49,6 +49,13 @@ import { Job as JobModel } from '@/models/Job';
 import { fetchSiteMeta } from '@/services/site-meta.service';
 import { generateLogoProposals } from '@/services/recraft.service';
 import { captureSiteScreencast } from '@/services/site-capture.service';
+import {
+  rendreVideoExpress,
+  capturerSitePourExpress,
+  type ImageExpress,
+  type PlanExpress,
+  type StoryboardExpress,
+} from '@/services/video-express-rendu.service';
 import { verifyImageUrl } from '@/utils/verifyMedia';
 import { resolveMusicTrack } from '@/data/library/musicTracks';
 import {
@@ -197,12 +204,12 @@ export async function enqueueVideoAd(
 
   // ── Cadeau de bienvenue ──
   //
-  // La première vidéo de 20 s est offerte. La consommation est ATOMIQUE :
-  // la condition et la mise à jour se font en une seule opération, si bien
-  // que deux demandes simultanées ne peuvent jamais obtenir deux vidéos
-  // gratuites. Seul le format 20 s est concerné.
+  // Bonus Pro Max (10/10/2026) : la première Pub Présentateur IA de 30 s est
+  // offerte. La consommation est ATOMIQUE : la condition et la mise à jour se
+  // font en une seule opération, si bien que deux demandes simultanées ne
+  // peuvent jamais obtenir deux vidéos gratuites.
   let videoOfferte = false;
-  if (opts.format === '20s' && opts.mode !== 'mini_film') {
+  if (opts.format === '30s' && opts.mode === 'avatar_pub') {
     const consomme = await User.findOneAndUpdate(
       { _id: userId, videoOfferteDisponible: true },
       { $set: { videoOfferteDisponible: false } },
@@ -571,8 +578,10 @@ export async function enqueueVideoAdRelaunch(
  */
 
 const CLIPS_PER_FORMAT: Record<VideoAdFormat, number> = {
+  '15s': 0, // Pub Express : animation, sans plans générés
   '20s': 2,
   '30s': 3,
+  '45s': 0, // Pub Présentateur IA : pas de plans générés
   '60s': 6,
   '120s': 12,
 };
@@ -861,8 +870,10 @@ const BUSY_RETRY_DELAY_MS = 30 * 1000;
  * creuser la perte sans servir le client.
  */
 const MAX_PARTIAL_RELAUNCHES_PAR_FORMAT: Record<VideoAdFormat, number> = {
+  '15s': 0,
   '20s': 2,
   '30s': 2,
+  '45s': 2,
   '60s': 2,
   '120s': 2,
 };
@@ -1035,20 +1046,18 @@ Utilise ces informations pour personnaliser fortement la vidéo (branding, prome
 
   // ── Style des plans, selon le mode ──
   //
-  // Le cinéma et les acteurs sont EXCLUSIFS au mini-film. C'est ce qui le
-  // distingue des formats courts et justifie son prix. Un format court qui
-  // produirait des scènes cinématiques avec acteurs enlèverait toute raison
-  // de payer le mini-film.
+  // Pub Cinéma IA (voix_off, 60 s, Agence et Pro Max) et Mini-film : du
+  // cinéma. Les formats animés (Pub Express) ne passent pas par ici.
   const estMiniFilm = mode === 'mini_film';
   const avecActeurs = estMiniFilm && composition === 'histoire';
 
   const consigneStyle = !estMiniFilm
-    ? `\nSTYLE — PRÉSENTATION DU SITE ET DES PRODUITS :
-- AUCUN personnage, AUCUN acteur, AUCUN visage humain à l'écran. C'est une règle absolue.
-- Montre le SITE du client : ses pages parcourues, ses sections, ses rubriques, sa mise en page.
-- Montre les PRODUITS ou les SERVICES : en gros plan, sous plusieurs angles, en situation d'usage — mais sans personne pour les manipuler.
-- Présente chaque option, chaque service, chaque avantage l'un après l'autre : le spectateur doit comprendre ce que propose ce site.
-- Des mains peuvent apparaître pour manipuler un produit, jamais un visage ni une silhouette complète.`
+    ? `\nSTYLE — PUB CINÉMA : LE TOURNAGE D'UNE VRAIE PUBLICITÉ :
+- C'est du CINÉMA, comme une publicité télé tournée par une équipe de production : lumière travaillée, mouvements de caméra (travelling, plan large puis gros plan), décors réels, ambiance qui donne envie.
+- Le produit ou le service est le héros : on le découvre sous des angles choisis, en situation réelle d'usage.
+- Des personnes peuvent l'utiliser ou en profiter (clients, artisans, livreurs), en ACTION, sans jamais parler face caméra : la parole est portée par la voix off. Si une personne revient d'un plan à l'autre, décris-la EXACTEMENT de la même façon.
+- Le site du client apparaît comme une étape de l'histoire, mis en scène avec le même soin.
+- Le dernier plan invite à passer à l'action.`
     : avecActeurs
       ? `\nSTYLE — FILM PUBLICITAIRE AVEC ACTEURS :
 - C'est du CINÉMA : des personnages vivent une scène, dans de vrais décors, avec des mouvements de caméra travaillés.
@@ -1060,7 +1069,7 @@ Utilise ces informations pour personnaliser fortement la vidéo (branding, prome
 - C'est du CINÉMA, mais SANS aucun personnage : lumière travaillée, mouvements de caméra lents, profondeur de champ, ambiance soignée.
 - Le produit est le héros : on le découvre progressivement, sous des angles choisis, dans des décors qui racontent son univers.
 - Le site du client apparaît comme une étape de cette découverte, mis en scène avec le même soin.
-- AUCUN visage, AUCune silhouette. Des mains peuvent manipuler le produit.`;
+- AUCUN visage, AUCUNE silhouette. Des mains peuvent manipuler le produit.`;
 
   return `Tu es le scénariste vidéo NexAI. Découpe une publicité de ${nbScenes} plans de 10 secondes chacun pour un site ${niche || 'général'}.
 Brief client (JSON) : ${JSON.stringify({ ...brief, siteMeta: undefined, siteContentDossier: undefined })}
@@ -1082,7 +1091,7 @@ async function buildImagePromptForScene(
   brief: Record<string, unknown>,
   referenceKind?: ReferenceImage['kind']
 ): Promise<string> {
-  // Claude Sonnet 5 rédige TOUJOURS le prompt image final
+  // Claude Sonnet 5.5 rédige TOUJOURS le prompt image final
   const siteMeta = (brief as any).siteMeta;
   const brand = String((brief as { brandName?: string }).brandName || siteMeta?.title || '');
 
@@ -1927,20 +1936,17 @@ export async function processVideoAd(videoAdId: string): Promise<void> {
     niche = String(meta.title).slice(0, 40);
   }
 
-  // Intro logo : uniquement pour l'Option 1 "voix off" (mixte discuté).
-  // Le pipeline Avatar n'est pas concerné par cette correction.
   // ── Composition du mini-film ──
   //
   // Le mini-film n'est pas un format d'avatar imposé : c'est un SCÉNARIO de
-  // deux minutes, que le client compose. Deux choix possibles :
+  // deux minutes, que le client compose. Trois choix possibles :
   //  · 'histoire'     — une histoire filmée avec des acteurs
   //  · 'decouverte'   — des scènes cinématiques sans acteur, centrées sur le
   //    produit et le site
   //  · 'presentateur' — un présentateur face caméra (flux avatar)
   //
   // Les deux premières empruntent le flux par scènes, seul capable de
-  // produire du cinéma. Le cinéma et les acteurs sont EXCLUSIFS au
-  // mini-film : c'est ce qui le distingue des formats courts.
+  // produire du cinéma (comme la Pub Cinéma IA).
   //
   // Deux usages visés, et le client doit comprendre lequel il choisit :
   // publicité cinématique pour un produit ou un service, ou contenu prêt à
@@ -1950,9 +1956,8 @@ export async function processVideoAd(videoAdId: string): Promise<void> {
       ? normaliserComposition((videoAd.brief as Record<string, unknown>)?.composition)
       : null;
 
-  // Le flux à emprunter : voix off pur, ou avatar. Le mixte commence par
-  // l'avatar, puis enchaîne sur des scènes sans présentateur.
-  // Le film narratif emprunte le flux par SCÈNES : c'est lui qui sait
+  // Le flux à emprunter : Pub Express (animation), scènes filmées (Pub
+  // Cinéma IA, mini-film raconté), ou avatar (présentateur). Le film narratif emprunte le flux par SCÈNES : c'est lui qui sait
   // produire des personnages, des décors et de l'action. Le flux avatar, lui,
   // ne sait animer qu'un portrait face caméra — il ne peut pas raconter une
   // histoire.
@@ -1976,9 +1981,11 @@ export async function processVideoAd(videoAdId: string): Promise<void> {
 
   try {
     const finalPath =
-      utiliseVoixOffSeule
-        ? await runVoixOffPipeline(videoAd, videoAdId, niche, tmpFiles)
-        : await runAvatarPipeline(videoAd, videoAdId, niche, tmpFiles);
+      videoAd.mode === 'express'
+        ? await runExpressPipeline(videoAd, videoAdId, niche, tmpFiles)
+        : utiliseVoixOffSeule
+          ? await runVoixOffPipeline(videoAd, videoAdId, niche, tmpFiles)
+          : await runAvatarPipeline(videoAd, videoAdId, niche, tmpFiles);
 
     // Contrôle qualité final, juste avant l'upload/livraison client : durée
     // conforme, ratio conforme, pistes vidéo+audio réellement présentes et
@@ -2126,9 +2133,225 @@ export async function processVideoAd(videoAdId: string): Promise<void> {
 }
 
 /**
- * Option 1 — "Voix off + musique" : découpage Alexya multi-scènes (mode
- * "best", silencieux), narration TTS générée par-dessus, puis musique de
- * fond légère. Retourne le chemin local du fichier vidéo final (avant upload).
+ * Pub Express (15 s · 30 s) — vidéo animée, sans fournisseur vidéo payant.
+ *
+ * Tout ce qu'il faut existe déjà dans NexAI : photos du client, photos du
+ * site et de la galerie, capture du site, logo, voix et musique. Sonnet 5.5
+ * écrit le scénario (plans, textes à l'écran, mouvements, transitions, texte
+ * de la voix) ; le rendu est fait sur notre serveur (voir
+ * video-express-rendu.service.ts), puis la voix et la musique sont ajoutées
+ * comme pour les autres vidéos.
+ */
+const PLANS_EXPRESS: Record<'15s' | '30s', { min: number; max: number }> = {
+  '15s': { min: 4, max: 5 },
+  '30s': { min: 6, max: 8 },
+};
+
+async function ecrireStoryboardExpress(p: {
+  brief: Record<string, unknown>;
+  niche: string;
+  duree: number;
+  nbPhotos: number;
+  avecSite: boolean;
+  langue: Langue;
+  vertical: boolean;
+}): Promise<StoryboardExpress & { voix: string }> {
+  const b = p.brief as { brandName?: string; ctaText?: string; siteMeta?: { title?: string; url?: string } };
+  const marque = String(b.brandName || b.siteMeta?.title || 'Votre marque').slice(0, 40);
+  const fourchette = PLANS_EXPRESS[p.duree <= 15 ? '15s' : '30s'];
+  const maxMots = Math.max(18, Math.round((p.duree / 60) * 140));
+  const system = `Tu es directeur artistique et rédacteur publicitaire NexAI. Tu conçois une publicité ANIMÉE de ${p.duree} secondes (format ${p.vertical ? 'vertical 9:16 pour TikTok, Reels, Statuts' : 'horizontal 16:9 pour Facebook, YouTube'}) à partir des vraies photos et du site du client.
+Réponds UNIQUEMENT en JSON strict :
+{"couleur":"#RRGGBB","cta":"...","contact":"...","voix":"...","plans":[{"type":"accroche|produit|site|atouts|appel","duree":3,"image":0,"titre":"...","sousTitre":"...","points":["..."],"mouvement":"zoom_avant|zoom_arriere|gauche|droite","transition":"fondu|glisse|zoom"}]}
+Règles :
+- ${fourchette.min} à ${fourchette.max} plans ; la somme des "duree" vaut EXACTEMENT ${p.duree}. Chaque plan dure 2 à 5 s.
+- Ordre : 1er plan "accroche" (promesse forte), puis "produit" (un produit ou service par plan), ${p.avecSite ? 'UN plan "site" (le site défile dans un téléphone),' : 'aucun plan "site" (pas de site),'} au plus un plan "atouts" (2 ou 3 points), et le DERNIER plan est "appel".
+- "image" : index d'une photo entre 0 et ${Math.max(0, p.nbPhotos - 1)}${p.nbPhotos ? ' ; varie les photos, les premières sont les vrais produits du client' : ' (aucune photo : mets 0)'}.
+- Textes à l'écran très courts et percutants : "titre" 2 à 6 mots, "sousTitre" 2 à 7 mots, "points" 2 à 5 mots chacun. Jamais de phrase longue.
+- "cta" : 2 à 4 mots (ex. « Commander sur WhatsApp »). "contact" : téléphone, WhatsApp ou adresse du site s'ils sont connus, sinon "".
+- "couleur" : couleur d'accent lumineuse et lisible sur fond sombre, cohérente avec la marque.
+- "voix" : texte de la voix off, au plus ${maxMots} mots, rythme dynamique, accroche → bénéfice → appel à l'action. Il accompagne les plans dans le même ordre.
+- N'invente ni prix, ni promotion, ni chiffre absents du brief. Ne cite jamais d'outil, de technologie ou d'intelligence artificielle.
+${consigneLangue(p.langue)}`;
+  const user = `Marque : ${marque}
+Activité : ${p.niche}
+Brief : ${JSON.stringify({ ...p.brief, siteContentDossier: undefined, siteMeta: undefined }).slice(0, 1500)}
+${b.siteMeta?.url ? `Site : ${b.siteMeta.url}` : ''}${buildDossierContext(p.brief).slice(0, 3000)}`;
+
+  const brut = await callClaude('claude-sonnet-5-5', system, [{ role: 'user', content: user }], { maxTokens: 1800, temperature: 0.6 });
+  const json = (() => {
+    try {
+      return JSON.parse(brut.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
+    } catch {
+      const m = brut.match(/\{[\s\S]*\}/);
+      return m ? JSON.parse(m[0]) : null;
+    }
+  })() as (StoryboardExpress & { voix?: string }) | null;
+  if (!json || !Array.isArray(json.plans) || json.plans.length < 2) throw new Error('Scénario Pub Express illisible');
+
+  const types = new Set(['accroche', 'produit', 'site', 'atouts', 'appel']);
+  let plans: PlanExpress[] = json.plans
+    .filter((pl) => pl && types.has(pl.type) && (pl.type !== 'site' || p.avecSite))
+    .slice(0, fourchette.max)
+    .map((pl) => ({
+      type: pl.type,
+      duree: Math.min(5, Math.max(2, Number(pl.duree) || 3)),
+      image: Number.isInteger(pl.image) ? Number(pl.image) : 0,
+      titre: typeof pl.titre === 'string' ? pl.titre.slice(0, 60) : undefined,
+      sousTitre: typeof pl.sousTitre === 'string' ? pl.sousTitre.slice(0, 60) : undefined,
+      points: Array.isArray(pl.points) ? pl.points.map((x) => String(x).slice(0, 40)).slice(0, 3) : undefined,
+      mouvement: pl.mouvement,
+      transition: pl.transition,
+    }));
+  // Le dernier plan est toujours l'appel à l'action.
+  if (plans[plans.length - 1]?.type !== 'appel') plans = [...plans.filter((x) => x.type !== 'appel'), { type: 'appel', duree: 3, titre: undefined }];
+  // Durée totale EXACTE (le contrôle qualité vérifie la durée livrée).
+  const somme = plans.reduce((t, x) => t + x.duree, 0);
+  plans = plans.map((x) => ({ ...x, duree: (x.duree * p.duree) / somme }));
+  const ecart = p.duree - plans.reduce((t, x) => t + x.duree, 0);
+  plans[plans.length - 1].duree += ecart;
+
+  return {
+    plans,
+    couleur: typeof json.couleur === 'string' ? json.couleur : '#F59E0B',
+    marque,
+    cta: String(json.cta || b.ctaText || (p.langue === 'en' ? 'Order now' : 'Commander maintenant')).slice(0, 40),
+    contact: typeof json.contact === 'string' ? json.contact.slice(0, 60) : undefined,
+    voix: String(json.voix || ''),
+  };
+}
+
+async function imageExpressDepuisUrl(url: string): Promise<ImageExpress | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) return null;
+    const type = res.headers.get('content-type') || 'image/jpeg';
+    if (!/^image\//.test(type)) return null;
+    const donnees = Buffer.from(await res.arrayBuffer());
+    return donnees.length > 1000 ? { donnees, type } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function runExpressPipeline(
+  videoAd: HydratedDocument<any>,
+  videoAdId: string,
+  niche: string,
+  tmpFiles: string[]
+): Promise<string> {
+  const duree = videoAd.format === '15s' ? 15 : 30;
+  const vertical = videoAd.aspectRatio === '9:16';
+  const target = getTargetResolution(videoAd.aspectRatio);
+  const langue = await langueDuProprietaire(videoAd.userId);
+  const brief = videoAd.brief as Record<string, unknown> & {
+    brandName?: string;
+    description?: string;
+    style?: string;
+    siteMeta?: { title?: string; description?: string; logoUrl?: string };
+    clientProductImageUrls?: string[];
+  };
+
+  // 1. Matière première : photos (client d'abord), capture du site, logo.
+  const liveSiteUrl = await resolveLiveSiteUrl(videoAd);
+  let pool: ReferenceImagePool = { productImages: [], mockupImages: [] };
+  try {
+    pool = await buildReferenceImagePool({
+      siteId: videoAd.siteId ? String(videoAd.siteId) : undefined,
+      liveSiteUrl,
+      clientUploadedImageUrls: brief.clientProductImageUrls,
+      niche,
+      brandName: brief.brandName || brief.siteMeta?.title,
+      description: brief.description || brief.siteMeta?.description,
+      tone: brief.style,
+    });
+  } catch (err) {
+    console.warn('[video-express] Photos indisponibles', err);
+  }
+  const urls = Array.from(new Set([...pool.productImages, ...pool.mockupImages].map((im) => im.url))).slice(0, 6);
+  const images = (await Promise.all(urls.map(imageExpressDepuisUrl))).filter((x): x is ImageExpress => !!x);
+  videoAd.imageSourcing = {
+    productImagesCount: pool.productImages.length,
+    mockupImagesCount: pool.mockupImages.length,
+    mockupReused: pool.mockupImages.some((img) => img.source === 'nexai_reuse'),
+  };
+
+  const captureSite = liveSiteUrl ? await capturerSitePourExpress(liveSiteUrl, vertical) : undefined;
+  let logoUrl = brief.siteMeta?.logoUrl;
+  if (!logoUrl && videoAd.siteId) {
+    const site = await Site.findById(videoAd.siteId).select('chosenLogoUrl').lean();
+    logoUrl = (site as { chosenLogoUrl?: string } | null)?.chosenLogoUrl;
+  }
+  const logo = logoUrl ? (await imageExpressDepuisUrl(logoUrl)) ?? undefined : undefined;
+  if (logoUrl && logo) videoAd.logoUrl = logoUrl;
+
+  // 2. Scénario.
+  const storyboard = await ecrireStoryboardExpress({
+    brief,
+    niche,
+    duree,
+    nbPhotos: images.length,
+    avecSite: !!captureSite,
+    langue,
+    vertical,
+  });
+  videoAd.narrationScript = storyboard.voix;
+  await videoAd.save();
+
+  // 3. Rendu de l'animation.
+  const base = path.join(os.tmpdir(), `${videoAdId}_express`);
+  const silencieuse = `${base}_animation.mp4`;
+  tmpFiles.push(silencieuse, `${silencieuse}.html`);
+  await rendreVideoExpress({
+    storyboard,
+    images,
+    captureSite,
+    logo,
+    largeur: target.width,
+    hauteur: target.height,
+    fps: target.fps,
+    sortie: silencieuse,
+  });
+
+  // 4. Voix puis musique (best-effort, comme les autres vidéos).
+  let finalPath = silencieuse;
+  let narrationPath: string | undefined;
+  if (storyboard.voix) {
+    try {
+      const voiceId = pickVoiceId();
+      videoAd.voiceId = voiceId;
+      const tts = await synthesizeSpeech(storyboard.voix, { voiceId });
+      narrationPath = `${base}_voix.mp3`;
+      tmpFiles.push(narrationPath);
+      await fs.writeFile(narrationPath, tts.audioBuffer);
+      const avecVoix = `${base}_avec_voix.mp4`;
+      tmpFiles.push(avecVoix);
+      await runFfmpegAddNarration({ silentVideoPath: silencieuse, narrationAudioPath: narrationPath, totalDurationSeconds: duree, outputPath: avecVoix });
+      finalPath = avecVoix;
+    } catch (err) {
+      console.warn('[video-express] Voix indisponible, livraison sans voix', err);
+    }
+  }
+  const track = resolveMusicTrack(niche);
+  if (track?.url) {
+    try {
+      const musique = await downloadToTmp(track.url, `${videoAdId}_express_music.mp3`);
+      tmpFiles.push(musique);
+      const avecMusique = `${base}_avec_musique.mp4`;
+      tmpFiles.push(avecMusique);
+      await runFfmpegMixBackgroundMusicUnderVoice({ videoWithVoicePath: finalPath, musicPath: musique, outputPath: avecMusique });
+      finalPath = avecMusique;
+    } catch (err) {
+      console.warn('[video-express] Musique indisponible', err);
+    }
+  }
+  return finalPath;
+}
+
+/**
+ * Pub Cinéma IA (et mini-film raconté) : scènes filmées par l'IA (Alexya ou
+ * Kling selon la durée), capture réelle du site, narration TTS, puis musique
+ * de fond légère. Retourne le chemin local du fichier vidéo final (avant upload).
  */
 async function runVoixOffPipeline(
   videoAd: HydratedDocument<any>,
@@ -2850,17 +3073,13 @@ async function runAvatarPipeline(
   // le moteur vidéo — la qualité découle de la durée, jamais d'un choix.
   const quality: AvatarQuality =
     getVideoEngineForFormat(videoAd.format as VideoAdFormat) === 'kling' ? 'pro' : 'standard';
-  // Durée déduite du format, SAUF pour le test de l'essai gratuit qui
-  // impose 8 secondes (voir video-test.service.ts) — c'est ce qui maintient
-  // son coût réel autour de 0,46 $.
-  const brief0 = videoAd.brief as Record<string, unknown> | undefined;
-  const dureeForcee =
-    typeof brief0?.durationSecondsOverride === 'number' ? brief0.durationSecondsOverride : null;
+  // Durée déduite du format, toujours (le brief du client ne peut pas
+  // l'imposer : sinon une vidéo payée 30 s pourrait en produire 120).
   // Table explicite plutôt qu'une cascade de ternaires : celle-ci renvoyait
   // 120 pour TOUTE durée non prévue, si bien qu'un 20 s était produit en
   // deux minutes, avec une narration six fois trop longue.
-  const DUREES: Record<string, number> = { '20s': 20, '30s': 30, '60s': 60, '120s': 120 };
-  const totalDurationSeconds = dureeForcee ?? DUREES[String(videoAd.format)] ?? 30;
+  const DUREES: Record<string, number> = { '15s': 15, '20s': 20, '30s': 30, '45s': 45, '60s': 60, '120s': 120 };
+  const totalDurationSeconds = DUREES[String(videoAd.format)] ?? 30;
 
   // 1. Script + portrait du présentateur (Claude + Grok Imagine)
   const script = await buildNarrationScript(
@@ -2880,16 +3099,12 @@ async function runAvatarPipeline(
   const proprietaire = await User.findById(videoAd.userId).select('plan avatarPrefere');
   const choixAvatar = normaliserChoixAvatar(brief?.avatar ?? proprietaire?.avatarPrefere);
   const portraitPrompt = construirePromptPortrait(choixAvatar, brand);
-  // Palier image du portrait : 2.0 pour les plans payants (le portrait est
-  // ensuite animé par Kling Avatar, et tout défaut y est amplifié), mais
-  // palier standard pour le TEST 8s de l'essai gratuit — il passe par ce même
-  // pipeline en mode 'avatar_pub' (voir video-test.service.ts) et doit rester
-  // au coût d'acquisition le plus bas possible.
-  const estTestEssai = proprietaire?.plan === 'trial';
+  // Palier image du portrait : 2.0 (le portrait est ensuite animé par Kling
+  // Avatar, et tout défaut y est amplifié). La vidéo est réservée aux abonnés.
   const portrait = await generateGrokImagine({
     prompt: portraitPrompt,
     aspectRatio: videoAd.aspectRatio,
-    tier: estTestEssai ? 'standard' : 'v2',
+    tier: 'v2',
   });
   videoAd.characterImageUrl = portrait.url;
   await videoAd.save();

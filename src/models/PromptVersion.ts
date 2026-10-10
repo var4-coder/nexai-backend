@@ -8,12 +8,12 @@ import { Schema, model, Types } from 'mongoose';
  *
  * Cycle de vie :
  *   'actif'    — la version actuellement utilisée en production
- *   'candidat' — proposition de Sonnet 5, en attente de la décision admin
+ *   'candidat' — proposition de Sonnet 5.5, en attente de la décision admin
  *   'archive'  — ancienne version remplacée (restaurable à tout moment)
  *   'rejete'   — candidat refusé par l'admin
  *
  * Règle de déclenchement : Fable DÉTECTE le point faible (niche, rôle
- * précis, ou problème systémique), Sonnet 5 RÉDIGE la correction pour ces
+ * précis, ou problème systémique), Sonnet 5.5 RÉDIGE la correction pour ces
  * parties uniquement — jamais une réécriture globale. L'admin valide ou
  * refuse ; son silence pendant 1h vaut acceptation (voir appliedAt/expiresAt).
  */

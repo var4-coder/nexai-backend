@@ -1,3 +1,4 @@
+import { SITE_ESSAI_DEJA_UTILISE } from '@/constants/textes-client';
 import type { HydratedDocument } from 'mongoose';
 import { CompteurDepense } from '@/services/cout-generation.service';
 import { avecCompteurDepense, plafondDepasse } from '@/services/depense-context';
@@ -11,6 +12,7 @@ import { User, IUser } from '@/models/User';
 import { pipelineQueue } from '@/jobs/queue';
 import {
   debitCredits,
+  assertTrialNotExpired,
   creditCredits,
   CREDIT_COSTS,
   PROPOSAL_MIN_SCORE,
@@ -582,14 +584,38 @@ export async function enqueueSiteGeneration(
     freeRelaunchUsed: site.freeRelaunchUsed,
   };
   let debite = false;
+  let siteEssaiReserve = false;
   let bullJob: Awaited<ReturnType<typeof pipelineQueue.add>> | undefined;
   try {
     if (wantsFreeRelaunch) {
       assertRelanceGratuiteAutorisee(site);
       isClientFreeRelaunch = true;
-      creditCost = site.creditsChargedForGeneration || creditCost;
+      // ?? et non || : un site offert de l'essai a coûté 0 crédit, à ne pas « rembourser » 12.
+      creditCost = site.creditsChargedForGeneration ?? creditCost;
       site.freeRelaunchUsed = true;
       site.freeRelaunchAvailable = false;
+    } else if (user.plan === 'trial' && user.role !== 'admin') {
+      // Essai gratuit : UN site offert, sans crédit (décision du 10/10/2026).
+      // Toute deuxième création est refusée : réservation ATOMIQUE de la
+      // date, et refus si le compte a déjà lancé un autre site.
+      await assertTrialNotExpired(user);
+      const autreSite = await Site.exists({ userId, _id: { $ne: site._id }, generationStartedAt: { $exists: true } });
+      const reserve = autreSite
+        ? null
+        : await User.findOneAndUpdate(
+            { _id: userId, siteEssaiOffertLe: { $exists: false } },
+            { $set: { siteEssaiOffertLe: new Date() } }
+          ).select('_id');
+      if (!reserve) throw new AppError(SITE_ESSAI_DEJA_UTILISE, 403);
+      siteEssaiReserve = true;
+      creditCost = 0;
+      site.creditsChargedForGeneration = 0;
+      site.depenseCumuleeUsd = 0;
+      site.autoRetryUsed = false;
+      site.freeRelaunchAvailable = false;
+      site.freeRelaunchUsed = false;
+      site.freeRelaunchAvailableAt = undefined;
+      site.generationRefunded = false;
     } else {
       creditsBalanceAfter = await debitCredits(userId, creditCost, 'apercu_site', {
         relatedSiteId: siteId,
@@ -653,6 +679,10 @@ export async function enqueueSiteGeneration(
         },
       }
     ).catch((e) => console.error('[ia-pipeline] Site non remis dans son état :', e));
+    if (siteEssaiReserve) {
+      // Site offert de l'essai rendu : la création n'a pas pu être lancée.
+      await User.updateOne({ _id: userId }, { $unset: { siteEssaiOffertLe: 1 } }).catch(() => undefined);
+    }
     if (debite) {
       await creditCredits(userId, creditCost, 'ajustement_admin', {
         relatedSiteId: siteId,
@@ -667,7 +697,7 @@ export async function enqueueSiteGeneration(
 
 /**
  * Modification IA d'un site existant (coût 8 crédits).
- * Charge le site + brief + HTML choisi, applique l'instruction via Sonnet 5
+ * Charge le site + brief + HTML choisi, applique l'instruction via Sonnet 5.5
  * (3 tours max : appliquer → vérifier → rattrapage limité).
  */
 export async function enqueueAiModify(siteId: string, userId: string, instruction: string) {

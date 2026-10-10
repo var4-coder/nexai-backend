@@ -79,7 +79,7 @@ export interface IAcademyContent {
    * status='publié' uniquement.
    */
   status: AcademyStatus;
-  /** Niche utilisée pour la recherche d'image Pexels + le prompt Sonnet 5 */
+  /** Niche utilisée pour la recherche d'image Pexels + le prompt Sonnet 5.5 */
   niche?: string;
   /** Image de couverture trouvée automatiquement via Pexels (niche + titre) */
   imageUrl?: string;

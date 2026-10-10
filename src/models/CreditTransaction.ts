@@ -7,7 +7,7 @@ export type CreditTransactionType =
   | 'apercu_site'
   | 'generation_site'
   | 'logo'
-  /** Coach « Trouver un business » — 3 crédits, 1 idée par session */
+  /** Coach « Trouver un business » — 5 crédits, 1 idée par session */
   | 'coach_business'
   /** Skill NexAI — commande d'un skill sur mesure (débit) */
   | 'skill_nexai'

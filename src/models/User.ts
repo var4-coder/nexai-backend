@@ -34,6 +34,8 @@ export interface IUser {
   /** Numéro vérifié par SMS (format international). Un numéro = un seul compte d'essai. */
   telephoneVerifie?: string;
   telephoneVerifieLe?: Date;
+  /** Date de création du site offert de l'essai gratuit (un seul par compte). */
+  siteEssaiOffertLe?: Date;
   codeTelephone?: ICodeTelephone;
   /** D'où vient l'inscrit (facebook, tiktok, direct…), noté à la création du compte. */
   acquisition?: { source?: string; campagne?: string; le?: Date };
@@ -62,8 +64,8 @@ export interface IUser {
    */
   planExpiresAt?: Date;
   /**
-   * Cadeau de bienvenue : une vidéo de 20 s offerte à la première
-   * souscription d'un plan donnant accès à la vidéo (Créateur+ et au-delà).
+   * Bonus Pro Max : la première Pub Présentateur IA de 30 s est offerte à
+   * la première souscription Pro Max (voir chariow.service.ts).
    * `videoOfferteDisponible` est consommé à la génération ;
    * `cadeauBienvenueAttribue` garantit qu'il n'est jamais offert deux fois,
    * même après une résiliation et un réabonnement.
@@ -131,6 +133,7 @@ const userSchema = new Schema<IUser>(
     telephonePays: { type: String },
     telephoneVerifie: { type: String, index: true, sparse: true },
     telephoneVerifieLe: { type: Date },
+    siteEssaiOffertLe: { type: Date },
     codeTelephone: { type: Schema.Types.Mixed, select: false },
     acquisition: {
       source: { type: String, index: true },

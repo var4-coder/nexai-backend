@@ -5,7 +5,7 @@ import { AppError } from '@/middleware/errorHandler';
 /**
  * Mise à jour des textes commerciaux après un changement de tarif.
  *
- * Sonnet 5 relit chaque texte, repère ceux qui mentionnent une valeur
+ * Sonnet 5.5 relit chaque texte, repère ceux qui mentionnent une valeur
  * devenue fausse, et propose une version corrigée. Rien n'est publié : la
  * proposition attend la validation de l'administrateur, qui peut la
  * modifier avant.
@@ -141,14 +141,14 @@ const TEXTES_INITIAUX: {
     emplacement: 'accueil',
     role: "Encadré de l'essai gratuit sur la page d'accueil",
     contenu:
-      "15 crédits offerts à l'inscription. De quoi trouver votre idée d'activité avec le Coach business (3 crédits) puis créer un vrai site (12 crédits) — les deux, exactement.",
+      "Votre premier site est offert, et vous recevez 10 crédits pour trouver votre idée de business avec le Coach IA. Sans carte bancaire. Vous ne payez que pour le mettre en ligne.",
   },
   {
     cle: 'accueil.video',
     emplacement: 'accueil',
     role: 'Présentation de la vidéo IA sur la page d’accueil',
     contenu:
-      "Créez vos publicités vidéo : 20 secondes à partir de 23 crédits, 30 secondes à 39, 60 secondes à 80. Le mini-film de 2 minutes, en qualité cinéma, est réservé à l'abonnement Pro Max.",
+      "Créez vos publicités vidéo : Pub Express animée avec vos produits (15 s ou 30 s, dès 8 crédits), Pub Présentateur IA face caméra (30 s ou 45 s), et avec Agence et Pro Max la Pub Cinéma IA (60 s) et le Mini-film IA (2 minutes), tournés comme au cinéma.",
   },
   {
     cle: 'accueil.hebergement',
@@ -169,14 +169,14 @@ const TEXTES_INITIAUX: {
     emplacement: 'guide',
     role: 'Guide — combien coûte une vidéo',
     contenu:
-      "Publicité avec présentateur : 23 crédits (20 s), 39 (30 s), 80 (60 s). Publicité avec voix off : 27, 45 et 92 crédits. Mini-film de 2 minutes : 160 crédits, réservé à Pro Max.",
+      "Pub Express : 8 crédits (15 s), 14 (30 s). Pub Présentateur IA : 75 crédits (30 s), 84 (45 s). Pub Cinéma IA : 115 crédits (60 s). Mini-film IA de 2 minutes : 200 crédits. Pub Cinéma IA et Mini-film IA sont réservés à Agence et Pro Max.",
   },
   {
     cle: 'guide.abonnements',
     emplacement: 'guide',
     role: 'Guide — les abonnements et leurs crédits',
     contenu:
-      "Starter 5 000 FCFA (30 crédits) : Académie, Boutique et Coach. Créateur+ 10 000 FCFA (80 crédits) : sites, logos, domaines et vidéos. Agence 25 000 FCFA (220 crédits) : 10 clients et Analytics. Pro Max 35 000 FCFA (320 crédits) : clients illimités et mini-film.",
+      "Starter 5 000 FCFA (30 crédits) : Académie, Boutique et Coach. Créateur+ 10 000 FCFA (80 crédits) : sites, logos, domaines, Pub Express et Pub Présentateur IA. Agence 25 000 FCFA (220 crédits) : 10 clients, Analytics, Pub Cinéma IA et Mini-film IA. Pro Max 35 000 FCFA (320 crédits) : clients illimités et le meilleur prix du crédit.",
   },
   {
     cle: 'aide.sans_abonnement',
@@ -190,14 +190,14 @@ const TEXTES_INITIAUX: {
     emplacement: 'video',
     role: 'Écran vidéo — descriptif du mini-film',
     contenu:
-      "Deux minutes en qualité cinéma. Pour votre entreprise, une vraie publicité de présentation. Pour les créateurs de contenu, des histoires prêtes à publier sur TikTok, Instagram ou Facebook. Réservé à l'abonnement Pro Max.",
+      "Votre histoire en 2 minutes, avec des personnages, des scènes et une vraie narration. Pour votre entreprise : le film de votre marque. Pour les créateurs de contenu : des histoires et des séries prêtes à publier sur TikTok, Facebook, Instagram ou votre chaîne YouTube, pour attirer des vues, faire grandir votre communauté et monétiser vos plateformes. Réservé à Agence et Pro Max.",
   },
   {
     cle: 'abonnement.cadeau',
     emplacement: 'abonnement',
     role: 'Abonnement — bonus Pro Max',
     contenu:
-      "Bonus Pro Max : votre première vidéo publicitaire de 20 secondes vous est offerte à la souscription.",
+      "Bonus Pro Max : votre première Pub Présentateur IA de 30 secondes vous est offerte à la souscription.",
   },
   {
     cle: 'credits.packs',
@@ -235,19 +235,28 @@ export async function initialiserTextes(): Promise<{ crees: number; existants: n
  * Textes par défaut remplacés par une décision commerciale : mis à jour en
  * base SEULEMENT s'ils n'ont pas été modifiés par l'administrateur.
  */
-const DEFAUTS_REMPLACES: { cle: string; ancien: string; nouveau: string }[] = [
+const DEFAUTS_REMPLACES: { cle: string; ancien: string; nouveau: string; role?: string }[] = [
   {
     cle: 'abonnement.cadeau',
     ancien: "Une vidéo de 20 secondes vous est offerte à votre première souscription, dès l'abonnement Créateur+.",
     nouveau: "Bonus Pro Max : votre première vidéo publicitaire de 20 secondes vous est offerte à la souscription.",
+    role: 'Abonnement — bonus Pro Max',
   },
+  // Vidéo IA du 10/10/2026 : Pub Express, Présentateur 30/45 s, Cinéma 60 s, Mini-film (Agence et Pro Max).
+  { cle: 'accueil.video', ancien: "Créez vos publicités vidéo : 20 secondes à partir de 23 crédits, 30 secondes à 39, 60 secondes à 80. Le mini-film de 2 minutes, en qualité cinéma, est réservé à l'abonnement Pro Max.", nouveau: "Créez vos publicités vidéo : Pub Express animée avec vos produits (15 s ou 30 s, dès 8 crédits), Pub Présentateur IA face caméra (30 s ou 45 s), et avec Agence et Pro Max la Pub Cinéma IA (60 s) et le Mini-film IA (2 minutes), tournés comme au cinéma." },
+  { cle: 'guide.cout_video', ancien: "Publicité avec présentateur : 23 crédits (20 s), 39 (30 s), 80 (60 s). Publicité avec voix off : 27, 45 et 92 crédits. Mini-film de 2 minutes : 160 crédits, réservé à Pro Max.", nouveau: "Pub Express : 8 crédits (15 s), 14 (30 s). Pub Présentateur IA : 75 crédits (30 s), 84 (45 s). Pub Cinéma IA : 115 crédits (60 s). Mini-film IA de 2 minutes : 200 crédits. Pub Cinéma IA et Mini-film IA sont réservés à Agence et Pro Max." },
+  { cle: 'guide.abonnements', ancien: "Starter 5 000 FCFA (30 crédits) : Académie, Boutique et Coach. Créateur+ 10 000 FCFA (80 crédits) : sites, logos, domaines et vidéos. Agence 25 000 FCFA (220 crédits) : 10 clients et Analytics. Pro Max 35 000 FCFA (320 crédits) : clients illimités et mini-film.", nouveau: "Starter 5 000 FCFA (30 crédits) : Académie, Boutique et Coach. Créateur+ 10 000 FCFA (80 crédits) : sites, logos, domaines, Pub Express et Pub Présentateur IA. Agence 25 000 FCFA (220 crédits) : 10 clients, Analytics, Pub Cinéma IA et Mini-film IA. Pro Max 35 000 FCFA (320 crédits) : clients illimités et le meilleur prix du crédit." },
+  { cle: 'video.mini_film', ancien: "Deux minutes en qualité cinéma. Pour votre entreprise, une vraie publicité de présentation. Pour les créateurs de contenu, des histoires prêtes à publier sur TikTok, Instagram ou Facebook. Réservé à l'abonnement Pro Max.", nouveau: "Votre histoire en 2 minutes, avec des personnages, des scènes et une vraie narration. Pour votre entreprise : le film de votre marque. Pour les créateurs de contenu : des histoires et des séries prêtes à publier sur TikTok, Facebook, Instagram ou votre chaîne YouTube, pour attirer des vues, faire grandir votre communauté et monétiser vos plateformes. Réservé à Agence et Pro Max." },
+  { cle: 'abonnement.cadeau', ancien: "Bonus Pro Max : votre première vidéo publicitaire de 20 secondes vous est offerte à la souscription.", nouveau: "Bonus Pro Max : votre première Pub Présentateur IA de 30 secondes vous est offerte à la souscription." },
+  // Essai gratuit du 10/10/2026 : site offert + 10 crédits pour le Coach.
+  { cle: 'accueil.essai', ancien: "15 crédits offerts à l'inscription. De quoi trouver votre idée d'activité avec le Coach business (3 crédits) puis créer un vrai site (12 crédits) — les deux, exactement.", nouveau: "Votre premier site est offert, et vous recevez 10 crédits pour trouver votre idée de business avec le Coach IA. Sans carte bancaire. Vous ne payez que pour le mettre en ligne." },
 ];
 
 export async function migrerTextesParDefaut(): Promise<void> {
   for (const d of DEFAUTS_REMPLACES) {
     await TexteCommercial.updateOne(
       { cle: d.cle, contenu: d.ancien },
-      { $set: { contenu: d.nouveau, role: 'Abonnement — bonus Pro Max', majLe: new Date() } }
+      { $set: { contenu: d.nouveau, ...(d.role ? { role: d.role } : {}), majLe: new Date() } }
     ).catch(() => {});
   }
 }

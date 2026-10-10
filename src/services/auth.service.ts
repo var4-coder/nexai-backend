@@ -159,7 +159,7 @@ export async function registerUser(params: {
     // Sans ce forçage, l'admin serait bloqué comme un compte d'essai.
     plan: (await emailEstAdmin(email)) ? 'pro_max' : 'trial',
     trialEndsAt: (await emailEstAdmin(email)) ? undefined : newTrialEndsAt(),
-    creditsBalance: PLAN_CREDITS.trial, // 15 crédits offerts, une seule fois
+    creditsBalance: PLAN_CREDITS.trial, // 10 crédits offerts, une seule fois (+ 1 site offert)
     domainsUsed: 0,
     // Langue d'interface : celle demandée explicitement, sinon déduite du pays
     // choisi, sinon français. Modifiable ensuite dans Paramètres.
@@ -304,7 +304,7 @@ export async function loginWithGoogle(params: {
       role: (await emailEstAdmin(email)) ? 'admin' : 'user',
       plan: (await emailEstAdmin(email)) ? 'pro_max' : 'trial',
       trialEndsAt: (await emailEstAdmin(email)) ? undefined : newTrialEndsAt(),
-      creditsBalance: PLAN_CREDITS.trial, // 15 crédits, identique à l'inscription email
+      creditsBalance: PLAN_CREDITS.trial, // 10 crédits, identique à l'inscription email
       domainsUsed: 0,
       langue:
         normaliserLangue(params.langue) ?? langueParDefautPourPays(params.pays),

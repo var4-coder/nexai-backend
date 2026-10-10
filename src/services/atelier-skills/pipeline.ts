@@ -16,6 +16,7 @@ import {
   type ISkillSettings,
 } from '@/models/AtelierSkills';
 import { appelerModeleBrut, coutAppel, extraireJson } from '@/services/atelier-skills/modeles';
+import { compterAppelIaUsd } from '@/services/stats-jour.service';
 import { consigne, GRILLE_V0, vetosDuJuge } from '@/services/atelier-skills/consignes';
 import { decoderPrix, encoderPrix, lireReglages } from '@/services/atelier-skills/reglages';
 import { BUDGET_MINI_RELANCE_USD, POSTES_COMMANDE_CLIENT } from '@/services/atelier-skills/commandes-client';
@@ -153,6 +154,8 @@ async function appeler<S extends z.ZodTypeAny | null>(
         recherche: opts.recherche,
       });
       const cout = coutAppel(ctx.config.prix[modele], r);
+      // Coût IA du jour pour le Bilan (Anthropic, xAI, OpenAI, DeepSeek).
+      compterAppelIaUsd(modele, cout, r.entree + r.cache, r.sortie);
       ctx.etape.appels.push({ poste, modele, entree: r.entree, sortie: r.sortie, cache: r.cache, coutUSD: cout, dureeMs: Date.now() - debut, tentatives: tentative });
       ctx.etape.jetons += r.entree + r.sortie + r.cache;
       ctx.etape.coutUSD += cout;

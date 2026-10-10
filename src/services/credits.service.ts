@@ -4,15 +4,15 @@ import { User, UserPlan } from '@/models/User';
 import { CreditTransaction, CreditTransactionType } from '@/models/CreditTransaction';
 import { AppError } from '@/middleware/errorHandler';
 import { ChariowService } from './chariow.service';
-import { VERROU_MINI_FILM } from '@/constants/textes-client';
+import { VERROU_MINI_FILM, VERROU_PUB_CINEMA } from '@/constants/textes-client';
 
 const TRIAL_ALLOWED_ACTIONS: ReadonlySet<keyof typeof CREDIT_COSTS> = new Set([
   'GENERER_SITE',
   'BUSINESS_COACH',
   // Décision commerciale confirmée (dernier arbitrage) : LOGO et MODIF_IA
   // sont RÉSERVÉS aux abonnés payants, y compris pendant l'essai gratuit.
-  // L'essai gratuit peut créer un site et trouver un business (limité par
-  // ses 15 crédits), et peut modifier un site DÉJÀ CRÉÉ par voie textuelle
+  // L'essai gratuit reçoit UN site offert (sans crédit, voir
+  // enqueueSiteGeneration) et 10 crédits pour le Coach business, et peut modifier un site DÉJÀ CRÉÉ par voie textuelle
   // (PATCH /sites/:id/brief, 0 crédit, jamais bloqué ici) — mais ni générer
   // un logo par IA, ni modifier un site par IA. Ne pas remettre 'LOGO' ou
   // 'MODIF_IA' ici sans confirmation explicite : voir aussi
@@ -150,7 +150,9 @@ export const CREDIT_COSTS = {
   MODIF_MANUELLE: 0,
   MODIF_IA: 8,
   REGENERER_SITE: 15,
-  LOGO: 6,
+  // Logo à 11 crédits (décision du 10/10/2026) : au-dessus des 10 crédits de
+  // l'essai, qui n'y a de toute façon pas accès.
+  LOGO: 11,
   // ── Skill NexAI (création d'un skill sur mesure par l'Atelier Skills) ──
   //
   // 25 crédits = 3 750 FCFA au tarif de 150 FCFA le crédit (pack).
@@ -162,30 +164,25 @@ export const CREDIT_COSTS = {
   // de chaque exécution). Ne PAS descendre sous 25 sans refaire ce calcul.
   SKILL_NEXAI: 25,
 
-  // Coach business volontairement bon marché : sur l'essai gratuit (15
-  // crédits), 3 + 12 = 15 permet EXACTEMENT de trouver son idée de business
-  // PUIS de générer son premier site. C'est l'argument de conversion le plus
-  // fort du parcours d'essai — le prospect repart avec un site réel.
-  BUSINESS_COACH: 3,
+  // Coach business : 5 crédits (décision du 10/10/2026). L'essai gratuit
+  // reçoit 10 crédits pour lui (« +10 crédits offerts pour trouver ton
+  // business ») et son premier site est offert à part, sans crédit.
+  BUSINESS_COACH: 5,
 
-  // ── Vidéo publicitaire : tarif par DURÉE et par MODE ──
+  // ── Vidéo publicitaire : grille du 10/10/2026 ──
   //
-  // Aucun choix de qualité côté client : le moteur découle de la durée
-  // (formats courts sur Alexya, longs sur Kling, voir
-  // getVideoEngineForFormat), et le prix ne dépend que de la durée et du
-  // mode. La voix off est un peu plus chère : elle ajoute une narration
-  // ElevenLabs au coût du moteur vidéo.
-  //
-  // Marges visées sur Pro Max, le plan le moins favorable : 42 % sur le
-  // 20 s — point d'entrée volontairement accessible — et 50 % ailleurs.
-  AVATAR_PUB_20S: 23,
-  AVATAR_PUB_30S: 39,
-  AVATAR_PUB_60S: 80,
-  VOIX_OFF_20S: 27,
-  VOIX_OFF_30S: 45,
-  VOIX_OFF_60S: 92,
-  // Le 120 s est exclusivement le mini-film, réservé à Pro Max.
-  MINI_FILM_120S: 160,
+  // Marges calculées sur la valeur du crédit après frais de paiement, sur le
+  // plan le moins favorable qui a accès à l'offre :
+  //  · Pub Express (vidéo animée, sans fournisseur vidéo) : ~90 %.
+  //  · Pub Présentateur IA (30 s, 45 s) : jamais sous 70 % (Pro Max).
+  //  · À partir de 60 s, uniquement le cinéma : Pub Cinéma IA (60 s) et
+  //    Mini-film (2 min), ~73-75 %, réservés à Agence et Pro Max.
+  EXPRESS_15S: 8,
+  EXPRESS_30S: 14,
+  AVATAR_PUB_30S: 75,
+  AVATAR_PUB_45S: 84,
+  VOIX_OFF_60S: 115,
+  MINI_FILM_120S: 200,
 } as const;
 
 /**
@@ -220,8 +217,12 @@ export function getVideoAdRelaunchCost(
  * narration ElevenLabs.
  */
 const VIDEO_AD_REAL_COST_USD: Record<string, number> = {
+  // Pub Express : scénario + voix ; le rendu se fait sur notre serveur.
+  'express:15s': 0.1,
+  'express:30s': 0.18,
   'avatar_pub:20s': 2.44,
   'avatar_pub:30s': 3.53,
+  'avatar_pub:45s': 3.95,
   'avatar_pub:60s': 4.32,
   'voix_off:20s': 2.68,
   'voix_off:30s': 3.77,
@@ -233,9 +234,25 @@ export function estimateVideoAdRealCostUsd(mode: VideoAdMode, format: VideoAdFor
   return VIDEO_AD_REAL_COST_USD[`${mode}:${format}`] ?? null;
 }
 
-export type VideoAdFormat = '20s' | '30s' | '60s' | '120s';
+/** '20s' n'est plus proposé depuis le 10/10/2026 : gardé pour lire les anciennes vidéos. */
+export type VideoAdFormat = '15s' | '20s' | '30s' | '45s' | '60s' | '120s';
 export type VideoAdQuality = 'standard' | 'premium';
-export type VideoAdMode = 'voix_off' | 'avatar_pub' | 'mini_film';
+/**
+ * Noms internes des offres (le client voit les noms commerciaux) :
+ *  · express    — Pub Express (15 s, 30 s)
+ *  · avatar_pub — Pub Présentateur IA (30 s, 45 s)
+ *  · voix_off   — Pub Cinéma IA (60 s), Agence et Pro Max
+ *  · mini_film  — Mini-film IA (2 min), Agence et Pro Max
+ */
+export type VideoAdMode = 'express' | 'voix_off' | 'avatar_pub' | 'mini_film';
+
+/** Durées proposées par offre. */
+export const FORMATS_PAR_MODE: Record<VideoAdMode, VideoAdFormat[]> = {
+  express: ['15s', '30s'],
+  avatar_pub: ['30s', '45s'],
+  voix_off: ['60s'],
+  mini_film: ['120s'],
+};
 
 export function getVideoAdCreditCost(
   mode: VideoAdMode,
@@ -244,22 +261,17 @@ export function getVideoAdCreditCost(
   // mais sans effet : la qualité ne se choisit plus côté client.
   _quality?: VideoAdQuality
 ): number {
-  if (mode === 'mini_film' || format === '120s') {
-    if (mode !== 'mini_film' || format !== '120s') {
-      throw new AppError(
-        'Le format 120 secondes est réservé au mini-film, disponible avec l’abonnement Pro Max.',
-        400
-      );
-    }
-    return CREDIT_COSTS.MINI_FILM_120S;
+  const grille: Record<VideoAdMode, Partial<Record<VideoAdFormat, number>>> = {
+    express: { '15s': CREDIT_COSTS.EXPRESS_15S, '30s': CREDIT_COSTS.EXPRESS_30S },
+    avatar_pub: { '30s': CREDIT_COSTS.AVATAR_PUB_30S, '45s': CREDIT_COSTS.AVATAR_PUB_45S },
+    voix_off: { '60s': CREDIT_COSTS.VOIX_OFF_60S },
+    mini_film: { '120s': CREDIT_COSTS.MINI_FILM_120S },
+  };
+  const prix = grille[mode]?.[format];
+  if (prix === undefined) {
+    throw new AppError('Cette durée n’est pas proposée pour cette vidéo. Choisissez une des durées affichées.', 400);
   }
-
-  const tarifs: Record<'20s' | '30s' | '60s', number> =
-    mode === 'avatar_pub'
-      ? { '20s': CREDIT_COSTS.AVATAR_PUB_20S, '30s': CREDIT_COSTS.AVATAR_PUB_30S, '60s': CREDIT_COSTS.AVATAR_PUB_60S }
-      : { '20s': CREDIT_COSTS.VOIX_OFF_20S, '30s': CREDIT_COSTS.VOIX_OFF_30S, '60s': CREDIT_COSTS.VOIX_OFF_60S };
-
-  return tarifs[format];
+  return prix;
 }
 
 /**
@@ -348,10 +360,13 @@ export function assertLogoGenerationPlanAllowed(plan: UserPlan) {
   }
 }
 
+/** Pub Cinéma IA et Mini-film : réservés à Agence et Pro Max (visibles dès Créateur+). */
+export const VIDEO_CINEMA_PLANS: ReadonlySet<UserPlan> = new Set(['agence', 'pro_max']);
+
 export function assertVideoAdModeAllowed(plan: UserPlan, mode: VideoAdMode) {
   assertVideoAdPlanAllowed(plan);
-  if (mode === 'mini_film' && plan !== 'pro_max') {
-    throw new AppError(VERROU_MINI_FILM, 403);
+  if ((mode === 'mini_film' || mode === 'voix_off') && !VIDEO_CINEMA_PLANS.has(plan)) {
+    throw new AppError(mode === 'mini_film' ? VERROU_MINI_FILM : VERROU_PUB_CINEMA, 403);
   }
 }
 
@@ -373,7 +388,8 @@ export function getDomainPriceCredits(priceUsd: number): number {
  * (Pack de crédits hors abonnement : 150 FCFA/cr — voir purchaseCreditPack.)
  */
 export const PLAN_CREDITS: Record<string, number> = {
-  trial: 15,
+  // Essai : 10 crédits pour le Coach business + 1 site offert (sans crédit).
+  trial: 10,
   starter: 30,
   createur: 80,
   agence: 220,

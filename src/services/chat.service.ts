@@ -30,8 +30,9 @@ import { briefSkillSchema, commanderSkill } from './skill-nexai.service';
 import { exigerTelephoneVerifie } from './verification-telephone.service';
 
 /**
- * Chat IA de guidage — Claude (Haiku par défaut, bascule Sonnet 5 possible
- * par sous-mode depuis l'admin « Équipe IA », voir ai-role-registry.ts).
+ * Chat IA de guidage — modèle réglé par sous-mode dans l'admin « Équipe IA »
+ * (voir ai-role-registry.ts) : Sonnet 5.5 pour « créer un site », Haiku pour
+ * les autres sous-modes, Grok en secours.
  *
  * Modes hub : site | logo | edit | business
  * Assemblage prompt : ANTI_RULES (non éditables) + guidage mode + instructions admin.
@@ -40,8 +41,7 @@ import { exigerTelephoneVerifie } from './verification-telephone.service';
 /**
  * Résout le modèle actif pour le chat, SÉPARÉMENT pour le sous-mode "site"
  * et pour les 3 autres (logo / edit / business) — split demandé pour
- * pouvoir basculer l'un sur Sonnet 5 sans toucher l'autre si l'un des deux
- * s'avère insuffisant sur Haiku. Résolu dynamiquement (panneau admin),
+ * pouvoir régler l'un sans toucher l'autre. Résolu dynamiquement (panneau admin),
  * jamais codé en dur.
  */
 function roleDuMode(hubMode: ChatHubMode) {
@@ -903,7 +903,7 @@ const OPT_COPY_OUI = 'Oui, proposez-moi les textes';
 const OPT_COPY_NON = 'Non, rédigez directement';
 const OPT_COPY_VALIDER = 'Valider ces textes';
 const OPT_COPY_CORRIGER = 'Je les corrige';
-const OPT_STD = 'Qualité Standard — 12 crédits';
+const OPT_STD = `Qualité Standard — ${CREDIT_COSTS.GENERER_SITE} crédits`;
 const OPT_PREM = 'Qualité Premium — 25 crédits';
 
 async function proposerTextesSite(brief: Record<string, unknown>): Promise<string> {
@@ -929,9 +929,9 @@ async function proposerTextesSite(brief: Record<string, unknown>): Promise<strin
 function messageChoixQualite(): string {
   return (
     'Dernière étape : choisissez la qualité de création.\n\n' +
-    'Standard (12 crédits) — un site professionnel, pensé pour le téléphone, prêt à recevoir vos clients.\n\n' +
-    'Premium (25 crédits) — notre meilleure IA : design plus travaillé, textes plus justes, image de marque plus forte. C’est le choix de ceux qui veulent un site au niveau d’une agence.\n\n' +
-    'La mise en ligne, ensuite, coûte 15 crédits (abonnés).'
+    `Standard (${CREDIT_COSTS.GENERER_SITE} crédits) — un site professionnel, pensé pour le téléphone, prêt à recevoir vos clients.\n\n` +
+    `Premium (${CREDIT_COSTS.GENERER_SITE_PREMIUM} crédits) — notre meilleure IA : design plus travaillé, textes plus justes, image de marque plus forte. C’est le choix de ceux qui veulent un site au niveau d’une agence.\n\n` +
+    `La mise en ligne, ensuite, coûte ${CREDIT_COSTS.METTRE_EN_LIGNE} crédits (abonnés).`
   );
 }
 
@@ -1028,7 +1028,7 @@ export async function startChatSession(
   }
 
   // Essai gratuit : "Créer un site" et "Trouver mon business" restent
-  // ouverts (limités par les 15 crédits offerts). En revanche "Créer un
+  // ouverts (un site offert, 10 crédits pour le Coach). En revanche "Créer un
   // logo" et "Modifier un site par IA" sont réservés aux abonnés payants —
   // on bloque dès l'ouverture de la session plutôt qu'à la fin de la
   // conversation, pour ne pas faire discuter le client gratuitement avant
@@ -1057,10 +1057,10 @@ export async function startChatSession(
     validatedClientId = client._id;
   }
 
-  // Coach business — 3 crédits débités IMMÉDIATEMENT au démarrage, avant
+  // Coach business — crédits débités IMMÉDIATEMENT au démarrage, avant
   // que la conversation ne commence (Architecture v6, section 6). C'est ce
   // débit qui rend les 3 options de l'essai mutuellement exclusives : sans
-  // lui, un compte d'essai pourrait enchaîner coach + site avec 15 crédits.
+  // lui, un compte d'essai pourrait enchaîner les sessions de coach gratuitement.
   // Placé après les contrôles de plan pour ne jamais débiter un client qui
   // se verrait refuser l'accès juste après.
   if (mode === 'business') {
@@ -1099,7 +1099,7 @@ export async function startChatSession(
       messages: [],
     });
   } catch (err) {
-    // Les 3 crédits du coach ont été débités avant la création de la session :
+    // Les crédits du coach ont été débités avant la création de la session :
     // si elle échoue, le client n'a rien reçu, on les lui rend.
     if (mode === 'business') {
       await creditCredits(userId, CREDIT_COSTS.BUSINESS_COACH, 'ajustement_admin', {
@@ -1222,7 +1222,13 @@ async function passerAuRecap(session: InstanceType<typeof ChatSession>): Promise
   session.postBriefStep = 'recap';
   session.status = 'reviewing';
   const brief = session.collectedBrief || {};
-  const quality = brief.qualityTier === 'premium' ? 'Premium (25 crédits)' : 'Standard (12 crédits)';
+  const user = await User.findById(session.userId).select('plan').lean();
+  const quality =
+    user?.plan === 'trial'
+      ? 'Standard — offert avec votre essai gratuit'
+      : brief.qualityTier === 'premium'
+        ? `Premium (${CREDIT_COSTS.GENERER_SITE_PREMIUM} crédits)`
+        : `Standard (${CREDIT_COSTS.GENERER_SITE} crédits)`;
   session.reviewSummary = `${session.reviewSummary || 'Récapitulatif prêt.'}\nQualité : ${quality}`;
   session.messages.push({
     role: 'assistant',

@@ -3,7 +3,7 @@ import { Avis } from '@/models/Avis';
 import { AppError } from '@/middleware/errorHandler';
 
 /**
- * Génération d'avis vitrine par Sonnet 5 — Administration.
+ * Génération d'avis vitrine par Sonnet 5.5 — Administration.
  *
  * Ces avis sont marqués `source: 'genere_admin'` et sont donc EXCLUS du
  * calcul du seuil négatif NexAI (voir quality-report.service.ts). Ils

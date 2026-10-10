@@ -9,11 +9,19 @@ const tampon = new Map<string, { nombre: number; coutUsd: number; entree: number
 let minuterie: NodeJS.Timeout | null = null;
 
 export function compterAppelIa(modele: string, entree: number, sortie: number, cache?: UsageCache) {
+  compterAppelIaUsd(modele, coutAppelUsd(modele, entree, sortie, cache), entree + (cache?.lecture ?? 0) + (cache?.ecriture ?? 0), sortie);
+}
+
+/**
+ * Même compteur, quand le coût est déjà calculé par l'appelant (Atelier
+ * Skills : ses propres tarifs couvrent aussi OpenAI et DeepSeek).
+ */
+export function compterAppelIaUsd(modele: string, usd: number, entree: number, sortie: number) {
   const cle = `${jourUtc()}|${modele}`;
   const t = tampon.get(cle) ?? { nombre: 0, coutUsd: 0, entree: 0, sortie: 0 };
   t.nombre += 1;
-  t.coutUsd += coutAppelUsd(modele, entree, sortie, cache);
-  t.entree += entree + (cache?.lecture ?? 0) + (cache?.ecriture ?? 0);
+  t.coutUsd += usd;
+  t.entree += entree;
   t.sortie += sortie;
   tampon.set(cle, t);
   if (!minuterie) {

@@ -2,21 +2,11 @@ import { Types } from 'mongoose';
 import { AppError } from '@/middleware/errorHandler';
 
 /**
- * « Tester Vidéo IA » — Architecture v6, section 7.
+ * Ancien « Tester Vidéo IA » de l'essai gratuit — RETIRÉ.
  *
- * Même page que Vidéo IA côté client : le bouton « Générer » est verrouillé
- * en essai gratuit, et un second bouton « Tester » le remplace. Cette
- * fonction alimente ce second bouton.
- *
- * Caractéristiques (toutes volontaires) :
- *   - FalAI Kling Avatar Standard, 8 secondes, avatar générique NexAI
- *     + voix personnalisée au nom/activité du client → coût réel ~0,46 $
- *   - 13 crédits sur les 15 offerts : il ne reste que 2 crédits, donc ni un
- *     site (12cr) ni le coach business (3cr) ne sont cumulables. Le prospect
- *     choisit entre découvrir la vidéo IA ou repartir avec un site réel
- *   - UNE SEULE FOIS par compte, verrouillé ensuite
- *   - Streaming uniquement : jamais de téléchargement (la vidéo serait
- *     sinon utilisable ailleurs sans jamais payer)
+ * Il coûtait trop cher par prospect. Les routes GET/POST /video-ads/test
+ * restent en place pour répondre proprement aux anciens écrans (bouton
+ * jamais affiché, lancement refusé) et la galerie d'exemples le remplace.
  */
 
 /** Durée fixe du test — ni configurable, ni négociable côté client. */
@@ -58,8 +48,6 @@ export async function lancerVideoTest(
   // intention d'achat. La galerie d'exemples le remplace : visible par tous,
   // produite une seule fois.
   //
-  // Les 15 crédits de l'essai couvrent désormais exactement le coach business
-  // (3) et la création d'un site (12).
   throw new AppError(
     'Découvrez nos réalisations vidéo dans la galerie d’exemples. La génération de vidéos est disponible dès l’abonnement Créateur+.',
     403

@@ -412,7 +412,7 @@ export async function handleChariowWebhook(payload: ChariowWebhookPayload) {
 
     const wasTrial = user.plan === 'trial';
     try {
-      // Bonus Pro Max (décision du 09/10/2026) : la première vidéo de 20 s
+      // Bonus Pro Max : la première Pub Présentateur IA de 30 s
       // est offerte à la première souscription Pro Max uniquement. Les autres
       // abonnements n'ont pas de vidéo offerte. L'attribution est
       // conditionnelle en base : deux paiements simultanés ne donnent jamais

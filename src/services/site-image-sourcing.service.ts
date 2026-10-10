@@ -10,7 +10,7 @@ import { cadrageAcceptable, descriptionSansCliche, ratioNumerique } from '@/serv
  * (2 aperçus sur 3 en plan payant — le 3e utilise Grok Imagine, photo générée
  * avec logo intégré).
  *
- * Placé dans le pipeline APRÈS le Juge Visuel (Claude Sonnet 5), sur les
+ * Placé dans le pipeline APRÈS le Juge Visuel (Claude Sonnet 5.5), sur les
  * propositions déjà retenues (kept) — jamais avant, jamais confié au Codeur
  * (Grok), qui n'a pas d'outil de recherche image réel et ne ferait
  * qu'halluciner une URL.
@@ -62,7 +62,7 @@ export async function searchPexels(
 }
 
 /**
- * Claude Sonnet 5 construit une requête de recherche pertinente pour la
+ * Claude Sonnet 5.5 construit une requête de recherche pertinente pour la
  * niche/section du site (pas de traduction littérale du brief — une vraie
  * requête stock-photo idiomatique en anglais, Pexels indexant en anglais).
  */
@@ -88,7 +88,7 @@ async function buildSearchQuery(brief: {
 }
 
 /**
- * Sélection visuelle réelle : Claude Sonnet 5 regarde les candidats Pexels
+ * Sélection visuelle réelle : Claude Sonnet 5.5 regarde les candidats Pexels
  * (jusqu'à 5, pour limiter coût/latence) et choisit celui qui correspond le
  * mieux au ton de marque. Fallback silencieux sur le 1er résultat Pexels si
  * la vision échoue (timeout, erreur API...) — on ne bloque jamais un aperçu
@@ -142,7 +142,7 @@ export async function sourceMockupImage(brief: {
     throw new AppError(`Pexels : aucun résultat pour "${query}"`, 502);
   }
 
-  // Sélection visuelle réelle par Claude Sonnet 5 (Juge Visuel), avec fallback
+  // Sélection visuelle réelle par Claude Sonnet 5.5 (Juge Visuel), avec fallback
   // sur le tri Pexels si la vision échoue.
   const chosen = await pickBestPhotoVisually(photos, brief);
 

@@ -1,3 +1,4 @@
+import { User } from '@/models/User';
 import { Site, ISite } from '@/models/Site';
 import { AppError } from '@/middleware/errorHandler';
 import { creditCredits } from '@/services/credits.service';
@@ -77,6 +78,11 @@ export async function rembourserGenerationEchouee(
       relatedSiteId: siteId,
       note: 'remboursement_generation_site_double_echec',
     });
+  }
+  if (credits === 0) {
+    // Site offert de l'essai gratuit : la création a échoué malgré les
+    // reprises, le client récupère son site offert.
+    await User.updateOne({ _id: userId, plan: 'trial' }, { $unset: { siteEssaiOffertLe: 1 } }).catch(() => undefined);
   }
   await Site.findByIdAndUpdate(siteId, {
     status: 'failed',

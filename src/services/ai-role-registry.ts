@@ -7,9 +7,8 @@ import { AppError } from '@/middleware/errorHandler';
  * avec ce poste (jamais une bascule libre — un modèle sans vision ne sera
  * par exemple jamais proposé pour le Juge Visuel).
  *
- * Seul 'support_client', 'chat_creation_site' et 'chat_autres_modes' ont une
- * vraie alternative validée à ce jour (Haiku 4.5 ↔ Sonnet 5, ou ↔ Grok 4.3
- * pour le support). Les autres rôles n'ont qu'un seul modèle
+ * Chaque rôle liste ses modèles autorisés (défaut + alternatives) ; les
+ * conversations ont en plus un modèle de secours réglable (SECOURS_REGISTRY). Les autres rôles n'ont qu'un seul modèle
  * "compatible" pour l'instant, mais passent par le même mécanisme de
  * résolution — ajouter une alternative future ne nécessite qu'une ligne de
  * config ici, jamais une réécriture de code appelant.
@@ -19,8 +18,8 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
     // Split (demandé) : ce rôle ne couvre plus QUE le sous-mode "site" du
     // chat hub (conversation + extraction du brief business). Les 3 autres
     // sous-modes (logo / edit / business) sont un rôle séparé ci-dessous —
-    // les deux peuvent être basculés indépendamment entre Haiku et Sonnet 5
-    // depuis ce panneau, sans toucher au code.
+    // les deux se règlent indépendamment depuis ce panneau (Sonnet 5.5,
+    // Haiku ou Grok), sans toucher au code.
     label: 'Chat création de site — sous-mode "site" (dialogue + extraction brief)',
     // Sonnet 5.5 par défaut (décision du 10/10/2026). En cas de souci chez
     // Anthropic, le secours du rôle (Grok 4.6 par défaut) prend le relais.
@@ -93,14 +92,12 @@ export const AI_ROLE_REGISTRY: Record<AiRole, { label: string; default: string; 
     default: 'grok-build-0.1',
     alternatives: ['claude-sonnet-5-5'],
   },
-  // Architecture v6 : Sonnet 5 juge dans LES DEUX qualités. Opus 5.5
-  // n'intervient jamais comme juge, uniquement comme « Aide » en
-  // reconstruction (voir aide_ia_payant).
-  // Juge visuel OFFICIEL. Remplacé automatiquement par Sonnet 5 lorsque
-  // c'est Opus 5.5 qui a codé (voir getJugeVisuelPour) — ce réglage ne peut
-  // donc jamais conduire un modèle à juger sa propre production.
+  // Juge visuel : choisi AUTOMATIQUEMENT selon le codeur (voir
+  // getJugeVisuelPour) — Sonnet 5.5 quand Grok code, Opus 5.5 quand Sonnet
+  // code, Sonnet 5.5 pour le Premium codé par Opus. Ce réglage ne peut donc
+  // jamais conduire un modèle à juger sa propre production.
   juge_visuel: {
-    label: 'Juge Visuel (officiel)',
+    label: 'Juge Visuel (automatique : Sonnet 5.5 quand Grok code, Opus 5.5 quand Sonnet code, Sonnet 5.5 pour le Premium)',
     default: 'claude-opus-5-5',
     alternatives: ['claude-sonnet-5-5'],
   },
@@ -319,6 +316,11 @@ export async function listAiTeamConfig() {
  * même juge, donc un écart de conversion ne peut venir que du codeur.
  */
 export async function getJugeVisuelPour(modeleCodeur: string): Promise<string> {
+  // Règle du 10/10/2026 (coût) : un site codé par Grok (Standard et essai)
+  // est jugé par Sonnet 5.5 ; codé par Sonnet 5.5, il est jugé par Opus 5.5 ;
+  // codé par Opus (Premium), par Sonnet 5.5. Jamais le même modèle.
+  if (modeleCodeur.startsWith('grok-')) return 'claude-sonnet-5-5';
+  if (modeleCodeur === 'claude-sonnet-5-5') return 'claude-opus-5-5';
   const officiel = await getModelForRole('juge_visuel');
   if (officiel !== modeleCodeur) return officiel;
   // Le juge officiel a lui-même codé : on bascule pour ne jamais s'auto-juger.

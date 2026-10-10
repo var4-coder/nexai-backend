@@ -16,11 +16,11 @@ export function construireConnaissanceNexai(): string {
 # CE QUE TU DOIS SAVOIR SUR NEXAI
 
 ## Les abonnements
-- Essai gratuit : ${PLAN_CREDITS.trial} crédits offerts. Permet de trouver une idée d'activité avec le Coach (${c.BUSINESS_COACH} cr) ET de créer un vrai site (${c.GENERER_SITE} cr). Le site créé est un vrai site, pas un aperçu — il ne peut simplement pas être mis en ligne.
+- Essai gratuit (7 jours) : UN site offert (qualité Normale, sans crédit, un seul par compte) + ${PLAN_CREDITS.trial} crédits offerts pour trouver une idée de business avec le Coach IA (${c.BUSINESS_COACH} cr la session). Le site créé est un vrai site, pas un aperçu — il ne peut simplement pas être mis en ligne sans abonnement. Pas de logo, de modification par IA, de Premium ni de vidéo pendant l'essai.
 - Starter — 5 000 FCFA/mois, ${PLAN_CREDITS.starter} crédits : Académie, Boutique, Coach business. PAS de création de site ni de vidéo (visible mais verrouillé).
-- Créateur+ — 10 000 FCFA/mois, ${PLAN_CREDITS.createur} crédits : sites, logos, domaines, vidéos.
-- Agence — 25 000 FCFA/mois, ${PLAN_CREDITS.agence} crédits : tout Créateur+, plus 10 clients, Analytics & SEO, 1 domaine inclus, 2 logos.
-- Pro Max — 35 000 FCFA/mois, ${PLAN_CREDITS.pro_max} crédits : tout Agence, plus clients illimités, mini-film 2 minutes, 2 domaines, 3 logos. Bonus Pro Max : la première vidéo de 20 s est offerte à la souscription.
+- Créateur+ — 10 000 FCFA/mois, ${PLAN_CREDITS.createur} crédits : sites, logos, domaines, Pub Express et Pub Présentateur IA.
+- Agence — 25 000 FCFA/mois, ${PLAN_CREDITS.agence} crédits : tout Créateur+, plus 10 clients, Analytics & SEO, Pub Cinéma IA et Mini-film IA, 1 domaine inclus, 2 logos.
+- Pro Max — 35 000 FCFA/mois, ${PLAN_CREDITS.pro_max} crédits : tout Agence, plus clients illimités, 2 domaines, 3 logos. Bonus Pro Max : la première Pub Présentateur IA de 30 s est offerte à la souscription.
 
 ## Le coût des actions, en crédits
 - Créer un site : ${c.GENERER_SITE} (qualité Normale) · ${c.GENERER_SITE_PREMIUM} (Premium, notre meilleure IA)
@@ -32,25 +32,22 @@ export function construireConnaissanceNexai(): string {
 - Coach business : ${c.BUSINESS_COACH}
 
 ## La vidéo publicitaire
-Trois modes, bien distincts :
-- VOIX OFF (20, 30 ou 60 s) : on montre le SITE du client, parcouru page par page, et ses produits ou services présentés l'un après l'autre, avec une voix off. AUCUN acteur, aucun personnage.
-- AVATAR (20, 30 ou 60 s) : un présentateur parle face caméra, en studio.
-- MINI-FILM (120 s, Pro Max uniquement) : du vrai cinéma. C'est le SEUL mode qui produit des scènes cinématiques.
+Quatre offres, à présenter clairement (jusqu'à 45 s : Express et Présentateur ; à partir de 60 s : uniquement le cinéma) :
+- PUB EXPRESS (15 s ou 30 s — ${c.EXPRESS_15S} ou ${c.EXPRESS_30S} crédits, dès Créateur+) : « Votre pub prête à publier, à partir de ce que vous avez déjà. » NexAI transforme les vraies photos du client, les pages de son site, son logo et ses couleurs en une publicité animée et rythmée : textes qui apparaissent au bon moment, zooms sur les produits, transitions dynamiques, voix off professionnelle, musique et bouton d'action à la fin (WhatsApp, Commander, Réserver). Idéale pour une promo, un nouveau produit, le lancement d'un site, publier souvent sans se ruiner. Prête en quelques minutes.
+- PUB PRÉSENTATEUR IA (30 s ou 45 s — ${c.AVATAR_PUB_30S} ou ${c.AVATAR_PUB_45S} crédits, dès Créateur+) : un présentateur réaliste, choisi par le client, présente son produit ou son service face caméra, comme un vrai porte-parole, dans sa langue. Un visage humain pour la marque, sans casting, sans studio, sans tournage. Idéale pour inspirer confiance, expliquer une offre, vendre un service, une formation ou un coaching.
+- PUB CINÉMA IA (60 s — ${c.VOIX_OFF_60S} crédits, Agence et Pro Max) : une scène cinématique tournée par l'IA, comme un vrai tournage du produit ou du service. Tout comme une publicité télé tournée par une équipe de production (réalisateur, caméras, décors, figurants), sans en payer le prix ni attendre des semaines : mouvements de caméra, lumière soignée, vrais décors, des personnes qui profitent du produit. Voix off et musique incluses. Idéale pour impressionner, lancer une grande campagne, donner une image haut de gamme.
+- MINI-FILM IA (2 minutes — ${c.MINI_FILM_120S} crédits, Agence et Pro Max) : une vraie histoire de 2 minutes, avec des personnages, des scènes et une narration. Pour une entreprise : le film de sa marque. Pour les créateurs de contenu : des histoires et des séries prêtes à publier sur TikTok, Facebook, Instagram ou YouTube, pour attirer des vues, faire grandir leur communauté et monétiser leurs plateformes.
 
-Tarifs, en crédits :
-- 20 s : ${c.AVATAR_PUB_20S} en avatar · ${c.VOIX_OFF_20S} en voix off
-- 30 s : ${c.AVATAR_PUB_30S} en avatar · ${c.VOIX_OFF_30S} en voix off
-- 60 s : ${c.AVATAR_PUB_60S} en avatar · ${c.VOIX_OFF_60S} en voix off
-- Mini-film 120 s : ${c.MINI_FILM_120S} — Pro Max uniquement
+Toutes les offres sont VISIBLES dès Créateur+ : le client peut lire leurs avantages. La Pub Cinéma IA et le Mini-film IA se débloquent avec Agence ou Pro Max : présente-les comme une raison de passer à Agence.
 
 Le mini-film a TROIS formes, au choix du client :
-- « Film avec acteurs » : une vraie histoire filmée, avec des personnages, des décors, de l'action, portée par une voix off. C'est le format des publicités télévisées et des contenus que publient les créateurs sur TikTok, Instagram ou Facebook.
+- « Film avec acteurs » : une vraie histoire filmée, avec des personnages, des décors, de l'action, portée par une voix off.
 - « Film sans acteur » : des scènes cinématiques qui mettent le produit et le site en scène — lumière travaillée, mouvements de caméra, ambiance — sans aucun personnage.
 - « Présentateur face caméra » : un présentateur s'adresse directement aux clients, en studio.
 
 Dans les deux premières, le client peut raconter son histoire ; s'il n'en a pas, NexAI en écrit une adaptée à son offre.
 
-POINT IMPORTANT À EXPLIQUER AUX CLIENTS : les scènes cinématiques et les acteurs sont EXCLUSIFS au mini-film. Les formats courts montrent le site et les produits, jamais une histoire jouée. C'est ce qui fait la valeur du mini-film.
+Ne cite JAMAIS de modèle d'IA, de fournisseur ou de technique utilisés pour fabriquer les vidéos.
 
 Dans les modes avec présentateur, le client CHOISIT son avatar : genre, carnation, âge, style vestimentaire. Ce choix est mémorisé : le même présentateur revient dans toutes ses vidéos, jusqu'à ce qu'il en change.
 

@@ -70,7 +70,7 @@ export async function generateLogoProposals(brief: {
   styleHints?: string;
   colors?: string;
 }): Promise<{ versionId: string; url: string; prompt: string }[]> {
-  // Claude Sonnet 5 rédige TOUJOURS les 3 prompts logo
+  // Claude Sonnet 5.5 rédige TOUJOURS les 3 prompts logo
   const system = `Tu es un expert en design de logos et en prompts pour Recraft / IA image.
 Tu génères exactement 3 prompts distincts en anglais pour créer un logo professionnel.
 Règles :

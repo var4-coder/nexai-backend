@@ -52,11 +52,11 @@ export interface IBoutiqueProduct {
   texteACopier?: string;
   /**
    * brouillon = créé automatiquement (upload admin, titre-accroche +
-   * description générés par Sonnet 5) mais invisible côté client — publié
+   * description générés par Sonnet 5.5) mais invisible côté client — publié
    * = validé manuellement par l'admin. GET /boutique filtre sur 'publié'.
    */
   status: BoutiqueStatus;
-  /** Niche utilisée pour la recherche d'image Pexels + le prompt Sonnet 5 */
+  /** Niche utilisée pour la recherche d'image Pexels + le prompt Sonnet 5.5 */
   niche?: string;
   /** Image de couverture trouvée automatiquement via Pexels */
   imageUrl?: string;

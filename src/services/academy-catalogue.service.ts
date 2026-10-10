@@ -18,7 +18,7 @@ import type { HydratedDocument } from 'mongoose';
  * 1. RECHERCHE — par le moteur de recherche de PeerTube (SepiaSearch), pas par
  *    une IA. Uniquement des licences qui autorisent l'usage commercial : CC BY,
  *    CC BY-SA, CC BY-ND, domaine public (toute licence « NC » est exclue).
- * 2. NOTATION — Claude Sonnet 5 juge chaque vidéo à partir de ses sous-titres
+ * 2. NOTATION — Claude Sonnet 5.5 juge chaque vidéo à partir de ses sous-titres
  *    (quand ils existent), de son titre et de sa description.
  * 3. IMPORT — un clic : le serveur récupère le fichier chez PeerTube (quand
  *    l'instance autorise le téléchargement) et l'envoie sur Bunny. La vidéo

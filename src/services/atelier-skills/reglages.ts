@@ -18,13 +18,13 @@ import { AppError } from '@/middleware/errorHandler';
 export const POSTES: Record<string, { libelle: string; consigne: string; defaut: IPosteReglage; autorises: string[] }> = {
   cadreur: { libelle: 'Cadreur', consigne: 'P0', defaut: { modele: 'claude-opus-5-5', effort: 'medium' }, autorises: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-fable-5-1'] },
   documentaliste: { libelle: 'Documentaliste (recherche web + X)', consigne: 'P1', defaut: { modele: 'grok-4.7', effort: 'medium' }, autorises: ['grok-4.7', 'grok-4.6'] },
-  redacteur1: { libelle: 'Rédacteur 1', consigne: 'P2, P6', defaut: { modele: 'gpt-6-astra', effort: 'medium' }, autorises: ['gpt-6-astra', 'claude-opus-5-5', 'gpt-5.6-sol'] },
+  redacteur1: { libelle: 'Rédacteur 1', consigne: 'P2, P6', defaut: { modele: 'gpt-5.6-sol', effort: 'medium' }, autorises: ['gpt-5.6-sol', 'claude-opus-5-5', 'gpt-6-astra'] },
   redacteur2: { libelle: 'Rédacteur 2', consigne: 'P2, P6', defaut: { modele: 'claude-sonnet-5-5', effort: 'medium' }, autorises: ['claude-sonnet-5-5', 'claude-opus-5-5'] },
   redacteur3: { libelle: 'Rédacteur 3', consigne: 'P2, P6', defaut: { modele: 'grok-4.6', effort: 'medium' }, autorises: ['grok-4.6', 'grok-4.7'] },
   panel_avance: { libelle: 'Panel de test — avancé', consigne: 'P7, P8', defaut: { modele: 'claude-sonnet-5-5', effort: 'low' }, autorises: ['claude-sonnet-5-5', 'grok-4.6', 'gpt-5.6-sol'] },
   panel_leger: { libelle: 'Panel de test — léger', consigne: 'P7, P8', defaut: { modele: 'deepseek-flash', effort: 'defaut' }, autorises: ['deepseek-flash', 'gpt-6-luna'] },
   evaluateur: { libelle: 'Évaluateur (aveugle)', consigne: 'P9', defaut: { modele: 'grok-4.6', effort: 'low' }, autorises: ['grok-4.6', 'grok-4.7', 'claude-sonnet-5-5'] },
-  juge: { libelle: 'Juge et assembleur', consigne: "P5'", defaut: { modele: 'claude-opus-5-5', effort: 'high' }, autorises: ['claude-opus-5-5', 'claude-fable-5-1'] },
+  juge: { libelle: 'Juge et assembleur', consigne: "P5'", defaut: { modele: 'claude-opus-5-5', effort: 'medium' }, autorises: ['claude-opus-5-5', 'claude-fable-5-1'] },
   livrables: { libelle: 'Rédacteur de livrables', consigne: 'P12', defaut: { modele: 'claude-sonnet-5-5', effort: 'low' }, autorises: ['claude-sonnet-5-5', 'claude-opus-5-5'] },
   evaluateur_renforce: { libelle: 'Évaluateur renforcé (produit phare)', consigne: 'P9', defaut: { modele: 'claude-fable-5-1', effort: 'medium' }, autorises: ['claude-fable-5-1', 'claude-opus-5-5'] },
 };

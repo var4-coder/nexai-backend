@@ -149,7 +149,7 @@ export interface ISiteProposal {
   pagesMeta?: { slug: string; title: string; description: string }[];
   dataNexaiIds?: string[];
   ambianceImages?: string[];
-  /** 'realiste' = photo Grok Imagine (+ logo) ; 'mockup' = image sourcée Pexels via Claude Sonnet 5 */
+  /** 'realiste' = photo Grok Imagine (+ logo) ; 'mockup' = image sourcée Pexels via Claude Sonnet 5.5 */
   imageStyle?: 'realiste' | 'mockup';
   imageAttribution?: string;
   /**

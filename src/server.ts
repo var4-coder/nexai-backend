@@ -13,7 +13,7 @@ async function bootstrap() {
   // vides (typiquement le tout premier déploiement) — ne touche à rien si
   // elle a déjà été initialisée ou modifiée à la main dans Mongo depuis.
   await autoSeedLibraryOnBoot();
-  // Textes commerciaux dont la valeur par défaut a changé (ex. bonus vidéo réservé à Pro Max).
+  // Textes commerciaux dont la valeur par défaut a changé (essai, vidéo IA, bonus Pro Max).
   await migrerTextesParDefaut().catch(() => {});
 
   // Académie : crée les 22 domaines et 60 formations du programme s'ils

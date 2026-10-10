@@ -120,10 +120,10 @@ const MINI_FILM: QuestionBrief[] = [
  * présentateur.
  */
 export function questionnairePourMode(
-  mode: 'voix_off' | 'avatar_pub' | 'mini_film',
+  mode: 'express' | 'voix_off' | 'avatar_pub' | 'mini_film',
   composition?: string
 ): QuestionBrief[] {
-  if (mode === 'avatar_pub') return COMMUNES;
+  if (mode === 'express' || mode === 'avatar_pub') return COMMUNES;
   if (mode === 'voix_off') return COMMUNES;
 
   // Mini-film : la composition décide de la suite.

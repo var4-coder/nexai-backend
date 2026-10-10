@@ -455,8 +455,8 @@ adminRouter.post(
         .object({
           titre: z.string().trim().min(1).max(120),
           description: z.string().trim().max(400).optional(),
-          format: z.enum(['20s', '30s', '60s', '120s']).default('30s'),
-          mode: z.enum(['voix_off', 'avatar_pub', 'mini_film']).default('voix_off'),
+          format: z.enum(['15s', '20s', '30s', '45s', '60s', '120s']).default('30s'),
+          mode: z.enum(['express', 'voix_off', 'avatar_pub', 'mini_film']).default('express'),
           categorie: z.enum(['exemple', 'presentation']).default('exemple'),
           ordre: z.coerce.number().int().default(0),
           publie: z.coerce.boolean().default(true),
@@ -794,7 +794,7 @@ adminRouter.post(
 /**
  * Upload AUTOMATISÉ (décision produit) : l'admin fournit uniquement le
  * fichier + la niche. Le système extrait le texte (PDF), génère un
- * titre-accroche + description via Sonnet 5, trouve une image de
+ * titre-accroche + description via Sonnet 5.5, trouve une image de
  * couverture via Pexels, uploade le fichier sur Cloudinary, et crée le
  * contenu en status='brouillon' — invisible côté client tant que l'admin
  * n'a pas cliqué "Publier" (PATCH /academy/:id/publish ci-dessous).

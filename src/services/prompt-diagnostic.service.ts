@@ -11,7 +11,7 @@ import { AppError } from '@/middleware/errorHandler';
  *   1. Le seuil négatif NexAI atteint 40% → déclenchement automatique.
  *   2. FABLE détecte le point faible : une niche précise, un rôle précis,
  *      ou un problème systémique. Il ne réécrit rien lui-même.
- *   3. SONNET 5 rédige la correction, UNIQUEMENT pour les parties
+ *   3. SONNET 5.5 rédige la correction, UNIQUEMENT pour les parties
  *      identifiées par Fable — jamais une réécriture globale du prompt.
  *   4. L'admin voit : la raison, l'effet attendu, et le diff actif/candidat.
  *      Il valide ou refuse. Son silence pendant 1h vaut acceptation.
