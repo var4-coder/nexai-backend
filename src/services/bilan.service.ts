@@ -51,7 +51,9 @@ export const REGLAGES_DEFAUT: ReglagesBilan = {
   fraisChariowPct: 15,
   coutsFixes: [
     { nom: 'Render (serveur API + worker)', usdParMois: 25 },
-    { nom: 'Upstash (Redis)', usdParMois: 10 },
+    // Redis Render (Key Value) depuis le 10/10/2026 : gratuit pour l'instant ;
+    // offre Starter (sauvegarde) à 10 $/mois, à saisir ici le jour du passage.
+    { nom: 'Redis Render (file d’attente) — gratuit, Starter 10 $', usdParMois: 0 },
     { nom: 'Netlify (site NexAI + sites clients)', usdParMois: 20 },
     { nom: 'MongoDB Atlas (base de données)', usdParMois: 0 },
     { nom: 'Brevo (emails, SMS)', usdParMois: 0 },
@@ -81,6 +83,14 @@ export async function lireReglages(): Promise<ReglagesBilan> {
       },
       fiscalite: normaliserFiscalite(v.fiscalite),
       simulation: { ...(v.simulation ?? {}) },
+      // Redis : passage d'Upstash à Render (10/10/2026). La ligne Upstash
+      // enregistrée devient la ligne Redis Render, gratuite pour l'instant
+      // (seulement si son montant n'avait pas été modifié à la main).
+      coutsFixes: (Array.isArray(v.coutsFixes) ? v.coutsFixes : REGLAGES_DEFAUT.coutsFixes).map((c: CoutFixe) =>
+        /upstash/i.test(String(c.nom)) && Number(c.usdParMois) === 10
+          ? { nom: 'Redis Render (file d’attente) — gratuit, Starter 10 $', usdParMois: 0 }
+          : c
+      ),
     };
   } catch {
     return REGLAGES_DEFAUT;
