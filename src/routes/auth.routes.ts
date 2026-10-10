@@ -5,13 +5,15 @@ import { User } from '@/models/User';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { AppError } from '@/middleware/errorHandler';
-import { requireAuth } from '@/middleware/auth';
+import { requireAuth, oublierSession } from '@/middleware/auth';
 import { AUTH_COOKIE_NAME, authCookieOptions } from '@/utils/jwt';
 import {
   registerUser,
   verifyEmailCode,
   resendVerificationCode,
   loginUser,
+  loginAvecCode,
+  issueToken,
   loginWithGoogle,
   requestPasswordReset,
   resetPassword,
@@ -145,7 +147,26 @@ authRouter.post('/resend-code', authLimiter, async (req, res, next) => {
 authRouter.post('/login', authLimiter, async (req, res, next) => {
   try {
     const { email, password } = parseOrThrow(loginSchema, req.body);
-    const { user, token } = await loginUser({ email, password });
+    const resultat = await loginUser({ email, password });
+    if ('deuxEtapes' in resultat) {
+      // Administration : mot de passe correct, un code a été envoyé par email.
+      return res.json({ deuxEtapes: true, message: 'Un code de connexion vient de vous être envoyé par email.' });
+    }
+    res.cookie(AUTH_COOKIE_NAME, resultat.token, authCookieOptions);
+    res.json({ user: resultat.user, token: resultat.token });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Deuxième étape de connexion de l'administration : code reçu par email. */
+authRouter.post('/login/code', authLimiter, async (req, res, next) => {
+  try {
+    const { email, code } = parseOrThrow(
+      z.object({ email: z.string().email(), code: z.string().trim().regex(/^\d{6}$/, 'Le code contient 6 chiffres.') }),
+      req.body
+    );
+    const { user, token } = await loginAvecCode({ email, code });
     res.cookie(AUTH_COOKIE_NAME, token, authCookieOptions);
     res.json({ user, token });
   } catch (err) {
@@ -199,7 +220,13 @@ authRouter.post('/change-password', authLimiter, requireAuth, async (req, res, n
   try {
     const { currentPassword, newPassword } = parseOrThrow(changePasswordSchema, req.body);
     await changePassword({ userId: req.auth!.userId, currentPassword, newPassword });
-    res.json({ message: 'Mot de passe mis à jour.' });
+    oublierSession(req.auth!.userId);
+    // Les autres sessions sont fermées ; celle-ci reçoit un nouveau jeton.
+    const { User } = await import('@/models/User');
+    const u = await User.findById(req.auth!.userId);
+    const token = u ? issueToken(u) : undefined;
+    if (token) res.cookie(AUTH_COOKIE_NAME, token, authCookieOptions);
+    res.json({ message: 'Mot de passe mis à jour. Vos autres appareils ont été déconnectés.', token });
   } catch (err) {
     next(err);
   }

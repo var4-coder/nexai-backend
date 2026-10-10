@@ -1,3 +1,4 @@
+import { estVraieImage } from '@/middleware/securite';
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
@@ -41,7 +42,7 @@ videoAdsRouter.post(
     try {
       const file = req.file;
       if (!file) throw new AppError('Aucune image reçue.', 400);
-      if (!ALLOWED_PRODUCT_IMAGE_MIME.has(file.mimetype)) {
+      if (!ALLOWED_PRODUCT_IMAGE_MIME.has(file.mimetype) || !estVraieImage(file.buffer, file.mimetype)) {
         throw new AppError('Format non supporté (PNG, JPEG ou WEBP uniquement).', 400);
       }
       const result = await uploadVideoAdProductImage(file.buffer, file.originalname);
@@ -170,7 +171,7 @@ videoAdsRouter.post(
       void consentement;
       const file = req.file;
       if (!file) throw new AppError('Aucune photo reçue.', 400);
-      if (!ALLOWED_PRODUCT_IMAGE_MIME.has(file.mimetype)) {
+      if (!ALLOWED_PRODUCT_IMAGE_MIME.has(file.mimetype) || !estVraieImage(file.buffer, file.mimetype)) {
         throw new AppError('Format non supporté (PNG, JPEG ou WEBP uniquement).', 400);
       }
       const envoi = await uploadAvatarClient(file.buffer);

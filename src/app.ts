@@ -9,6 +9,7 @@ import { env, isProd } from '@/config/env';
 import { router } from '@/routes';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
 import { KIT_DIR } from '@/services/kit.service';
+import { antiInjection } from '@/middleware/securite';
 
 export function createApp() {
   const app = express();
@@ -58,6 +59,7 @@ export function createApp() {
     })
   );
   app.use(cookieParser());
+  app.use(antiInjection);
   app.use(morgan(isProd ? 'combined' : 'dev'));
 
   // Kit NexAI (GSAP, formulaire, mouvement) chargé par les APERÇUS de site,
@@ -87,7 +89,7 @@ export function createApp() {
     const jeton = entete?.startsWith('Bearer ') ? entete.slice(7) : (req.cookies?.token as string | undefined);
     if (!jeton) return null;
     try {
-      const p = jwt.verify(jeton, env.JWT_SECRET) as { userId?: string };
+      const p = jwt.verify(jeton, env.JWT_SECRET, { algorithms: ['HS256'] }) as { userId?: string };
       return p.userId ?? null;
     } catch {
       return null;

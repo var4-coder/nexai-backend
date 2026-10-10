@@ -1,3 +1,4 @@
+import { verifierVerrouillage, noterEchec, effacerEchecs, exigeDoubleVerification, creerCodeConnexion, verifierCodeConnexion } from '@/services/securite-connexion.service';
 import type { HydratedDocument } from 'mongoose';
 import { OAuth2Client } from 'google-auth-library';
 import { User, IUser } from '@/models/User';
@@ -11,7 +12,7 @@ import {
 import { env } from '@/config/env';
 import { hashIp, generateVerificationCode, hashValue, compareValue } from '@/utils/crypto';
 import { signAuthToken } from '@/utils/jwt';
-import { sendVerificationCodeEmail, sendPasswordResetCodeEmail } from './brevo.service';
+import { sendVerificationCodeEmail, sendPasswordResetCodeEmail, sendLoginCodeEmail } from './brevo.service';
 import { PLAN_CREDITS } from '@/services/credits.service';
 import { estEmailJetable, MESSAGE_EMAIL_JETABLE } from '@/services/disposable-email.service';
 import { emailEstAdmin } from '@/services/admin-security.service';
@@ -80,7 +81,7 @@ function toSafeUser(user: UserDoc): SafeUser {
   };
 }
 
-function issueToken(user: UserDoc): string {
+export function issueToken(user: UserDoc): string {
   return signAuthToken({ userId: user._id.toString(), role: user.role, email: user.email });
 }
 
@@ -244,22 +245,45 @@ export async function verifyEmailCode(params: {
 export async function loginUser(params: {
   email: string;
   password: string;
-}): Promise<{ user: SafeUser; token: string }> {
-  const user = await User.findOne({ email: params.email.toLowerCase().trim() }).select('+passwordHash');
+}): Promise<{ user: SafeUser; token: string } | { deuxEtapes: true }> {
+  const email = params.email.toLowerCase().trim();
+  // Compte verrouillé après 5 mots de passe faux (15 min), même si l'attaque
+  // vient de plusieurs adresses IP.
+  await verifierVerrouillage(email);
+  const user = await User.findOne({ email }).select('+passwordHash');
 
   if (!user || !user.passwordHash) {
+    await noterEchec(email);
     throw new AppError('Identifiants invalides.', 401);
   }
 
   const isValid = await compareValue(params.password, user.passwordHash);
   if (!isValid) {
+    await noterEchec(email);
     throw new AppError('Identifiants invalides.', 401);
   }
+  await effacerEchecs(email);
 
   if (!user.emailVerifiedAt) {
     throw new AppError('Email non vérifié. Vérifiez votre boîte mail.', 403);
   }
 
+  // Administration : un code par email en plus du mot de passe.
+  if (exigeDoubleVerification(user.role)) {
+    const code = await creerCodeConnexion(String(user._id));
+    await sendLoginCodeEmail(user.email, code);
+    return { deuxEtapes: true };
+  }
+
+  return { user: toSafeUser(user), token: issueToken(user) };
+}
+
+/** Deuxième étape de connexion des comptes d'administration (code reçu par email). */
+export async function loginAvecCode(params: { email: string; code: string }): Promise<{ user: SafeUser; token: string }> {
+  const email = params.email.toLowerCase().trim();
+  const user = await User.findOne({ email });
+  if (!user || !exigeDoubleVerification(user.role)) throw new AppError('Code invalide ou expiré.', 400);
+  await verifierCodeConnexion(String(user._id), params.code);
   return { user: toSafeUser(user), token: issueToken(user) };
 }
 
@@ -300,6 +324,10 @@ export async function loginWithGoogle(params: {
   const googleId = payload.sub;
 
   let user = await User.findOne({ $or: [{ googleId }, { email }] });
+  // Comptes d'administration : jamais par Google, toujours mot de passe + code email.
+  if (user && (user.role === 'admin' || user.role === 'finance')) {
+    throw new AppError('Ce compte se connecte avec son email et son mot de passe.', 403);
+  }
 
   if (!user) {
     const ipHash = await assertIpNotOverLimit(params.ip);
@@ -399,6 +427,8 @@ export async function resetPassword(params: {
 
   user.passwordHash = await hashValue(params.newPassword);
   user.passwordReset = undefined;
+  // Toutes les autres sessions ouvertes sont déconnectées.
+  user.sessionsRevoqueesLe = new Date(Date.now() - 1000);
   await user.save();
 
   return { user: toSafeUser(user), token: issueToken(user) };
@@ -420,5 +450,6 @@ export async function changePassword(params: {
   }
 
   user.passwordHash = await hashValue(params.newPassword);
+  user.sessionsRevoqueesLe = new Date(Date.now() - 1000);
   await user.save();
 }

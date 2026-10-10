@@ -1,3 +1,4 @@
+import { estVraieImage } from '@/middleware/securite';
 import { deleteNetlifySite } from '@/services/netlify.service';
 import { Router, Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
@@ -391,7 +392,7 @@ sitesRouter.post(
       const { imageId } = z.object({ imageId: z.string().min(4).max(40) }).parse(req.body ?? {});
       const fichier = req.file;
       if (!fichier) throw new AppError('Aucune image reçue.', 400);
-      if (!TYPES_IMAGES.has(fichier.mimetype)) throw new AppError('Format accepté : JPEG, PNG ou WebP.', 400);
+      if (!TYPES_IMAGES.has(fichier.mimetype) || !estVraieImage(fichier.buffer, fichier.mimetype)) throw new AppError('Format accepté : JPEG, PNG ou WebP.', 400);
       const site = await siteModifiable(req.params.id, req.auth!.userId);
       const envoi = await uploadImageSiteClient(fichier.buffer, String(site._id));
       const controle = controlerImageClient(site, imageId, { width: envoi.width, height: envoi.height });

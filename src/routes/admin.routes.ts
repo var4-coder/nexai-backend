@@ -2719,7 +2719,11 @@ adminRouter.put('/associe', requireRole('admin'), async (req: Request, res: Resp
     // la prévisualisation des abonnements se fait côté affichage.
     const maj: Record<string, unknown> = { email: body.email, plan: 'starter', planExpiresAt: new Date(0), creditsBalance: 0 };
     if (body.nom !== undefined) maj.nom = body.nom;
-    if (body.motDePasse) maj.passwordHash = await hashValue(body.motDePasse);
+    if (body.motDePasse) {
+      maj.passwordHash = await hashValue(body.motDePasse);
+      // Nouveau mot de passe : les sessions ouvertes de l'associé sont fermées.
+      maj.sessionsRevoqueesLe = new Date(Date.now() - 1000);
+    }
     if (existant) {
       await User.updateOne({ _id: existant._id }, { $set: maj });
     } else {

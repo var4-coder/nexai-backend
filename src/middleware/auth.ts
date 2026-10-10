@@ -36,13 +36,43 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   if (!token) {
     return next(new AppError('Authentification requise', 401));
   }
+  let payload: AuthPayload & { iat?: number };
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
-    req.auth = payload;
-    next();
+    payload = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as AuthPayload & { iat?: number };
   } catch {
-    next(new AppError('Token invalide ou expiré', 401));
+    return next(new AppError('Token invalide ou expiré', 401));
   }
+  // Session encore valable ? Compte supprimé, ou mot de passe changé depuis
+  // l'ouverture de la session → refusée (un jeton volé ne survit pas à un
+  // changement de mot de passe). Petit cache de 30 s pour ne pas interroger
+  // la base à chaque requête.
+  sessionValide(payload.userId, payload.iat)
+    .then((ok) => {
+      if (!ok) return next(new AppError('Session expirée. Reconnectez-vous.', 401));
+      req.auth = payload;
+      next();
+    })
+    .catch(next);
+}
+
+const cacheSessions = new Map<string, { revoqueLe: number | null; existe: boolean; lu: number }>();
+async function sessionValide(userId: string, iat?: number): Promise<boolean> {
+  let etat = cacheSessions.get(userId);
+  if (!etat || Date.now() - etat.lu > 30_000) {
+    const { User } = await import('@/models/User');
+    const u = await User.findById(userId).select('sessionsRevoqueesLe').lean<{ sessionsRevoqueesLe?: Date }>();
+    etat = { existe: !!u, revoqueLe: u?.sessionsRevoqueesLe ? new Date(u.sessionsRevoqueesLe).getTime() : null, lu: Date.now() };
+    cacheSessions.set(userId, etat);
+    if (cacheSessions.size > 20_000) cacheSessions.clear();
+  }
+  if (!etat.existe) return false;
+  if (etat.revoqueLe && (iat ?? 0) * 1000 < etat.revoqueLe) return false;
+  return true;
+}
+
+/** À appeler après un changement de mot de passe : la règle s'applique sans attendre le cache. */
+export function oublierSession(userId: string) {
+  cacheSessions.delete(userId);
 }
 
 /**

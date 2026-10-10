@@ -99,6 +99,8 @@ export interface IUser {
   };
   /** Une relance de logo gratuite est disponible (voir consommerRelanceLogoOfferte). */
   logoRelanceOfferte?: boolean;
+  /** Sessions ouvertes avant cette date refusées (mot de passe changé). */
+  sessionsRevoqueesLe?: Date;
   creditsBalance: number;
   domainsUsed: number;
   /**
@@ -179,6 +181,7 @@ const userSchema = new Schema<IUser>(
       consentementLe: { type: Date },
     },
     logoRelanceOfferte: { type: Boolean, default: false },
+    sessionsRevoqueesLe: { type: Date },
     creditsBalance: { type: Number, default: 0, min: 0 },
     domainsUsed: { type: Number, default: 0, min: 0 },
     domainFreeBudgetUsedUsd: { type: Number, default: 0, min: 0 },

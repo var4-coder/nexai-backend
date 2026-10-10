@@ -11,6 +11,7 @@ export interface AuthTokenPayload {
 
 export function signAuthToken(payload: AuthTokenPayload): string {
   return jwt.sign(payload, env.JWT_SECRET, {
+    algorithm: 'HS256',
     expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
   });
 }

@@ -156,6 +156,21 @@ export async function sendVerificationCodeEmail(to: string, code: string): Promi
   });
 }
 
+export async function sendLoginCodeEmail(to: string, code: string): Promise<void> {
+  await sendEmail({
+    to,
+    subject: 'Votre code de connexion NexAI',
+    htmlContent: `
+      <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;color:#0F172A">
+        <h2 style="margin-bottom:8px">Connexion à l'administration NexAI</h2>
+        <p>Voici votre code de connexion, valable 10 minutes :</p>
+        <p style="font-size:28px;font-weight:700;letter-spacing:6px;margin:24px 0">${code}</p>
+        <p style="color:#B91C1C;font-size:14px">Si vous n'êtes pas à l'origine de cette connexion, quelqu'un connaît votre mot de passe : changez-le immédiatement.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendPasswordResetCodeEmail(to: string, code: string): Promise<void> {
   await sendEmail({
     to,

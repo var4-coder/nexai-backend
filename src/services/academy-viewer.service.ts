@@ -33,7 +33,7 @@ export function verifyAcademyViewToken(
 ): AcademyViewTokenPayload {
   let decoded: AcademyViewTokenPayload;
   try {
-    decoded = jwt.verify(token, env.JWT_SECRET) as AcademyViewTokenPayload;
+    decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as AcademyViewTokenPayload;
   } catch {
     throw new AppError('Lien de visionnage expiré, rechargez la page', 401);
   }

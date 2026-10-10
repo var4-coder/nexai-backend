@@ -1,3 +1,4 @@
+import { estVraieImage } from '@/middleware/securite';
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
@@ -105,7 +106,7 @@ chatRouter.post(
 
       const file = req.file;
       if (!file) throw new AppError('Aucun fichier reçu.', 400);
-      if (!ALLOWED_MIME.has(file.mimetype)) {
+      if (!ALLOWED_MIME.has(file.mimetype) || !estVraieImage(file.buffer, file.mimetype)) {
         throw new AppError('Type de fichier non autorisé (image ou PDF uniquement).', 400);
       }
       const kind: 'image' | 'file' = file.mimetype.startsWith('image/') ? 'image' : 'file';
