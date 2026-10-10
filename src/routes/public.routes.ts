@@ -209,6 +209,16 @@ publicRouter.get('/galerie', async (_req: Request, res: Response) => {
 
 // Visite d'une page publique du site NexAI lui-même (Bilan de l'admin).
 /** Identifiant du pixel Meta du site NexAI (public par nature). */
+/** GET /infos-legales — identité de NexAI pour les pages légales (champs vides non affichés). */
+publicRouter.get('/infos-legales', async (_req: Request, res: Response) => {
+  try {
+    const { lireInfosLegales } = await import('@/services/infos-legales.service');
+    res.json(await lireInfosLegales());
+  } catch {
+    res.json({});
+  }
+});
+
 publicRouter.get('/suivi-pub', async (_req: Request, res: Response) => {
   try {
     res.set('Cache-Control', 'public, max-age=300');

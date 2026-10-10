@@ -3401,6 +3401,24 @@ adminRouter.get(
   }
 );
 
+/** Informations légales de NexAI (mentions légales, CGV, confidentialité). */
+adminRouter.get('/infos-legales', requireRole('admin'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { lireInfosLegales, CHAMPS_ESSENTIELS } = await import('@/services/infos-legales.service');
+    res.json({ infos: await lireInfosLegales(), essentiels: CHAMPS_ESSENTIELS });
+  } catch (err) {
+    next(err);
+  }
+});
+adminRouter.put('/infos-legales', requireRole('admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { enregistrerInfosLegales } = await import('@/services/infos-legales.service');
+    res.json({ infos: await enregistrerInfosLegales(req.body) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** Valide la correction proposée par l'agent : elle part en ligne, puis l'agent la contrôle. */
 adminRouter.post(
   '/incidents/:id/valider',
