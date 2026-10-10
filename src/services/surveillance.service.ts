@@ -54,6 +54,26 @@ export async function confierIncidentsSansReponse(): Promise<number> {
   return confies;
 }
 
+/** Rappel unique si une correction proposée attend la validation depuis plus de 2 heures. */
+export async function rappelerPropositionsEnAttente(): Promise<void> {
+  const limite = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const enAttente = await PlatformAlert.find({
+    statut: 'a_valider',
+    'proposition.proposeeA': { $lt: limite },
+    'proposition.rappelEnvoye': { $ne: true },
+  })
+    .limit(10)
+    .lean();
+  for (const inc of enAttente) {
+    await PlatformAlert.updateOne({ _id: inc._id }, { $set: { 'proposition.rappelEnvoye': true } });
+    sendAgentNotificationEmail({
+      titre: 'Rappel : une correction attend votre validation',
+      texte: `La correction préparée pour « ${inc.composant} » attend depuis plus de 2 heures. Le site reste en ligne (dernière version qui marche), mais la panne n’est pas corrigée tant que vous ne validez pas.`,
+      alerteId: String(inc._id),
+    }).catch(() => undefined);
+  }
+}
+
 /** N'exécute la tâche qu'une fois par intervalle, même si le balayage tourne plus souvent. */
 async function unePar(cle: string, secondes: number): Promise<boolean> {
   const ok = await redisConnection.set(`surveillance:${cle}`, '1', 'EX', secondes, 'NX').catch(() => null);

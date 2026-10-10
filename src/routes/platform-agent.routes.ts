@@ -51,6 +51,24 @@ platformAgentRouter.get('/tasks', async (_req: Request, res: Response, next: Nex
   }
 });
 
+/** GET /tasks/:id/etat — l'erreur se reproduit-elle encore ? (vérification après réparation) */
+platformAgentRouter.get('/tasks/:id/etat', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const inc = await PlatformAlert.findById(req.params.id).select('statut occurrences derniereOccurrence reparation commitValide pointDeRetour').lean();
+    if (!inc) throw new AppError('Incident introuvable.', 404);
+    res.json({
+      statut: inc.statut,
+      occurrences: inc.occurrences,
+      derniereOccurrence: inc.derniereOccurrence,
+      enLigneA: inc.reparation?.enLigneA ?? null,
+      commitValide: inc.commitValide ?? null,
+      pointDeRetour: inc.pointDeRetour ?? null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** POST /tasks/:id/start — l'agent prend l'incident en charge. */
 platformAgentRouter.post('/tasks/:id/start', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -97,6 +115,34 @@ platformAgentRouter.post('/tasks/:id/en-ligne', async (req: Request, res: Respon
       { new: true }
     );
     if (!inc) throw new AppError('Incident introuvable ou pas en réparation.', 404);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** POST /tasks/:id/proposition — correction prête, en attente de validation par l'admin (rien en ligne). */
+platformAgentRouter.post('/tasks/:id/proposition', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = z
+      .object({
+        url: z.string().url().max(300),
+        numero: z.number().int().positive(),
+        resume: z.string().min(3).max(3800),
+        fichiers: z.array(z.string().max(200)).max(20),
+      })
+      .parse(req.body ?? {});
+    const inc = await PlatformAlert.findOneAndUpdate(
+      { _id: req.params.id, statut: 'en_reparation' },
+      { $set: { statut: 'a_valider', proposition: { ...body, proposeeA: new Date() }, compteRenduAgent: body.resume } },
+      { new: true }
+    );
+    if (!inc) throw new AppError('Incident introuvable ou pas en réparation.', 404);
+    sendAgentNotificationEmail({
+      titre: 'Correction prête : à valider',
+      texte: `L’agent a préparé une correction pour « ${inc.composant} ». Rien n’est en ligne : validez-la ou refusez-la depuis l’administration. Résumé : ${body.resume.slice(0, 600)}`,
+      alerteId: String(inc._id),
+    }).catch(() => undefined);
     res.json({ ok: true });
   } catch (err) {
     next(err);

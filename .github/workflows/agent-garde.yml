@@ -1,0 +1,110 @@
+# Agent de garde NexAI — tourne sur les machines de GitHub, indépendamment de NexAI.
+# Même si le serveur NexAI est complètement en panne, ce passage s'exécute.
+#
+#  · Seul, à tout moment : surveillance, redémarrage, retour à la dernière
+#    version qui marchait (jamais de nouveau code sans validation).
+#  · Correction de code : PROPOSÉE par Claude, VALIDÉE par l'administrateur
+#    depuis NexAI, puis contrôlée 5 minutes avec retour arrière si besoin.
+#
+# Secrets (Settings → Secrets and variables → Actions → New repository secret) :
+#   ANTHROPIC_API_KEY  clé API de la Console, dédiée à l'agent (avec limite de dépense)
+#   RENDER_API_KEY     clé API Render
+#   AGENT_TOKEN        même valeur que PLATFORM_AGENT_TOKEN sur Render
+# Variables (onglet « Variables ») :
+#   BACKEND_URL        https://nexai-backend-mj0x.onrender.com
+#   SITE_URL           https://nexaites.netlify.app
+#   RENDER_SERVICE_ID  srv-dak27ru743jc73fmlp30
+name: Agent de garde NexAI
+
+on:
+  schedule:
+    - cron: '7,37 * * * *' # toutes les 30 minutes
+  workflow_dispatch:
+    inputs:
+      verifier:
+        description: 'Incident dont la correction vient d’être validée (lancé par NexAI)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+# Un seul passage à la fois : jamais deux interventions en même temps.
+concurrency:
+  group: agent-garde
+  cancel-in-progress: false
+
+env:
+  BACKEND_URL: ${{ vars.BACKEND_URL }}
+  SITE_URL: ${{ vars.SITE_URL }}
+  RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
+  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+  AGENT_TOKEN: ${{ secrets.AGENT_TOKEN }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  garde:
+    if: github.event.inputs.verifier == '' || github.event.inputs.verifier == null
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      tache: ${{ steps.garde.outputs.tache }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: garde
+        run: node scripts/agent/garde.mjs
+
+  proposition:
+    needs: garde
+    if: needs.garde.outputs.tache != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Point de retour et prise en charge
+        id: prep
+        run: node scripts/agent/reparer.mjs preparer ${{ needs.garde.outputs.tache }}
+      - name: Diagnostic et correction proposée (Claude)
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: |
+            Lis d'abord scripts/agent/CONSIGNES.md et respecte-le strictement.
+            Puis traite l'incident décrit dans .agent/incident.md.
+            Termine toujours par ton compte-rendu dans .agent/rapport.md.
+            Ne fais aucun commit ni push.
+          claude_args: |
+            --model claude-opus-5-5
+            --max-turns 40
+            --allowedTools Read,Edit,Write,Glob,Grep,Bash(npx tsc --noEmit -p .),Bash(git diff:*),Bash(git status),Bash(git checkout -- *)
+      - name: Contrôle et soumission de la proposition (rien n'est mis en ligne)
+        if: always() && steps.prep.outcome == 'success'
+        run: node scripts/agent/reparer.mjs proposer ${{ needs.garde.outputs.tache }}
+
+  verification:
+    if: github.event.inputs.verifier != '' && github.event.inputs.verifier != null
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Contrôle après validation, retour arrière si besoin
+        run: node scripts/agent/reparer.mjs verifier ${{ github.event.inputs.verifier }}

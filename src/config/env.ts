@@ -180,6 +180,13 @@ const envSchema = z.object({
    * bouton indique comment le faire à la main sur Render / Netlify.
    */
   RENDER_API_KEY: z.string().optional().default(''),
+  /**
+   * Validation des corrections de l'agent depuis l'administration : jeton
+   * GitHub LIMITÉ au dépôt du serveur (droits : contenu, pull requests,
+   * actions). Sans lui, la validation se fait sur GitHub.
+   */
+  GITHUB_AGENT_TOKEN: z.string().optional().default(''),
+  GITHUB_DEPOT: z.string().optional().default('var4-coder/nexai-backend'),
   RENDER_SERVICE_ID: z.string().optional().default(''),
   NETLIFY_SITE_ID_NEXAI: z.string().optional().default(''),
   PLATFORM_AGENT_TOKEN: z.string().optional().default(''),

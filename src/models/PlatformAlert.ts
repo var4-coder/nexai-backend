@@ -24,6 +24,7 @@ export type IncidentStatut =
   | 'approuve'         // l'admin autorise la réparation par son agent
   | 'refuse'           // l'admin refuse (faux positif, ou correction manuelle)
   | 'en_reparation'    // l'agent externe a pris l'incident en charge
+  | 'a_valider'        // correction PROPOSÉE par l'agent, en attente de validation de l'admin
   | 'resolu';
 
 export type IncidentGravite = 'faible' | 'moyenne' | 'critique';
@@ -84,6 +85,10 @@ export interface IPlatformAlert {
   pointDeRetour?: { commitServeur?: string; deployServeur?: string; deploySite?: string; noteA?: Date };
   /** Version mise en ligne par l'agent. */
   reparation?: { commitServeur?: string; deployServeur?: string; deploySite?: string; enLigneA?: Date };
+  /** Correction proposée par l'agent (rien n'est en ligne tant que l'admin ne valide pas). */
+  proposition?: { url: string; numero: number; resume: string; fichiers: string[]; proposeeA: Date; rappelEnvoye?: boolean };
+  /** Code de la correction validée par l'admin (fusionnée), contrôlé ensuite par l'agent. */
+  commitValide?: string;
   /** Retour à la version d'avant effectué (par l'agent ou par l'admin). */
   retourArriere?: { par: 'agent' | 'admin'; le: Date; detail?: string };
 
@@ -95,7 +100,7 @@ const platformAlertSchema = new Schema<IPlatformAlert>(
   {
     statut: {
       type: String,
-      enum: ['nouveau', 'diagnostique', 'approuve', 'refuse', 'en_reparation', 'resolu'],
+      enum: ['nouveau', 'diagnostique', 'approuve', 'refuse', 'en_reparation', 'a_valider', 'resolu'],
       default: 'nouveau',
       index: true,
     },
@@ -123,6 +128,8 @@ const platformAlertSchema = new Schema<IPlatformAlert>(
     pointDeRetour: { commitServeur: String, deployServeur: String, deploySite: String, noteA: Date },
     reparation: { commitServeur: String, deployServeur: String, deploySite: String, enLigneA: Date },
     retourArriere: { par: { type: String, enum: ['agent', 'admin'] }, le: Date, detail: String },
+    proposition: { url: String, numero: Number, resume: String, fichiers: [String], proposeeA: Date, rappelEnvoye: Boolean },
+    commitValide: { type: String },
   },
   { timestamps: true }
 );

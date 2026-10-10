@@ -3390,10 +3390,26 @@ adminRouter.get(
           pointDeRetour: i.pointDeRetour ?? null,
           reparation: i.reparation ?? null,
           retourArriere: i.retourArriere ?? null,
+          proposition: i.proposition ?? null,
           resoluA: i.resoluA ?? null,
           creeLe: i.createdAt ?? null,
         })),
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/** Valide la correction proposée par l'agent : elle part en ligne, puis l'agent la contrôle. */
+adminRouter.post(
+  '/incidents/:id/valider',
+  requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { validerProposition } = await import('@/services/validation-agent.service');
+      await validerProposition(req.params.id, req.auth!.email ?? 'admin');
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }
@@ -3440,6 +3456,11 @@ adminRouter.post(
     try {
       const inc = await PlatformAlert.findById(req.params.id);
       if (!inc) throw new AppError('Incident introuvable.', 404);
+      // Correction proposée refusée : la proposition est fermée sur GitHub, rien ne part en ligne.
+      if (inc.statut === 'a_valider') {
+        const { refuserProposition } = await import('@/services/validation-agent.service');
+        await refuserProposition(String(inc._id));
+      }
       inc.statut = 'refuse';
       inc.decidePar = req.auth!.email ?? 'admin';
       inc.decideA = new Date();

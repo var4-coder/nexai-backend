@@ -781,6 +781,8 @@ export async function startWorker() {
         const { surveiller, confierIncidentsSansReponse } = await import('@/services/surveillance.service');
         // En arrière-plan : la vérification des sites ne retarde jamais le reste du balayage.
         surveiller().catch((e) => console.error('[worker] Surveillance des sites échouée', e));
+        const { rappelerPropositionsEnAttente } = await import('@/services/surveillance.service');
+        await rappelerPropositionsEnAttente();
         const confies = await confierIncidentsSansReponse();
         if (confies > 0) console.log(`[worker] ${confies} incident(s) confié(s) à l'agent faute de réponse`);
       } catch (e) {
