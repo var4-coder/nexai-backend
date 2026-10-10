@@ -23,6 +23,17 @@ export function createApp() {
   // n'importe quel domaine (ce sont les sites clients livrés — hébergés sur
   // Netlify sur des domaines qu'on ne connaît pas à l'avance — qui postent
   // leurs formulaires/réservations là, voir routes/public.routes.ts).
+  // Filet de sécurité : si l'adresse de l'API configurée côté site oublie le
+  // suffixe « /api/v1 » (ex. NEXT_PUBLIC_API_URL réglée sur la seule adresse
+  // du serveur), les appels arrivent en « /auth/login » au lieu de
+  // « /api/v1/auth/login » et finissaient en « Route introuvable ». On les
+  // redirige en interne vers la bonne route.
+  app.use((req, _res, next) => {
+    if (!req.url.startsWith('/api/') && req.url !== '/' && !req.url.startsWith('/health')) {
+      req.url = `/api/v1${req.url}`;
+    }
+    next();
+  });
   app.use(
     cors((req, callback) => {
       const isPublicSiteBackend = req.path.startsWith('/api/v1/public');
