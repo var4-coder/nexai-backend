@@ -635,6 +635,15 @@ function signalerEchecTechnique(err: Error, contexte: string, typeJob?: string):
   }).catch(() => {});
 }
 
+/**
+ * Réglages communs des workers, pensés pour un Redis facturé à la commande
+ * (Upstash) : une attente bloquante de 60 s au lieu de 5 s quand la file est
+ * vide, et un contrôle des tâches bloquées toutes les 5 minutes au lieu de
+ * 30 s. Le délai de prise en charge d'une nouvelle tâche ne change pas (elle
+ * réveille aussitôt le worker) ; le trafic Redis au repos est divisé par ~10.
+ */
+const ECONOMIE_REDIS = { drainDelay: 60, stalledInterval: 5 * 60 * 1000 } as const;
+
 export async function startWorker() {
   await connectMongo();
 
@@ -645,6 +654,7 @@ export async function startWorker() {
   const worker = new Worker<PipelineJobData>('pipeline', processJob, {
     connection: redisConnection,
     concurrency: siteConcurrency,
+    ...ECONOMIE_REDIS,
   });
 
   // ── File VIDÉOS : publicités IA ──
@@ -655,6 +665,7 @@ export async function startWorker() {
   const videoWorker = new Worker<PipelineJobData>('pipeline-video', processJob, {
     connection: redisConnection,
     concurrency: videoConcurrency,
+    ...ECONOMIE_REDIS,
   });
 
   videoWorker.on('completed', (job) => {
@@ -726,7 +737,7 @@ export async function startWorker() {
         console.error('[worker] Contrôle hébergement échoué', e);
       }
     },
-    { connection: redisConnection, concurrency: 1 }
+    { connection: redisConnection, concurrency: 1, ...ECONOMIE_REDIS }
   );
   remindersWorker.on('failed', (_job, err) => {
     console.error(`[worker] ❌ Relance Coach business échouée`, err.message);
@@ -800,7 +811,7 @@ export async function startWorker() {
         console.log(`[worker] ${prompts} proposition(s) de prompt appliquée(s) automatiquement`);
       }
     },
-    { connection: redisConnection }
+    { connection: redisConnection, ...ECONOMIE_REDIS }
   );
 
   qualityWorker.on('failed', (_job, err) => {
@@ -813,12 +824,18 @@ export async function startWorker() {
     }).catch(() => {});
   });
 
+  // Ancien balayage à la minute : retiré pour qu'il ne tourne pas en double.
+  await qualityQueue
+    .removeRepeatable('scan-alertes-qualite', { every: 60 * 1000 }, 'scan-alertes-qualite')
+    .catch(() => undefined);
   await qualityQueue.add(
     'scan-alertes-qualite',
     {},
     {
-      repeat: { every: 60 * 1000 }, // toutes les minutes
-      jobId: 'scan-alertes-qualite',
+      // Toutes les 2 minutes : assez réactif pour le délai de décision de
+      // 3 min, deux fois moins de trafic Redis qu'à la minute.
+      repeat: { every: 2 * 60 * 1000 },
+      jobId: 'scan-alertes-qualite-2min',
     }
   );
 
@@ -832,7 +849,7 @@ export async function startWorker() {
       if (job.data.etape === 'script') await ecrireScript(job.data.jobId);
       else await fabriquerVideo(job.data.jobId);
     },
-    { connection: redisConnection, concurrency: 1, lockDuration: 10 * 60 * 1000 }
+    { connection: redisConnection, concurrency: 1, lockDuration: 10 * 60 * 1000, ...ECONOMIE_REDIS }
   );
   academyWorker.on('failed', (job, err) => {
     console.error(`[worker:academie] ❌ ${job?.data?.etape} ${job?.data?.jobId} — ${err.message}`);
