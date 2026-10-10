@@ -1,3 +1,4 @@
+import { hashValue } from '@/utils/crypto';
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
@@ -2680,6 +2681,65 @@ adminRouter.get('/bilan/consommation/:type', requireRole('admin', 'finance'), as
     const type = z.string().regex(/^[a-z0-9_]{2,40}$/).parse(req.params.type);
     const { du, au } = periodeDe(req.query as Record<string, unknown>);
     res.json({ lignes: await detailConsommation(type, du, au) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Compte associé (rôle « finance ») ──
+//
+// Un seul compte associé, créé et modifié par l'administrateur principal.
+// Il voit le Bilan (lecture seule) et peut prévisualiser chaque abonnement,
+// sans accès aux réglages techniques : toutes les autres routes admin
+// exigent le rôle « admin ».
+adminRouter.get('/associe', requireRole('admin'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const a = await User.findOne({ role: 'finance' }).select('email nom createdAt').lean();
+    res.json({ associe: a ? { email: a.email, nom: a.nom ?? '', creeLe: a.createdAt } : null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.put('/associe', requireRole('admin'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = z
+      .object({
+        email: z.string().trim().toLowerCase().email('Adresse email invalide.'),
+        nom: z.string().trim().max(80).optional(),
+        motDePasse: z.string().min(10, 'Le mot de passe doit contenir au moins 10 caractères.').max(200).optional(),
+      })
+      .parse(req.body);
+    const existant = await User.findOne({ role: 'finance' });
+    const autre = await User.findOne({ email: body.email, ...(existant ? { _id: { $ne: existant._id } } : {}) }).select('_id').lean();
+    if (autre) throw new AppError('Cette adresse email est déjà utilisée par un autre compte.', 409);
+    if (!existant && !body.motDePasse) throw new AppError('Choisissez un mot de passe pour créer le compte associé.', 400);
+    const maj: Record<string, unknown> = { email: body.email };
+    if (body.nom !== undefined) maj.nom = body.nom;
+    if (body.motDePasse) maj.passwordHash = await hashValue(body.motDePasse);
+    if (existant) {
+      await User.updateOne({ _id: existant._id }, { $set: maj });
+    } else {
+      await User.create({
+        ...maj,
+        role: 'finance',
+        // Plan d'affichage : l'associé prévisualise chaque abonnement depuis le menu.
+        plan: 'pro_max',
+        creditsBalance: 0,
+        emailVerifiedAt: new Date(),
+      });
+    }
+    const a = await User.findOne({ role: 'finance' }).select('email nom createdAt').lean();
+    res.json({ associe: a ? { email: a.email, nom: a.nom ?? '', creeLe: a.createdAt } : null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.delete('/associe', requireRole('admin'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    await User.deleteOne({ role: 'finance' });
+    res.json({ associe: null });
   } catch (err) {
     next(err);
   }
