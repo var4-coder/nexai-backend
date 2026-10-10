@@ -150,10 +150,17 @@ async function annulerEnLigne(raison, deployAvant, commitFusion) {
 
 /** Après validation par l'admin : contrôle la mise en ligne et revient en arrière si besoin. */
 async function verifier() {
-  const etat = await nexai(`/tasks/${id}/etat`);
-  const commit = etat.commitValide;
-  const avant = etat.pointDeRetour?.deployServeur;
+  // Validée depuis NexAI, ou directement sur GitHub (si l'admin NexAI est inaccessible).
+  // Dans ce second cas, NexAI peut être en panne : on continue sans lui.
+  const etat = await nexai(`/tasks/${id}/etat`).catch(() => ({}));
+  const commit = etat.commitValide || process.env.COMMIT_FUSION;
+  let avant = etat.pointDeRetour?.deployServeur;
   if (!commit) throw new Error('Aucune correction validée pour cet incident');
+  if (!avant) {
+    // Point de retour : la version qui tournait juste avant celle-ci.
+    const liste = await deploiements(10);
+    avant = liste.find((d) => d.commit?.id !== commit && ['live', 'deactivated'].includes(d.status))?.id;
+  }
 
   let deploy = null;
   for (let i = 0; i < 60; i++) {
@@ -173,7 +180,7 @@ async function verifier() {
     await annulerEnLigne('mise en ligne trop longue (plus de 20 minutes)', avant, commit);
     return;
   }
-  await nexai(`/tasks/${id}/en-ligne`, { methode: 'POST', corps: { commitServeur: commit, deployServeur: deploy.id } });
+  await nexai(`/tasks/${id}/en-ligne`, { methode: 'POST', corps: { commitServeur: commit, deployServeur: deploy.id } }).catch(() => undefined);
 
   // Double vérification : 5 minutes de contrôles réels (serveur, base, Redis).
   let echecs = 0;
@@ -185,7 +192,7 @@ async function verifier() {
     await annulerEnLigne(`le serveur a mal répondu ${echecs} fois sur 10 après la correction`, avant, commit);
     return;
   }
-  const apres = await nexai(`/tasks/${id}/etat`);
+  const apres = await nexai(`/tasks/${id}/etat`).catch(() => ({}));
   if (apres.enLigneA && new Date(apres.derniereOccurrence) > new Date(apres.enLigneA)) {
     await annulerEnLigne('l’erreur s’est reproduite après la correction', avant, commit);
     return;

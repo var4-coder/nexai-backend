@@ -17,6 +17,10 @@
 name: Agent de garde NexAI
 
 on:
+  # Correction de l'agent validée directement sur GitHub (bouton « Merge ») :
+  # utile si l'administration NexAI est elle-même en panne.
+  push:
+    branches: [main]
   schedule:
     - cron: '7,37 * * * *' # toutes les 30 minutes
   workflow_dispatch:
@@ -47,7 +51,7 @@ env:
 
 jobs:
   garde:
-    if: github.event.inputs.verifier == '' || github.event.inputs.verifier == null
+    if: github.event_name != 'push' && (github.event.inputs.verifier == '' || github.event.inputs.verifier == null)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -96,7 +100,7 @@ jobs:
         run: node scripts/agent/reparer.mjs proposer ${{ needs.garde.outputs.tache }}
 
   verification:
-    if: github.event.inputs.verifier != '' && github.event.inputs.verifier != null
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.verifier != ''
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -108,3 +112,26 @@ jobs:
           node-version: 22
       - name: Contrôle après validation, retour arrière si besoin
         run: node scripts/agent/reparer.mjs verifier ${{ github.event.inputs.verifier }}
+
+  # Validation faite sur GitHub : on retrouve l'incident dans le message du commit.
+  verification-github:
+    if: "${{ github.event_name == 'push' && contains(github.event.head_commit.message, 'Agent : correction de l') }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Contrôle après validation, retour arrière si besoin
+        env:
+          COMMIT_FUSION: ${{ github.sha }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          ID=$(printf '%s' "$MESSAGE" | grep -oE "incident [0-9a-f]{24}" | head -1 | cut -d' ' -f2)
+          if [ -z "$ID" ]; then echo "Incident introuvable dans le message"; exit 0; fi
+          # Validée depuis NexAI : la vérification est déjà lancée par NexAI, inutile de la doubler.
+          if printf '%s' "$MESSAGE" | grep -q "validée par l'administrateur"; then echo "Vérification lancée par NexAI"; exit 0; fi
+          node scripts/agent/reparer.mjs verifier "$ID"

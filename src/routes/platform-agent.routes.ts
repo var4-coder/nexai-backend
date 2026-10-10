@@ -109,9 +109,16 @@ platformAgentRouter.post('/tasks/:id/en-ligne', async (req: Request, res: Respon
         deploySite: z.string().max(80).optional(),
       })
       .parse(req.body ?? {});
+    // 'a_valider' : correction validée directement sur GitHub (admin NexAI inaccessible).
     const inc = await PlatformAlert.findOneAndUpdate(
-      { _id: req.params.id, statut: 'en_reparation' },
-      { $set: { reparation: { ...body, enLigneA: new Date() } } },
+      { _id: req.params.id, statut: { $in: ['en_reparation', 'a_valider'] } },
+      {
+        $set: {
+          statut: 'en_reparation',
+          reparation: { ...body, enLigneA: new Date() },
+          ...(body.commitServeur ? { commitValide: body.commitServeur } : {}),
+        },
+      },
       { new: true }
     );
     if (!inc) throw new AppError('Incident introuvable ou pas en réparation.', 404);
