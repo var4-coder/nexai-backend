@@ -231,8 +231,8 @@ logosRouter.post(
         })
         .parse(req.body);
 
-      // Même coût qu'un logo (CREDIT_COSTS.LOGO).
-      await debitCredits(user._id, CREDIT_COSTS.LOGO, 'logo', {
+      // Amélioration d'un logo : CREDIT_COSTS.LOGO_AMELIORATION (6), un nouveau logo reste à 11.
+      await debitCredits(user._id, CREDIT_COSTS.LOGO_AMELIORATION, 'logo', {
         relatedSiteId: body.siteId,
         note: `embellissement:${body.mode}`,
       });
@@ -248,7 +248,7 @@ logosRouter.post(
       } catch (genErr) {
         // Aucune image valide obtenue : on rembourse plutôt que de faire
         // perdre des crédits au client pour rien.
-        await creditCredits(user._id, CREDIT_COSTS.LOGO, 'ajustement_admin', {
+        await creditCredits(user._id, CREDIT_COSTS.LOGO_AMELIORATION, 'ajustement_admin', {
           relatedSiteId: body.siteId,
           note: 'remboursement_embellissement_genération_echouee',
         });
@@ -258,7 +258,7 @@ logosRouter.post(
       res.status(201).json({
         mode: body.mode,
         imageUrl: image.url,
-        creditsSpent: CREDIT_COSTS.LOGO,
+        creditsSpent: CREDIT_COSTS.LOGO_AMELIORATION,
         planRequired: ['agence', 'pro_max'],
       });
     } catch (err) {

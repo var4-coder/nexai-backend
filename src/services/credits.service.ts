@@ -153,6 +153,9 @@ export const CREDIT_COSTS = {
   // Logo à 11 crédits (décision du 10/10/2026) : au-dessus des 10 crédits de
   // l'essai, qui n'y a de toute façon pas accès.
   LOGO: 11,
+  // Amélioration d'un logo existant (image d'embellissement) : 6 crédits
+  // (décision du 10/10/2026). Un nouveau logo reste à 11.
+  LOGO_AMELIORATION: 6,
   // ── Skill NexAI (création d'un skill sur mesure par l'Atelier Skills) ──
   //
   // 25 crédits = 3 750 FCFA au tarif de 150 FCFA le crédit (pack).

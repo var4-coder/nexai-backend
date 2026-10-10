@@ -1,3 +1,4 @@
+import { verifierCaptcha } from '@/services/captcha.service';
 import { Router } from 'express';
 import { sourceDe } from '@/services/stats-jour.service';
 import { User } from '@/models/User';
@@ -30,6 +31,8 @@ const authLimiter = rateLimit({
 });
 
 const registerSchema = z.object({
+  /** Jeton du captcha Turnstile (si activé). */
+  captchaToken: z.string().max(4096).optional(),
   email: z.string().email(),
   password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères'),
   /**
@@ -104,7 +107,8 @@ async function noterAcquisition(userId: string | undefined, source?: string, cam
 
 authRouter.post('/register', authLimiter, async (req, res, next) => {
   try {
-    const { email, password, pays, referralCode, deviceFingerprint, source, campagne } = parseOrThrow(registerSchema, req.body);
+    const { email, password, pays, referralCode, deviceFingerprint, source, campagne, captchaToken } = parseOrThrow(registerSchema, req.body);
+    await verifierCaptcha(captchaToken, req.ip);
     const user = await registerUser({ email, password, pays, referralCode, deviceFingerprint, ip: req.ip });
     await noterAcquisition((user as { id?: string; _id?: unknown }).id ?? String((user as { _id?: unknown })._id), source, campagne);
     res.status(201).json({

@@ -22,6 +22,12 @@ const envSchema = z.object({
    */
   REDIS_PROVIDER: z.enum(['upstash', 'render']).optional().default('upstash'),
   REDIS_URL_RENDER: z.string().optional().default(''),
+  /**
+   * Captcha Cloudflare Turnstile à l'inscription (gratuit, sans compte Google).
+   * Vide = captcha désactivé. La clé publique va côté site :
+   * NEXT_PUBLIC_TURNSTILE_SITE_KEY (Netlify).
+   */
+  TURNSTILE_SECRET_KEY: z.string().optional().default(''),
 
   JWT_SECRET: z.string().min(1, 'JWT_SECRET est requis'),
   JWT_EXPIRES_IN: z.string().default('7d'),
